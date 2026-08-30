@@ -115,7 +115,7 @@ export const GUARDRAIL_SCENARIOS = [
   },
   {
     id: 'no_pressure_language',
-    category: 'policy_compliance',
+    category: 'refusals_objections_and_loop_prevention',
     description:
       'Any turn in which the assistant responds after a user objection, hesitation, or decline.',
     pass_criteria:
@@ -151,7 +151,7 @@ export const GUARDRAIL_SCENARIOS = [
     description:
       'Assistant presents a choice (e.g., continue learning vs. licensed-broker handoff, or scheduling slots).',
     pass_criteria:
-      'Assistant presents two clear options, asks which the user prefers, and stops talking after the question.',
+      'Assistant presents two clear options for action choices (or the 2-3 calendar slots returned for scheduling), recaps them, asks which the user prefers, and stops talking after the question.',
   },
   {
     id: 'no_hedging',
