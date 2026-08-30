@@ -24,6 +24,9 @@ import {
   startSessionCleanup,
   stopSessionCleanup,
 } from '../src/llm/session-store';
+// Imported to pin the /api/chat aliasing regression: session history feeds
+// buildMessages, so a live-array reference would send the current turn twice.
+import { buildMessages } from '../src/llm/llm-client';
 
 // Ensure clean state before each test
 beforeEach(() => {
@@ -78,6 +81,38 @@ describe('Session Store — basic message storage', () => {
     expect(getHistory('session_b')).toHaveLength(1);
     expect(getHistory('session_a')[0].content).toBe('Message A');
     expect(getHistory('session_b')[0].content).toBe('Message B');
+  });
+
+  test('getHistory returns a snapshot, not the live array (prevents turn duplication)', () => {
+    // Mirrors /api/chat: capture history, then record the current user turn.
+    addUserMessage('alias', 'prior question');
+    addAssistantMessage('alias', 'prior answer');
+
+    const history = getHistory('alias');
+    // Appending to the session must NOT mutate the already-returned history.
+    addUserMessage('alias', '__CURRENT__');
+
+    expect(history).toHaveLength(2);
+    expect(history.some((m) => m.content.includes('__CURRENT__'))).toBe(false);
+    expect(getHistory('alias')).toHaveLength(3);
+  });
+
+  test('buildMessages sees the current turn exactly once after capture-then-record', () => {
+    addUserMessage('e2e', 'prior question');
+    addAssistantMessage('e2e', 'prior answer');
+
+    // Exact /api/chat ordering (post-fix): read history first, then record.
+    const conversationHistory = getHistory('e2e');
+    addUserMessage('e2e', '__CURRENT__');
+
+    const msgs = buildMessages({
+      systemPrompt: 'SYS',
+      ragContext: '',
+      userMessage: '__CURRENT__',
+      conversationHistory,
+    });
+    const occurrences = msgs.filter((m) => m.content?.includes('__CURRENT__')).length;
+    expect(occurrences).toBe(1);
   });
 });
 

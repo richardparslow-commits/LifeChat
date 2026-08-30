@@ -45,6 +45,11 @@ const sessions = new Map<string, SessionData>();
 /**
  * Gets the conversation history for a session as LLMMessage[].
  * Returns an empty array if the session doesn't exist.
+ *
+ * Returns a SNAPSHOT (copy), not the live array: otherwise a caller that
+ * holds the reference and then appends to the session (e.g. /api/chat records
+ * the current user turn into history) would have ``buildMessages`` read the
+ * current turn twice — once via history and once as ``userMessage``.
  */
 export function getHistory(sessionId: string): LLMMessage[] {
   const session = sessions.get(sessionId);
@@ -53,7 +58,7 @@ export function getHistory(sessionId: string): LLMMessage[] {
   }
   // Update last activity time
   session.lastActivity = Date.now();
-  return session.messages;
+  return session.messages.slice();
 }
 
 /**
