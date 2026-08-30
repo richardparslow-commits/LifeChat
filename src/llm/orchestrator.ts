@@ -8,7 +8,8 @@
  *   4. Extract JSON from the response (Section 15)
  *   5. Parse and validate against the Zod schema (Section 15)
  *   6. Validate cross-field schema rules (Section 15)
- *   7. Return the validated response or a safe fallback (Section 4.11)
+ *   7. Retry once with feedback when validation fails, then fall back (Section 4.11)
+ *   8. Return the validated response or a safe fallback (Section 4.11)
  *
  * The orchestrator never trusts the LLM output blindly — it validates
  * every field, enforces consent rules, and falls back to a static safe
@@ -93,7 +94,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   }
 
   // 4. Call the LLM (Section 4.6, 4.9, 4.11)
-  const llmResult = await callLLM({
+  const llmOptions = {
     systemPrompt: SYSTEM_PROMPT,
     ragContext,
     userMessage: sanitizeRetrievedContent(input.userMessage),
@@ -101,7 +102,8 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     currentState: input.currentState,
     temperature: 0.3,
     maxTokens: 800,
-  });
+  };
+  const llmResult = await callLLM(llmOptions);
 
   // 5. If LLM call failed, return a fallback response (Section 4.11)
   if (!llmResult.success || !llmResult.content) {
@@ -113,48 +115,87 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     };
   }
 
-  // 6. Extract JSON from the response (Section 15)
-  const jsonStr = extractJSON(llmResult.content);
-  if (!jsonStr) {
-    console.error('Failed to extract JSON from LLM response');
-    return {
-      response: buildFallbackResponse(input, 'json_extraction_failed', null),
-      ragPassages: retrievalResult.passages,
-      latencyMs: Date.now() - startTime,
-    };
+  // 6. Extract, parse, and validate the response (Section 15).
+  //    If the first attempt is invalid, retry ONCE with the validation
+  //    errors fed back to the model, then fall back only if the retry is
+  //    also invalid (Section 4.11 resilience).
+  const attemptValidation = (
+    raw: string,
+  ): { ok: true; validated: AssistantResponse } | { ok: false; kind: string; detail: string } => {
+    const jsonStr = extractJSON(raw);
+    if (!jsonStr) {
+      return {
+        ok: false,
+        kind: 'json_extraction_failed',
+        detail:
+          'No JSON object could be extracted. Return exactly one valid JSON object and no surrounding prose.',
+      };
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      return {
+        ok: false,
+        kind: 'json_parse_failed',
+        detail: 'The returned JSON could not be parsed.',
+      };
+    }
+
+    const schemaResult = AssistantResponseSchema.safeParse(parsed);
+    if (!schemaResult.success) {
+      const issues = schemaResult.error.issues
+        .map((issue) => `- ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+        .join('\n');
+      return {
+        ok: false,
+        kind: 'schema_validation_failed',
+        detail: `The returned JSON is missing or has invalid fields:\n${issues}`,
+      };
+    }
+
+    const ruleErrors = validateSchemaRules(schemaResult.data);
+    if (ruleErrors.length > 0) {
+      return {
+        ok: false,
+        kind: 'schema_rule_violation',
+        detail: `Cross-field rules were violated:\n${ruleErrors.map((e) => `- ${e}`).join('\n')}`,
+      };
+    }
+
+    return { ok: true, validated: schemaResult.data };
+  };
+
+  const firstAttempt = attemptValidation(llmResult.content);
+  let validated: AssistantResponse | null = null;
+  let failureKind: string | null = firstAttempt.ok ? null : firstAttempt.kind;
+
+  if (firstAttempt.ok) {
+    validated = firstAttempt.validated;
+  } else {
+    console.error('LLM response invalid, retrying once:', firstAttempt.kind, firstAttempt.detail);
+    const retryResult = await callLLM({
+      ...llmOptions,
+      validationFeedback: `Your previous response was rejected by the application validator.\n${firstAttempt.detail}\nReturn ONE complete JSON object matching the schema in the system prompt, with every required top-level key: assistant_message, state, citations, lead_data, consent, proposed_action, action_arguments, risk_flags, analytics.`,
+    });
+    if (retryResult.success && retryResult.content) {
+      const secondAttempt = attemptValidation(retryResult.content);
+      if (secondAttempt.ok) {
+        validated = secondAttempt.validated;
+      } else {
+        console.error('LLM retry also invalid:', secondAttempt.kind, secondAttempt.detail);
+        failureKind = secondAttempt.kind;
+      }
+    } else {
+      console.error('LLM retry call failed:', retryResult.error);
+      failureKind = 'llm_call_failed';
+    }
   }
 
-  // 7. Parse and validate against the Zod schema (Section 15)
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonStr);
-  } catch (e) {
-    console.error('JSON parse error:', e);
+  if (!validated) {
     return {
-      response: buildFallbackResponse(input, 'json_parse_failed', null),
-      ragPassages: retrievalResult.passages,
-      latencyMs: Date.now() - startTime,
-    };
-  }
-
-  const schemaResult = AssistantResponseSchema.safeParse(parsed);
-  if (!schemaResult.success) {
-    console.error('Schema validation failed:', schemaResult.error.issues);
-    return {
-      response: buildFallbackResponse(input, 'schema_validation_failed', null),
-      ragPassages: retrievalResult.passages,
-      latencyMs: Date.now() - startTime,
-    };
-  }
-
-  const validated: AssistantResponse = schemaResult.data;
-
-  // 8. Validate cross-field schema rules (Section 15)
-  const ruleErrors = validateSchemaRules(validated);
-  if (ruleErrors.length > 0) {
-    console.error('Schema rule violations:', ruleErrors);
-    return {
-      response: buildFallbackResponse(input, 'schema_rule_violation', null),
+      response: buildFallbackResponse(input, failureKind ?? 'schema_validation_failed', null),
       ragPassages: retrievalResult.passages,
       latencyMs: Date.now() - startTime,
     };

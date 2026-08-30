@@ -38,6 +38,8 @@ export interface LLMCallOptions {
   currentState?: string;
   temperature?: number;
   maxTokens?: number;
+  /** Why a previous response was rejected, for a retry with feedback. */
+  validationFeedback?: string;
 }
 
 export interface LLMCallResult {
@@ -102,6 +104,15 @@ export function buildMessages(opts: LLMCallOptions): LLMMessage[] {
     role: 'system',
     content: `[APPLICATION CONTEXT] Current conversation state: ${opts.currentState ?? 'education'}. Set the JSON "state" field to the appropriate state for this turn: stay in the current state when information is still being collected, and advance to the next state when its condition is met.`,
   });
+
+  // 6. Validation feedback for a retry — tells the model why its previous
+  //    response was rejected so it can produce a complete, valid one.
+  if (opts.validationFeedback) {
+    messages.push({
+      role: 'system',
+      content: `[VALIDATION FEEDBACK — your previous response was rejected. Fix it and return a complete, valid response.]\n${opts.validationFeedback}`,
+    });
+  }
 
   return messages;
 }
