@@ -159,6 +159,7 @@ Add this script to your WordPress/Elementor site (via HTML widget or theme foote
 - NAIC Model Bulletin on AI Systems (Dec 4, 2023)
 - NAIC Model 570 — life/annuity advertising disclosure
 - NIST AI 600-1 — Generative AI Profile
+- FTC Act §5 / FTC AI guidance (2023–2025) — AI claims must be substantiated; every answer is RAG-grounded with citations and abstention is the default when evidence is insufficient
 - OWASP LLM01:2025 — prompt injection
 - WCAG 2.2 AA — accessibility
 - FCC prior-express-written-consent rules (Eleventh Circuit vacatur Jan 2025)

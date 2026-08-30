@@ -23,6 +23,7 @@ every material change*, with "signed approval, version hash" as the required evi
 | **Invitation to inquire** | Content that invites a person to inquire about or contract for insurance | 28 TAC §21.104(3) — must identify the insurer's full licensed name; §21.122(c) — agent must submit advertising to insurer for written approval before use; §21.116 — retain specimens ≥ 3 years |
 | **Lead generation** | Collects contact and/or profile data for follow-up marketing or sales | TDPSA (consent; sensitive-data rules); TCPA/Texas telemarketing (prior express written consent for SMS/calls); Do-Not-Call suppression |
 | **AI-system risk control** | Overarching governance of the AI system itself | Texas H.B. 149 (Responsible AI Governance Act, eff. Jan 1, 2026); NAIC Model Bulletin on AI (Dec 4, 2023); NIST AI 600-1 |
+| **FTC substantiation (AI claims)** | Marketing claims — including those generated or augmented by AI — must be truthful, non-deceptive, and **substantiated before they are made**; the FTC has stated that AI does not change this and that AI systems must not make claims they cannot support | FTC Act §5 (unfair/deceptive acts); FTC guidance on AI (2023–2025), e.g. "Keep Your AI Claims in Check" (2023) and "A.I.: The FTC is looking at you" (2023) |
 
 ---
 
@@ -31,7 +32,7 @@ every material change*, with "signed approval, version hash" as the required evi
 | # | Flow (states) | What the assistant does | Proposed classification | Key regulatory duties | Implementation status | Approval artifacts needed |
 |---|---|---|---|---|---|---|
 | F1 | **Disclosure** (`disclosure`) | Shows AI identity, scope, privacy warning before first message; banner persists in widget header | Educational + AI identity disclosure | NAIC Model 570 disclosure; §541.061 truthfulness; H.B. 149 transparency | **Enabled** (Phase 1 pilot) | Approve first-message disclosure & banner copy; record version hash |
-| F2 | **Education** (`education`, `dime_estimator`) | Answers from RAG over compliance-reviewed corpus with claim-level citations; abstains (with reason) when no sufficient evidence. Includes the **DIME coverage-needs estimator** — a 3-step educational exercise (Debt, Income, Mortgage, Education); the illustrative range is computed by the application from coarse, non-sensitive inputs, never a recommendation or quote | Educational; at most **institutional advertisement** so long as no specific policy/carrier/quote is mentioned | §541.061; §21.104 identification of responsible person (agent full licensed name or Texas license number); NAIC 570; H.B. 149 | **Enabled** (Phase 1 pilot); DIME output is an app-computed illustrative range, not a quote | Approve corpus source list, citation format, abstention wording; confirm no policy/quote offers; **approve DIME estimator questions & illustrative range table** |
+| F2 | **Education** (`education`, `dime_estimator`) | Answers from RAG over compliance-reviewed corpus with claim-level citations; abstains (with reason) when no sufficient evidence. Includes the **DIME coverage-needs estimator** — a 3-step educational exercise (Debt, Income, Mortgage, Education); the illustrative range is computed by the application from coarse, non-sensitive inputs, never a recommendation or quote | Educational; at most **institutional advertisement** so long as no specific policy/carrier/quote is mentioned | §541.061; §21.104 identification of responsible person (agent full licensed name or Texas license number); NAIC 570; H.B. 149; **FTC substantiation — every material claim is RAG-grounded with a citation; abstention is the default when evidence is insufficient** | **Enabled** (Phase 1 pilot); DIME output is an app-computed illustrative range, not a quote | Approve corpus source list, citation format, abstention wording; confirm no policy/quote offers; **approve DIME estimator questions & illustrative range table** |
 | F3 | **Clarify** (`clarify`) | Asks one clarifying question; never requests PII merely to answer; max 2 failed clarifications → links + human help | Educational | §541.061; §21.104 (as F2) | **Enabled** | Covered by F2 approval |
 | F4 | **Qualification** (`qualification_offer`, `qualification`) | After value delivered, offers up to 3 optional questions (goal / timeline / current coverage), one at a time, **no health details**; decline suppresses re-offer in session | Educational context-gathering — **lead-generation precursor** once it feeds F6 | §541.061; §21.104 if it invites inquiry; TDPSA not triggered (no contact/sensitive data collected here) | **Enabled**; loop controls + value-before-offer guardrails in place | Approve the 3 questions and offer/decline handling |
 | F5 | **Medical review** (`medical_offer`, `medical_review`) — Phase 2 | Proposes optional medical fact-finding with a just-in-time notice; requires **explicit, unchecked, versioned** medical consent; asks approved topics one at a time; health data accepted **only** in `medical_review`; MIB/attending-physician transparency statement per counsel checklist | **Lead generation collecting TDPSA sensitive data** (health) | TDPSA explicit consent + minimization + deletion/withdrawal; §541.061; §21.104 admissibility of the MIB transparency statement; H.B. 149 human-review if used in consequential decisions | **Disabled by default** — `HEALTH_DATA_COLLECTION_DISABLED=true`; runs only after explicit `.env` flip post-approval; draft spec in `docs/medical-lead-capture-phase2.md` | Sign §7 checklist of `medical-lead-capture-phase2.md`; approve `RECOMMENDED_MEDICAL_CONSENT_COPY` + just-in-time notice; approve field list (TDPSA minimization) |
@@ -39,10 +40,10 @@ every material change*, with "signed approval, version hash" as the required evi
 | F7 | **Scheduling** (`scheduling`, `confirmation`) | Presents read-only availability from the calendar tool with time zone; rechecks slot at commit; confirms booking only after downstream success; sends transactional confirmation | Service facilitation (not advertising) | §541.061 (no misrepresentation of booking status); TDPSA (calendar/contact data); confirmation must not carry marketing | **Structured** (tool allowlist + `SCHEDULING_RULES` implemented); real calendar API **not connected** | Approve confirmation copy; approve calendar/CRM integration when added |
 | F8 | **Handoff** (`handoff`) | Summarizes with consent, provides availability/SLA, stops giving advice; routes to licensed broker | Customer-service referral | §541.061; clear that follow-up is by the licensed broker, not the assistant | **Enabled** | Approve handoff summary copy |
 | F9 | **Standby** (`standby`) | Post-flow state; education only; re-enters an active flow only on user initiative | Educational | As F2 | **Enabled** | Covered by F2 approval |
-| F10 | **Safety paths** (kill switch, abstention, static fallback, rate limit, prompt-injection & sensitive-data detection) | Risk-control layer; not a consumer-facing flow | AI-system risk control (no advertising classification) | H.B. 149 human oversight / kill switch; NAIC AI Bulletin monitoring; NIST AI 600-1 | **Enabled** | Covered by governance matrix security control (prelaunch red-team, quarterly) |
+| F10 | **Safety paths** (kill switch, abstention, static fallback, rate limit, prompt-injection & sensitive-data detection) | Risk-control layer; not a consumer-facing flow | AI-system risk control (no advertising classification) | H.B. 149 human oversight / kill switch; NAIC AI Bulletin monitoring; NIST AI 600-1; **FTC substantiation — the abstention gate is the enforcement mechanism: no claim is emitted without an approved retrieved source** | **Enabled** | Covered by governance matrix security control (prelaunch red-team, quarterly) |
 
 > **Machine-readable mirror:** served at `GET /health` → `compliance` (source:
-> `src/compliance/classification-matrix.ts`, version `1.1.0`). Each flow carries
+> `src/compliance/classification-matrix.ts`, version `1.2.0`). Each flow carries
 > `approvalStatus` (counsel record) and `runtimeStatus` (live gating, e.g. medical
 > review `gated_by_flag` until `HEALTH_DATA_COLLECTION_DISABLED=false` is flipped).
 
@@ -59,8 +60,11 @@ These are enforced in code and must pass the **100% critical-compliance test gat
   suitability analysis, underwriting, tax/legal/medical advice).
 - **No pressure tactics** — `PROHIBITED_PRESSURE_TACTICS` (guilt, fear, false urgency, scarcity,
   shame, repeated persuasion, family-protection-status claims, etc.).
-- **Grounded answers** — RAG over compliance-reviewed sources only; abstention when evidence is
-  absent/conflicting/expired; citations on claims.
+- **Grounded answers / FTC substantiation** — every material claim is grounded in an approved
+  retrieved source and carries a citation (system prompt §6; orchestrator abstention gate in
+  `src/llm/orchestrator.ts`); abstention is the **default** when evidence is absent, conflicting, or
+  expired, so the assistant never makes a claim it cannot substantiate (FTC Act §5; FTC AI guidance
+  2023–2025).
 - **Deterministic tool authorization** — model proposes, application validates (allowlist, consent
   version, suppression, idempotency, downstream-success confirmation).
 - **Versioned consent** — contact consent carries a version (`1.0.0` default); medical consent requires a current `medical_consent_version` whenever a `medical_profile` is populated; ambiguous replies are **not** consent.
@@ -89,13 +93,15 @@ Any of the following invalidates approval for the affected flows until counsel r
 |---|---|---|---|
 | 1.0.0 | 2026-08-30 | LifeChat implementation | Initial matrix — proposed classifications for all flows (Phase 0, status: Pending) |
 | 1.1.0 | 2026-08-30 | LifeChat implementation | F2 extended with the DIME coverage-needs estimator sub-flow (`dime_estimator` state); added approval artifact for the estimator questions & illustrative range table |
+| 1.2.0 | 2026-08-30 | LifeChat implementation | Documented FTC substantiation duty (FTC Act §5; FTC AI guidance 2023–2025) on F2 and F10 — RAG-grounded answers with citations and abstention-as-default mapped to the enforcement controls |
 
 ---
 
 ## 6. Counsel sign-off
 
 Reviewed against: Texas Insurance Code §541.061 · TDPSA · 28 TAC §§21.104/21.116/21.122 · NAIC
-Model 570 · NAIC AI Model Bulletin (Dec 4, 2023) · Texas H.B. 149 (eff. Jan 1, 2026) · NIST AI 600-1.
+Model 570 · NAIC AI Model Bulletin (Dec 4, 2023) · Texas H.B. 149 (eff. Jan 1, 2026) · NIST AI 600-1 ·
+FTC Act §5 and FTC AI guidance (2023–2025).
 
 | # | Flow | Proposed classification | **Counsel determination** | Approved? (date) |
 |---|---|---|---|---|

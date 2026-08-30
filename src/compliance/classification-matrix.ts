@@ -51,7 +51,7 @@ export interface ComplianceOverview {
   flows: ComplianceFlowOverview[];
 }
 
-export const MATRIX_VERSION = '1.1.0';
+export const MATRIX_VERSION = '1.2.0';
 export const MATRIX_DOCUMENT = 'docs/compliance-classification-matrix.md';
 
 /**
@@ -86,6 +86,7 @@ export const COMPLIANCE_CLASSIFICATION_MATRIX: ComplianceFlow[] = [
       '28 TAC §21.104 identification of responsible person',
       'NAIC Model 570',
       'Texas H.B. 149',
+      'FTC AI guidance substantiation (FTC Act §5; 2023–2025 guidance) — educational outputs are RAG-grounded with citations; abstention is the default when evidence is insufficient',
     ],
     approvalStatus: 'pending_counsel',
     approvalArtifacts: [
@@ -215,6 +216,7 @@ export const COMPLIANCE_CLASSIFICATION_MATRIX: ComplianceFlow[] = [
       'Texas H.B. 149 human oversight / kill switch',
       'NAIC AI Bulletin monitoring',
       'NIST AI 600-1',
+      'FTC substantiation (FTC Act §5; 2023–2025 guidance) — abstention gate prevents unsupported claims',
     ],
     approvalStatus: 'pending_counsel',
     approvalArtifacts: [
