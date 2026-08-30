@@ -356,8 +356,10 @@ consent): set "medical_profile" to
   "cancer": { "cancer_type": "melanoma", "years_cancer_free": 6 }
 }
 
-and set "consent.medical_consent_affirmed": true with a current "medical_consent_version".
-Never populate medical_profile without affirmed medical consent.
+"diabetes" and "cancer" may be null until those facts are collected. When
+populating medical_profile, set "consent.medical_consent_affirmed": true with a
+current "medical_consent_version". Never populate medical_profile without
+affirmed medical consent.
 `;
 
 /**
