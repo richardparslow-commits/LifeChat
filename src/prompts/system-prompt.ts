@@ -264,8 +264,100 @@ Apply these communication patterns only within the permitted educational scope a
 
 ## 15. REQUIRED JSON OUTPUT
 Return exactly one valid JSON object and no surrounding prose or markdown. The application
-shows only assistant_message to the visitor. Use null for unknown values and never invent a
-lead field. Do not include sensitive data in any field.
+shows only assistant_message to the visitor. Use null for unknown values, never invent a
+lead field, and never put sensitive data in analytics.
+
+Every response MUST contain exactly these top-level keys, in this shape:
+
+{
+  "assistant_message": "Your reply to the visitor (the only text the visitor sees).",
+  "state": "education",
+  "citations": [],
+  "lead_data": {
+    "first_name": null,
+    "email": null,
+    "phone": null,
+    "goal_category": null,
+    "timeline_category": null,
+    "current_coverage_category": null,
+    "policy_type_seeking": null,
+    "coverage_amount_seeking": null,
+    "contact_channel": null,
+    "time_zone": null,
+    "preferred_contact_window": null,
+    "medical_profile": null
+  },
+  "consent": {
+    "privacy_notice_version": "1.0.0",
+    "contact_consent_version": null,
+    "contact_consent_affirmed": false,
+    "medical_consent_version": null,
+    "medical_consent_affirmed": false,
+    "do_not_contact": false
+  },
+  "proposed_action": "none",
+  "action_arguments": {},
+  "risk_flags": [],
+  "analytics": {
+    "event_name": "ai_answer_shown",
+    "topic_category": null,
+    "conversation_stage": "education",
+    "fallback_type": null,
+    "handoff_reason": null,
+    "error_code": null
+  }
+}
+
+Allowed values:
+
+- "state": one of "disclosure", "education", "clarify", "qualification_offer",
+  "qualification", "medical_offer", "medical_review", "contact_offer", "consent",
+  "lead_submit", "scheduling", "confirmation", "handoff", "standby". Emit the
+  appropriate next state for this turn.
+
+- "citations": [] or [{ "title": "...", "url": "https://..." }]. Never cite a source
+  that was not in the approved evidence.
+
+- "lead_data": use null for unknown; only populate fields the visitor actually provided.
+  "goal_category": "income_replacement" | "mortgage_time_limited_need" | "final_expenses" |
+  "legacy_planning" | "other"
+  "timeline_category": "researching" | "comparing_soon" | "putting_coverage_in_place_now"
+  "current_coverage_category": "yes" | "no" | "unsure"
+  "policy_type_seeking": "term" | "whole_life" | "iul" | "unsure"
+  "contact_channel": "email" | "phone" | "calendar"
+
+- "consent": "contact_consent_affirmed" and "medical_consent_affirmed" must be false
+  unless the visitor gave an unambiguous, affirmative yes for that specific consent
+  (Section 9). A hedged "maybe" is NOT consent.
+
+- "proposed_action": one of "none", "search_knowledge", "create_lead",
+  "get_calendar_slots", "book_appointment", "request_human_handoff",
+  "send_transactional_confirmation". You only propose; the application authorizes.
+
+- "analytics.event_name": one of "ai_chat_open", "ai_conversation_start",
+  "ai_answer_shown", "ai_source_click", "ai_abstention", "ai_qualification_offer",
+  "ai_qualification_start", "ai_qualification_complete", "ai_contact_offer",
+  "ai_contact_consent", "ai_lead_submit_success", "ai_schedule_open",
+  "ai_appointment_booked", "ai_handoff_request", "ai_handoff_complete",
+  "ai_fallback_shown", "ai_error".
+
+Medical profile (Phase 2 — only in "medical_review" after the visitor affirms medical
+consent): set "medical_profile" to
+
+{
+  "date_of_birth": "1985-06-15",
+  "gender": "male",              // male | female | other | prefer_not_to_say
+  "height_inches": 70,
+  "weight_lbs": 185,
+  "tobacco_nicotine_use": "none", // none | cigarettes | vaping | other_nicotine | prefer_not_to_say
+  "medical_conditions": ["type 2 diabetes"],
+  "medications": ["metformin"],
+  "diabetes": { "diabetes_type": "type2", "treatment_method": "pills", "last_a1c": "6.8" },
+  "cancer": { "cancer_type": "melanoma", "years_cancer_free": 6 }
+}
+
+and set "consent.medical_consent_affirmed": true with a current "medical_consent_version".
+Never populate medical_profile without affirmed medical consent.
 `;
 
 /**

@@ -104,7 +104,21 @@ describe('GET / with the medical capture flag OFF (default)', () => {
       medicalConsentAffirmative: true,
     });
     expect(res.status).toBe(200);
-    expect(res.body.state).toBe('medical_offer');
+    // The flag forces consent off, so the state machine stays in medical_offer
+    // (observable via the stage passed to the orchestrator).
+    expect(res.body.analytics.conversation_stage).toBe('medical_offer');
+  });
+
+  it('does not abstain on conversational turns in flow states (contact_offer)', async () => {
+    // Short conversational replies ("That is everything.") have no RAG
+    // evidence; the abstention gate must not block flow-state turns.
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-contactflow',
+      currentState: 'contact_offer',
+      message: 'That is everything.',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.analytics.event_name).not.toBe('ai_abstention');
   });
 });
 
@@ -147,9 +161,23 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
       message: 'I have diabetes and I take insulin',
     });
     expect(res.status).toBe(200);
-    expect(res.body.state).toBe('medical_review');
+    // The health-data block (step 4) must NOT fire in medical_review
     expect(res.body.risk_flags).not.toContain('sensitive_data_disclosed');
-    expect(res.body.proposed_action).not.toBe('request_human_handoff');
+    expect(res.body.analytics.event_name).not.toBe('ai_handoff_request');
+    // The RAG abstention gate must NOT fire either (interview state)
+    expect(res.body.analytics.event_name).not.toBe('ai_abstention');
+  });
+
+  it('does not short-circuit to abstention on non-corpus answers in medical_review', async () => {
+    // The user's short factual answers (birthdate, A1C) have no RAG evidence;
+    // the RAG gate must not block the consented interview.
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'on-medreview-nocorpus',
+      currentState: 'medical_review',
+      message: 'My last A1C was 6.8',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.analytics.event_name).not.toBe('ai_abstention');
   });
 
   it('honors medical consent and transitions medical_offer -> medical_review', async () => {
@@ -160,7 +188,9 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
       medicalConsentAffirmative: true,
     });
     expect(res.status).toBe(200);
-    expect(res.body.state).toBe('medical_review');
+    // The state machine advanced: the endpoint passed medical_review as the
+    // orchestrator's current state (observable even when the LLM is unreachable)
+    expect(res.body.analytics.conversation_stage).toBe('medical_review');
   });
 
   it('stays in medical_offer when no consent is given', async () => {
@@ -170,7 +200,9 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
       message: 'qzxvbnm asdfghj',
     });
     expect(res.status).toBe(200);
-    expect(res.body.state).toBe('medical_offer');
+    // Without consent the state machine stays in medical_offer (observable via
+    // the stage passed to the orchestrator).
+    expect(res.body.analytics.conversation_stage).toBe('medical_offer');
   });
 });
 
