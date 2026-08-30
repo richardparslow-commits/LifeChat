@@ -268,6 +268,74 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
   });
 });
 
+describe('GET /api/disclosure — license & appointment disclosure', () => {
+  describe('without a configured license number (fail closed)', () => {
+    let loaded: LoadedApp;
+
+    beforeAll(async () => {
+      loaded = await loadApp({
+        LIFECHAT_PORT: '0',
+        LLM_API_KEY: '',
+        HEALTH_DATA_COLLECTION_DISABLED: 'true',
+        TEXAS_LICENSE_NUMBER: '',
+      });
+    });
+
+    afterAll(async () => {
+      await loaded.cleanup();
+    });
+
+    it('serves null (never the placeholder) when no license number is configured', async () => {
+      const res = await request(loaded.app).get('/api/disclosure');
+      expect(res.status).toBe(200);
+      expect(res.body.texasLicenseNumber).toBeNull();
+      // The placeholder is never serialized to the client
+      expect(JSON.stringify(res.body)).not.toContain('Pending compliance approval');
+    });
+
+    it('omits the license line from the first message and includes the appointment disclaimer', async () => {
+      const res = await request(loaded.app).get('/api/disclosure');
+      expect(res.body.firstMessage).not.toContain('License #');
+      expect(res.body.firstMessage).toContain(
+        'Richard Parslow is appointed with select carriers. Coverage availability may vary.',
+      );
+      expect(res.body.appointmentDisclaimer).toBe(
+        'Richard Parslow is appointed with select carriers. Coverage availability may vary.',
+      );
+    });
+  });
+
+  describe('with a configured license number and appointment list', () => {
+    let loaded: LoadedApp;
+
+    beforeAll(async () => {
+      loaded = await loadApp({
+        LIFECHAT_PORT: '0',
+        LLM_API_KEY: '',
+        HEALTH_DATA_COLLECTION_DISABLED: 'true',
+        TEXAS_LICENSE_NUMBER: '1234567',
+        APPOINTED_CARRIERS: 'Carrier A, Carrier B',
+      });
+    });
+
+    afterAll(async () => {
+      await loaded.cleanup();
+    });
+
+    it('serves the configured license number and embeds it in the first message', async () => {
+      const res = await request(loaded.app).get('/api/disclosure');
+      expect(res.body.texasLicenseNumber).toBe('1234567');
+      expect(res.body.firstMessage).toContain('Texas license #1234567');
+    });
+
+    it('serves the appointed-carrier allowlist and the disclaimer', async () => {
+      const res = await request(loaded.app).get('/api/disclosure');
+      expect(res.body.appointedCarriers).toEqual(['Carrier A', 'Carrier B']);
+      expect(res.body.appointmentDisclaimer).toBeTruthy();
+    });
+  });
+});
+
 describe('POST /api/consent', () => {
   let loaded: LoadedApp;
 

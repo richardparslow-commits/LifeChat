@@ -110,6 +110,7 @@ LIFECHAT_PORT=3000
 BUSINESS_NAME="Life Policy Pilot"
 LICENSED_BROKER_NAME="Richard Parslow"
 TEXAS_LICENSE_NUMBER="[Your Texas license number]"
+APPOINTED_CARRIERS="" # comma-separated carriers Richard Parslow is appointed with (allowlist)
 WEBSITE_URL="https://lifepolicypilot.blog/"
 PRIVACY_NOTICE_URL="https://lifepolicypilot.blog/privacy/"
 CONTACT_URL="https://lifepolicypilot.blog/contact/"
@@ -117,6 +118,14 @@ LLM_API_KEY="your-api-key"
 LLM_MODEL="gpt-4o"
 PILOT_MODE=true
 ```
+
+> **License disclosure:** `TEXAS_LICENSE_NUMBER` is required before going live
+> (Texas Insurance Code §541.003 / TAC §19.1004). While unset, `/api/disclosure`
+> returns `texasLicenseNumber: null` (never the placeholder) and production startup
+> (`PILOT_MODE=false`) fails fast. The appointment disclaimer
+> ("Richard Parslow is appointed with select carriers. Coverage availability may
+> vary.") is always served, and `APPOINTED_CARRIERS` is the allowlist the assistant
+> must never imply coverage from beyond.
 
 ## API Endpoints
 

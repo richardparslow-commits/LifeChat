@@ -13,6 +13,8 @@
  * advertising classification.
  */
 
+import { config, isLicenseNumberConfigured } from '../config/app-config';
+
 export const SYSTEM_PROMPT = `# LIFE POLICY PILOT AI EDUCATIONAL ASSISTANT — SYSTEM POLICY
 
 ## 1. AUTHORITY AND PRIORITY
@@ -30,6 +32,11 @@ licensed insurance agent, underwriter, attorney, tax adviser, investment adviser
 medical professional. Richard Parslow is the licensed Texas life-insurance broker.
 Use only the business name and Texas license disclosure supplied in verified configuration;
 never invent a name, license number, carrier appointment, credential, or jurisdiction.
+State the Texas license number ONLY when verified configuration supplies it; never show a
+placeholder or a made-up number. Never imply that Richard Parslow is appointed with, or can
+offer coverage from, any carrier not on the approved appointment list in verified
+configuration. When appointment is relevant, you may state: "Richard Parslow is appointed
+with select carriers. Coverage availability may vary."
 In the first assistant message, clearly state:
 - the user is interacting with an AI assistant;
 - you provide general educational information from approved sources;
@@ -70,6 +77,8 @@ Do not provide or imply:
 - a statement that any option is best, right, optimal, cheapest, tax-free, guaranteed,
   or suitable for the user;
 - carrier-specific information unless the exact content is approved and retrieved;
+- an implication that Richard Parslow is appointed with, or can offer coverage from,
+  any carrier not on the approved appointment list in verified configuration;
 - advice on completing an application or omitting information;
 - a fabricated fact, citation, calendar slot, submission, message, or confirmation.
 Immediately offer a licensed-human handoff for individualized recommendations, quotes,
@@ -412,11 +421,36 @@ affirmed medical consent.
  * The first-message disclosure text shown to the user when the widget opens.
  * This is the user-facing version of the identity disclosure from Section 4.2.
  */
-export const FIRST_MESSAGE_DISCLOSURE = `I'm the Life Policy Pilot AI Educational Assistant. I provide general educational information from approved sources. I am not a licensed person and cannot recommend a policy, carrier, amount, or tax/legal strategy. Richard Parslow is a licensed Texas life-insurance broker.
+/**
+ * The appointment disclaimer required when carrier availability is discussed:
+ * the assistant must never imply Richard Parslow can sell products from
+ * carriers he is not appointed with.
+ */
+export const APPOINTMENT_DISCLAIMER =
+  'Richard Parslow is appointed with select carriers. Coverage availability may vary.';
+
+/**
+ * Builds the first-message disclosure served to the visitor.
+ *
+ * Includes the Texas license number only when a real number is configured
+ * (Texas Insurance Code §541.003 / TAC §19.1004: advertisements and
+ * solicitations must carry the license number). When unconfigured the app
+ * fails closed — no license line is shown and production startup is blocked
+ * until a verified number is supplied.
+ */
+export function getFirstMessageDisclosure(): string {
+  const licenseLine = isLicenseNumberConfigured()
+    ? ` Richard Parslow is a licensed Texas life-insurance broker (Texas license #${config.texasLicenseNumber}).`
+    : ' Richard Parslow is a licensed Texas life-insurance broker.';
+
+  return `I'm the Life Policy Pilot AI Educational Assistant. I provide general educational information from approved sources. I am not a licensed person and cannot recommend a policy, carrier, amount, or tax/legal strategy.${licenseLine}
+
+${APPOINTMENT_DISCLAIMER}
 
 Please don't share medical history, Social Security numbers, financial-account data, or other highly sensitive information here.
 
 How can I help you learn about life insurance today?`;
+}
 
 /**
  * The before-chat privacy banner shown above the chat input.
