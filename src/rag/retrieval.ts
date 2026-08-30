@@ -217,6 +217,38 @@ A reliable personalized premium cannot be determined from age alone. It requires
     chunk_count: 1,
   },
   {
+    id: 'coverage-needs-dime',
+    canonical_url: 'https://lifepolicypilot.blog/coverage-needs-estimator/',
+    title: 'How Much Life Insurance Do I Need? — The DIME Method (Educational)',
+    author_or_owner: 'Life Policy Pilot',
+    jurisdiction: 'General',
+    product_category: 'education',
+    approval_owner: 'Richard Parslow',
+    approval_date: '2026-08-30',
+    effective_date: '2026-08-30',
+    review_date: '2027-02-28',
+    expiration_date: null,
+    version_hash: 'lpp_dime_v1',
+    superseded_status: false,
+    content: sanitizeRetrievedContent(
+      `Estimating how much life insurance coverage you might need is a general educational exercise, not a personalized recommendation.
+
+A common general method for thinking about coverage needs is the DIME method: Debt, Income, Mortgage, and Education. It adds up a family's major obligations and goals to produce a starting point for discussion.
+
+- Debt: outstanding debts a family would still need to pay
+- Income: the years of income a family would want to replace
+- Mortgage: any remaining mortgage balance
+- Education: future expenses such as college funding
+
+Actual coverage needs vary widely with income, debts, family size, and goals. No general estimate can substitute for a licensed review of an individual situation.
+
+Life Policy Pilot offers a simple 3-step educational exercise based on this general method. Its result is an illustrative range only, not a recommendation or a quote.
+
+A reliable personalized assessment requires a licensed review of your individual circumstances.`,
+    ),
+    chunk_count: 1,
+  },
+  {
     id: 'faq-no-advice',
     canonical_url: 'https://lifepolicypilot.blog/faq/',
     title: 'Life Policy Pilot FAQ — Common Questions',

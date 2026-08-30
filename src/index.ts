@@ -37,8 +37,19 @@ import {
   startSessionCleanup,
   getActiveSessionCount,
   clearSession,
+  getDimeInputs,
+  setDimeInputs,
 } from './llm/session-store';
 import { getNextState, type ConversationState } from './state-machine/state-machine';
+import {
+  buildDimeProgressContext,
+  computeDimeEstimate,
+  buildDimeResultMessage,
+  countDimeInputs,
+  dimeInputsComplete,
+  mergeDimeInputs,
+  nextDimeStep,
+} from './estimator/dime-estimator';
 import {
   createLeadRecord,
   validateEmail,
@@ -169,6 +180,8 @@ interface ChatRequestBody {
   userAgreesToMedicalReview?: boolean;
   medicalConsentAffirmative?: boolean;
   medicalReviewComplete?: boolean;
+  /** DIME educational sub-flow — user asked to estimate coverage needs */
+  userRequestsDimeEstimator?: boolean;
 }
 
 app.post('/api/chat', async (req: Request, res: Response) => {
@@ -237,6 +250,14 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         medical_consent_affirmed: false,
         do_not_contact: false,
       },
+      dime_estimator: {
+        active: false,
+        step: null,
+        has_mortgage_or_debt: null,
+        income_replacement_years: null,
+        future_expenses: null,
+        complete: false,
+      },
       proposed_action: 'none',
       action_arguments: {},
       risk_flags: ['prompt_injection_suspected'],
@@ -288,6 +309,14 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           medical_consent_affirmed: false,
           do_not_contact: false,
         },
+        dime_estimator: {
+          active: false,
+          step: null,
+          has_mortgage_or_debt: null,
+          income_replacement_years: null,
+          future_expenses: null,
+          complete: false,
+        },
         proposed_action: 'request_human_handoff',
         action_arguments: {
           handoff_reason: 'health_data_disclosed',
@@ -328,6 +357,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
   // 8. Determine next state via the state machine
   //    (The orchestrator will use the LLM response to refine the final state)
+  const sessionDimeInputs = getDimeInputs(sessionId);
   const nextState =
     getNextState({
       currentState,
@@ -347,6 +377,10 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       medicalReviewComplete: medicalCaptureEnabled
         ? (req.body.medicalReviewComplete ?? false)
         : false,
+      // DIME educational sub-flow — explicit request from the widget/future UI,
+      // or automatic completion once all three inputs are collected.
+      userRequestsDimeEstimator: req.body.userRequestsDimeEstimator ?? false,
+      dimeComplete: dimeInputsComplete(sessionDimeInputs),
       userRequestsFollowup: false,
       contactChannelChosen: false,
       consentAffirmative: false,
@@ -361,26 +395,75 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   //    Passes conversation history so the model has context for follow-up
   //    questions. The orchestrator validates the response against the Zod
   //    schema, enforces cross-field consent rules, and falls back safely.
+  //    While the DIME estimator is active, pass its progress as authoritative
+  //    application context (Section 9.2).
+  const inDimeFlow = nextState === 'dime_estimator' || currentState === 'dime_estimator';
   const { response, latencyMs } = await generateResponse({
     userMessage: message,
     currentState: nextState,
     conversationHistory,
     topicCategory,
+    dimeContext: inDimeFlow ? buildDimeProgressContext(getDimeInputs(sessionId)) : undefined,
   });
 
-  // 10. Record the assistant response in session history
+  // 10. DIME estimator — merge collected inputs into the session, derive
+  //     step/completion deterministically, and on completion override the
+  //     message with the application-computed educational range. The model
+  //     never produces dollar figures (Section 9.2).
+  let finalResponse = response;
+  if (response.dime_estimator.active) {
+    const priorInputs = getDimeInputs(sessionId);
+    const isDimeEntry = countDimeInputs(priorInputs) === 0;
+    const merged = mergeDimeInputs(priorInputs, response.dime_estimator);
+    setDimeInputs(sessionId, merged);
+
+    if (dimeInputsComplete(merged)) {
+      const estimate = computeDimeEstimate(merged);
+      finalResponse = {
+        ...response,
+        assistant_message: buildDimeResultMessage(estimate),
+        state: 'contact_offer',
+        dime_estimator: {
+          active: true,
+          step: null,
+          ...merged,
+          complete: true,
+        },
+        analytics: {
+          ...response.analytics,
+          event_name: 'ai_dime_complete',
+          conversation_stage: 'contact_offer',
+        },
+      };
+    } else {
+      finalResponse = {
+        ...response,
+        dime_estimator: {
+          active: true,
+          step: nextDimeStep(merged),
+          ...merged,
+          complete: false,
+        },
+        analytics: isDimeEntry
+          ? { ...response.analytics, event_name: 'ai_dime_offer' }
+          : response.analytics,
+      };
+    }
+  }
+
+  // 11. Record the assistant response in session history
   //     Only the assistant_message text is stored — never lead_data,
   //     consent fields, or risk_flags (Section 8: PII protection).
-  addAssistantMessage(sessionId, response.assistant_message);
+  addAssistantMessage(sessionId, finalResponse.assistant_message);
 
-  // 11. Log latency (non-PII)
+  // 12. Log latency (non-PII)
   if (latencyMs > LATENCY_CONFIG.P95_ANSWER_TARGET_MS) {
     console.warn(
       `Response latency ${latencyMs}ms exceeds P95 target ${LATENCY_CONFIG.P95_ANSWER_TARGET_MS}ms`,
     );
   }
 
-  return res.json(response);
+  return res.json(finalResponse);
 });
 
 /**

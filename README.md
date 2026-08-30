@@ -53,6 +53,8 @@ LifeChat/
 │   │   └── analytics.ts           # GTM/GA4 event taxonomy (Section 4.13)
 │   ├── evaluation/
 │   │   └── evaluation-plan.ts     # Evaluation & QA plan (Section 4.14)
+│   ├── estimator/
+│   │   └── dime-estimator.ts      # DIME coverage-needs estimator (educational)
 │   ├── rag/
 │   │   └── rag-architecture.ts    # Knowledge & RAG architecture (Section 4.6)
 │   └── index.ts                   # Express server entry point
@@ -121,7 +123,7 @@ PILOT_MODE=true
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Product info & available endpoints |
-| GET | `/health` | Health check (includes kill switch status) |
+| GET | `/health` | Health check (kill switch status + compliance matrix overview) |
 | GET | `/api/disclosure` | First-message disclosure & AI identity |
 | GET | `/api/consent-text` | Consent copy for counsel review |
 | GET | `/api/availability` | Staff availability & SLA message |

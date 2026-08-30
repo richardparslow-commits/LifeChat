@@ -42,6 +42,14 @@ function makeValidResponse(overrides: Partial<AssistantResponse> = {}): Assistan
       medical_consent_affirmed: false,
       do_not_contact: false,
     },
+    dime_estimator: {
+      active: false,
+      step: null,
+      has_mortgage_or_debt: null,
+      income_replacement_years: null,
+      future_expenses: null,
+      complete: false,
+    },
     proposed_action: 'none',
     action_arguments: {},
     risk_flags: [],
@@ -279,6 +287,99 @@ describe('Schema — cross-field rule validation', () => {
     const errors = validateSchemaRules(response);
     expect(errors.some((e) => e.includes('medical_profile data requires affirmative'))).toBe(false);
     expect(errors.some((e) => e.includes('medical_consent_affirmed requires'))).toBe(false);
+  });
+
+  test('accepts an omitted dime_estimator block (defaults to inactive)', () => {
+    const response = makeValidResponse() as unknown as Record<string, unknown>;
+    delete response.dime_estimator;
+    const parsed = AssistantResponseSchema.safeParse(response);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.dime_estimator.active).toBe(false);
+      expect(parsed.data.dime_estimator.step).toBeNull();
+    }
+  });
+
+  test('accepts a valid active DIME block in dime_estimator state', () => {
+    const response = makeValidResponse({ state: 'dime_estimator' });
+    response.dime_estimator = {
+      active: true,
+      step: 2,
+      has_mortgage_or_debt: true,
+      income_replacement_years: null,
+      future_expenses: null,
+      complete: false,
+    };
+    const parsed = AssistantResponseSchema.safeParse(response);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(validateSchemaRules(parsed.data)).toEqual([]);
+    }
+  });
+
+  test('accepts ai_dime_offer and ai_dime_complete analytics events', () => {
+    const offer = makeValidResponse();
+    offer.analytics.event_name = 'ai_dime_offer';
+    expect(AssistantResponseSchema.safeParse(offer).success).toBe(true);
+    const complete = makeValidResponse();
+    complete.analytics.event_name = 'ai_dime_complete';
+    expect(AssistantResponseSchema.safeParse(complete).success).toBe(true);
+  });
+
+  test('state dime_estimator requires an active dime block', () => {
+    const response = makeValidResponse({ state: 'dime_estimator' });
+    response.dime_estimator.active = false;
+    const errors = validateSchemaRules(response);
+    expect(errors.some((e) => e.includes('requires dime_estimator.active'))).toBe(true);
+  });
+
+  test('active dime block is not allowed in a plain education answer', () => {
+    const response = makeValidResponse({ state: 'education' });
+    response.dime_estimator.active = true;
+    const errors = validateSchemaRules(response);
+    expect(errors.some((e) => e.includes('only allowed in state dime_estimator'))).toBe(true);
+  });
+
+  test('complete=true with a missing input fails', () => {
+    const response = makeValidResponse({ state: 'contact_offer' });
+    response.dime_estimator = {
+      active: true,
+      step: null,
+      has_mortgage_or_debt: true,
+      income_replacement_years: 10,
+      future_expenses: null,
+      complete: true,
+    };
+    const errors = validateSchemaRules(response);
+    expect(errors.some((e) => e.includes('requires all three inputs'))).toBe(true);
+  });
+
+  test('inputs require an active estimator', () => {
+    const response = makeValidResponse({ state: 'dime_estimator' });
+    response.dime_estimator = {
+      active: false,
+      step: null,
+      has_mortgage_or_debt: true,
+      income_replacement_years: null,
+      future_expenses: null,
+      complete: false,
+    };
+    const errors = validateSchemaRules(response);
+    expect(errors.some((e) => e.includes('inputs require active'))).toBe(true);
+  });
+
+  test('rejects out-of-range income_replacement_years', () => {
+    const response = makeValidResponse({ state: 'dime_estimator' });
+    response.dime_estimator = {
+      active: true,
+      step: 1,
+      has_mortgage_or_debt: null,
+      income_replacement_years: 99,
+      future_expenses: null,
+      complete: false,
+    };
+    const parsed = AssistantResponseSchema.safeParse(response);
+    expect(parsed.success).toBe(false);
   });
 
   test('affirmed medical consent without version fails', () => {

@@ -19,7 +19,8 @@ export type ConversationState =
   | 'scheduling'
   | 'confirmation'
   | 'handoff'
-  | 'standby';
+  | 'standby'
+  | 'dime_estimator';
 
 export interface StateTransitionContext {
   currentState: ConversationState;
@@ -34,6 +35,10 @@ export interface StateTransitionContext {
   medicalConsentAffirmative: boolean;
   /** Phase 2 — consented medical questions complete */
   medicalReviewComplete: boolean;
+  /** DIME — user asked to estimate coverage needs (educational sub-flow) */
+  userRequestsDimeEstimator: boolean;
+  /** DIME — all three educational inputs collected */
+  dimeComplete: boolean;
   userRequestsFollowup: boolean;
   contactChannelChosen: boolean;
   consentAffirmative: boolean;
@@ -64,6 +69,11 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
       if (ctx.queryIsAmbiguous) {
         return 'clarify';
       }
+      // User asked to estimate coverage needs → start the educational
+      // DIME sub-flow (no recommendation, no quote)
+      if (ctx.userRequestsDimeEstimator) {
+        return 'dime_estimator';
+      }
       // After value delivered, optionally offer qualification
       if (ctx.hasValueBeenDelivered && ctx.userShowsInterest) {
         return 'qualification_offer';
@@ -83,6 +93,10 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
       // Ask one clarifying question; never ask for PII merely to answer
       if (!ctx.queryIsAmbiguous) {
         return 'education';
+      }
+      // A coverage-needs request during clarification routes to the estimator
+      if (ctx.userRequestsDimeEstimator) {
+        return 'dime_estimator';
       }
       if (ctx.riskOrEscalationTrigger) {
         return 'handoff';
@@ -138,6 +152,21 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
         return 'handoff';
       }
       return 'medical_review';
+
+    case 'dime_estimator':
+      // Educational coverage-needs exercise: offer once, then one scripted
+      // question per turn (never a second question in the same turn, never
+      // amounts/PII). Completion bridges to the licensed-broker contact flow.
+      if (ctx.dimeComplete) {
+        return 'contact_offer';
+      }
+      if (ctx.userDeclinesOrFlowEnds) {
+        return 'education';
+      }
+      if (ctx.riskOrEscalationTrigger) {
+        return 'handoff';
+      }
+      return 'dime_estimator';
 
     case 'contact_offer':
       // Offer email, manual call, or calendar; explain data use

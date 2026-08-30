@@ -17,6 +17,7 @@
  */
 
 import type { LLMMessage } from './llm-client';
+import { EMPTY_DIME_INPUTS, type DimeInputs } from '../estimator/dime-estimator';
 
 /** Maximum number of conversation turns to retain per session. */
 const MAX_TURNS = 20;
@@ -38,6 +39,8 @@ interface SessionData {
   contactOffered: boolean;
   /** Count of consecutive failures for loop control. */
   consecutiveFailures: number;
+  /** Collected DIME estimator inputs (educational sub-flow, Section 9.2). */
+  dimeInputs: DimeInputs;
 }
 
 const sessions = new Map<string, SessionData>();
@@ -166,6 +169,29 @@ export function wasContactOffered(sessionId: string): boolean {
 }
 
 /**
+ * Gets the DIME estimator inputs collected so far this session.
+ * Returns a fresh copy so callers cannot mutate the session record.
+ */
+export function getDimeInputs(sessionId: string): DimeInputs {
+  const session = sessions.get(sessionId);
+  if (!session) {
+    return { ...EMPTY_DIME_INPUTS };
+  }
+  session.lastActivity = Date.now();
+  return { ...session.dimeInputs };
+}
+
+/**
+ * Sets the DIME estimator inputs for a session (called after each turn that
+ * carries an active dime_estimator block).
+ */
+export function setDimeInputs(sessionId: string, inputs: DimeInputs): void {
+  const session = getOrCreateSession(sessionId);
+  session.dimeInputs = { ...inputs };
+  session.lastActivity = Date.now();
+}
+
+/**
  * Increments consecutive failure count for loop control (Section 4.11).
  * Returns the new count.
  */
@@ -223,6 +249,7 @@ function getOrCreateSession(sessionId: string): SessionData {
       qualificationOffered: false,
       contactOffered: false,
       consecutiveFailures: 0,
+      dimeInputs: { ...EMPTY_DIME_INPUTS },
     };
     sessions.set(sessionId, session);
   }

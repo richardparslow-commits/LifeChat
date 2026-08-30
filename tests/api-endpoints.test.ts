@@ -121,11 +121,38 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(res.body.analytics.event_name).not.toBe('ai_abstention');
   });
 
+  it('routes a coverage-needs request into the dime_estimator flow (no abstention)', async () => {
+    // With userRequestsDimeEstimator, the state machine advances from
+    // education to dime_estimator (observable via the stage passed to the
+    // orchestrator even when the LLM is unreachable).
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-dime-entry',
+      currentState: 'education',
+      message: 'How much life insurance do I need?',
+      userRequestsDimeEstimator: true,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.analytics.conversation_stage).toBe('dime_estimator');
+    expect(res.body.analytics.event_name).not.toBe('ai_abstention');
+  });
+
+  it('does not abstain on DIME answer turns in the dime_estimator state', async () => {
+    // Short factual answers to the estimator's questions have no RAG evidence;
+    // the abstention gate must not block the collecting turns.
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-dime-step',
+      currentState: 'dime_estimator',
+      message: 'Yes, I have a mortgage.',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.analytics.event_name).not.toBe('ai_abstention');
+  });
+
   it('surfaces the compliance matrix on /health with per-flow approval status', async () => {
     const res = await request(loaded.app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
-    expect(res.body.compliance.matrixVersion).toBe('1.0.0');
+    expect(res.body.compliance.matrixVersion).toBe('1.1.0');
     expect(res.body.compliance.phaseStatus).toBe('pending_counsel_sign_off');
     expect(res.body.compliance.flowCount).toBe(10);
     // Nothing is approved until counsel signs the markdown matrix
