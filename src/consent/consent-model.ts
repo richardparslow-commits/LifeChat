@@ -78,7 +78,7 @@ export function validateEmail(email: string): boolean {
  * Accepts US phone formats: (XXX) XXX-XXXX, XXX-XXX-XXXX, XXXXXXXXXX, +1XXXXXXXXXX
  */
 export function validatePhone(phone: string): boolean {
-  const cleaned = phone.replace(/[\s\-.()]/g, '');
+  const cleaned = phone.replace(/[\s\-.()+]/g, '');
   // US numbers: 10 digits, or 11 starting with 1
   return /^1?\d{10}$/.test(cleaned);
 }

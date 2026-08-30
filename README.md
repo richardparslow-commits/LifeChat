@@ -82,6 +82,9 @@ npm start
 
 # Type-check
 npm run typecheck
+
+# Run tests
+npm test
 ```
 
 ## Configuration
