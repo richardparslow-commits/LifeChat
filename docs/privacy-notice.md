@@ -1,6 +1,6 @@
 # Privacy Notice — Life Policy Pilot / Richard Parslow, Independent Texas Life Insurance Broker
 
-**Version:** 1.2.0 (draft for attorney review) · **Last updated:** 2026-08-30 · **Effective when published**
+**Version:** 1.3.0 (draft for attorney review) · **Last updated:** 2026-08-30 · **Effective when published**
 **Contact:** privacy@lifepolicypilot.blog
 
 > **Important caveat before you publish.** This notice is a working draft, not legal advice. Before
@@ -86,19 +86,23 @@ We do **not**:
 - Make automated decisions about you that have legal or similarly significant effects.
 - Use your personal information for any purpose not disclosed in this notice without your consent.
 
-## 5. Information We Share
+## 5. How We Share Your Information
 
 GLBA allows sharing needed to provide the insurance service you asked for and with companies that
-work for us. We share your information only:
+work for us. We share your personal information with the following **categories of third parties**:
 
-- **With the carrier you choose** — the information needed to process your application, policy, or
-  request. That carrier's own privacy notice then governs its handling.
-- **With service providers** — companies we hire to help run the site and the assistant (hosting,
-  chat/AI infrastructure, analytics, and scheduling). They are bound by contracts that require them
-  to protect your information, follow our instructions, and help us respond to your requests.
-- **As required by law** — with regulators (such as the Texas Department of Insurance), courts, or
-  law enforcement when legally required.
-- **With your consent or at your direction** — for example, when you submit a data-subject request.
+| Category | Examples | Purpose |
+|---|---|---|
+| **Insurance carriers** | Life insurance companies with whom Richard Parslow is appointed | To process an application or policy service request for the carrier you choose — **only with your explicit consent** |
+| **Service providers** | Companies we hire to run the site and the assistant (hosting, chat/AI infrastructure, analytics, and scheduling) | Bound by contract to protect your information, follow our instructions, and help us respond to your requests |
+| **Regulators & law enforcement** | Texas Department of Insurance, courts, law enforcement | As required by law when legally required |
+
+We do **not** share your personal information with:
+
+- Third-party marketers
+- Data brokers
+- Affiliates (Richard Parslow has no corporate affiliates)
+- Any party not listed above without your explicit consent
 
 We do **not** sell your personal information, and we do not share it for marketing. **Your right to
 opt out:** you can ask us at any time not to share your information for marketing purposes (we do

@@ -151,7 +151,7 @@ export function createLeadRecord(
     time_zone: null,
     preferred_contact_window: null,
     contact_channel: null,
-    privacy_notice_version: '1.2.0',
+    privacy_notice_version: '1.3.0',
     contact_consent_version: null,
     consent_timestamp: null,
     consent_text_hash: null,
