@@ -22,6 +22,14 @@ import { SYSTEM_PROMPT, FIRST_MESSAGE_DISCLOSURE, BEFORE_CHAT_BANNER, ABSTENTION
 import { STATIC_SAFE_FALLBACK, type AssistantResponse } from './schema/response-schema';
 import { generateResponse } from './llm/orchestrator';
 import { retrieveFromCorpus } from './rag/retrieval';
+import {
+  getHistory,
+  addUserMessage,
+  addAssistantMessage,
+  startSessionCleanup,
+  getActiveSessionCount,
+  clearSession,
+} from './llm/session-store';
 import { getNextState, type ConversationState } from './state-machine/state-machine';
 import { createLeadRecord, validateEmail, validatePhone, JUST_IN_TIME_NOTICE, RECOMMENDED_PHONE_CONSENT_COPY } from './consent/consent-model';
 import { authorizeToolAction } from './tools/tool-controls';
@@ -161,6 +169,8 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   // 3. Security: detect prompt injection
   const injectionDetected = detectPromptInjection(message);
   if (injectionDetected) {
+    // Record the (sanitized) user message and the assistant's response in history
+    addUserMessage(sessionId, '[USER MESSAGE REDACTED — prompt injection attempt]', true);
     const response: AssistantResponse = {
       assistant_message: 'I can help with general life-insurance education questions. What would you like to learn about?',
       state: 'education',
@@ -188,12 +198,15 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         error_code: 'prompt_injection_detected',
       },
     };
+    addAssistantMessage(sessionId, response.assistant_message);
     return res.json(response);
   }
 
   // 4. Security: detect sensitive data
   const sensitiveDataCategory = detectSensitiveData(message);
   if (sensitiveDataCategory === 'health_data') {
+    // Record a redacted user message and the assistant's handoff response
+    addUserMessage(sessionId, '[USER MESSAGE REDACTED — contained health data]', true);
     const response: AssistantResponse = {
       assistant_message: `This chat isn't the right place for medical or health information. Please don't share diagnoses, medications, or health details here. If you need individualized guidance, Richard Parslow, a licensed Texas broker, can help through a secure process. ${ABSTENTION_SENTENCE}`,
       state: 'handoff',
@@ -221,13 +234,26 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         error_code: null,
       },
     };
+    addAssistantMessage(sessionId, response.assistant_message);
     return res.json(response);
   }
 
   // 5. Sanitize the source URL (never send raw window.location.href)
   const sanitizedPath = sourceUrl ? sanitizeUrl(sourceUrl) : '/';
 
-  // 6. Determine next state via the state machine
+  // 6. Record the user message in session history
+  //    If the message contains PII, store a redacted placeholder instead
+  //    (Section 8: do not store contact/health data in routine logs)
+  const messageIsSensitive = sensitiveDataCategory === 'pii';
+  addUserMessage(sessionId, message, messageIsSensitive);
+
+  // 7. Get prior conversation history for this session
+  //    This lets the LLM see prior turns for follow-up questions.
+  //    The history is passed through the orchestrator to buildMessages()
+  //    where each user turn is marked as UNTRUSTED DATA (Section 4.9).
+  const conversationHistory = getHistory(sessionId);
+
+  // 8. Determine next state via the state machine
   //    (The orchestrator will use the LLM response to refine the final state)
   const nextState = getNextState({
     currentState,
@@ -246,20 +272,23 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     userDeclinesOrFlowEnds: false,
   }) ?? currentState;
 
-  // 7. Run the LLM + RAG orchestrator (Sections 4.6, 4.8, 4.9, 4.11, 15)
-  //    This replaces the placeholder and calls the actual model with:
-  //    - the hardened system prompt
-  //    - retrieved RAG context (approved sources only)
-  //    - the user message (sanitized, marked as untrusted)
-  //    The orchestrator validates the response against the Zod schema,
-  //    enforces cross-field consent rules, and falls back safely on failure.
-  const { response, latencyMs, ragPassages } = await generateResponse({
+  // 9. Run the LLM + RAG orchestrator (Sections 4.6, 4.8, 4.9, 4.11, 15)
+  //    Passes conversation history so the model has context for follow-up
+  //    questions. The orchestrator validates the response against the Zod
+  //    schema, enforces cross-field consent rules, and falls back safely.
+  const { response, latencyMs } = await generateResponse({
     userMessage: message,
     currentState: nextState,
+    conversationHistory,
     topicCategory,
   });
 
-  // 8. Log latency and retrieval info (non-PII)
+  // 10. Record the assistant response in session history
+  //     Only the assistant_message text is stored — never lead_data,
+  //     consent fields, or risk_flags (Section 8: PII protection).
+  addAssistantMessage(sessionId, response.assistant_message);
+
+  // 11. Log latency (non-PII)
   if (latencyMs > LATENCY_CONFIG.P95_ANSWER_TARGET_MS) {
     console.warn(`Response latency ${latencyMs}ms exceeds P95 target ${LATENCY_CONFIG.P95_ANSWER_TARGET_MS}ms`);
   }
@@ -357,9 +386,40 @@ app.get('/api/rag/search', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/session/:sessionId/history — Returns conversation history (admin/debug)
+ */
+app.get('/api/session/:sessionId/history', (req: Request, res: Response) => {
+  const history = getHistory(req.params.sessionId);
+  res.json({
+    sessionId: req.params.sessionId,
+    turnCount: history.length,
+    messages: history,
+  });
+});
+
+/**
+ * DELETE /api/session/:sessionId — Clears a session's conversation history
+ * Used for privacy withdrawal (Section 8: consent withdrawal / deletion route).
+ */
+app.delete('/api/session/:sessionId', (req: Request, res: Response) => {
+  clearSession(req.params.sessionId);
+  res.json({ sessionId: req.params.sessionId, status: 'cleared' });
+});
+
+/**
+ * GET /api/sessions — Returns active session count (admin/monitoring)
+ */
+app.get('/api/sessions', (_req: Request, res: Response) => {
+  res.json({ activeSessions: getActiveSessionCount() });
+});
+
+/**
  * Start the server
  */
 const server = app.listen(config.port, () => {
+  // Start periodic cleanup of expired sessions (30-min TTL)
+  startSessionCleanup();
+
   console.log(`\n  ${PRODUCT_DEFINITION.name}`);
   console.log(`  Owner: ${PRODUCT_DEFINITION.owner}`);
   console.log(`  Jurisdiction: ${PRODUCT_DEFINITION.initialJurisdiction}`);
@@ -368,6 +428,7 @@ const server = app.listen(config.port, () => {
   console.log(`  Outbound marketing: ${config.outboundMarketingDisabled ? 'DISABLED' : 'enabled'}`);
   console.log(`\n  Server running at http://localhost:${config.port}`);
   console.log(`  Widget at http://localhost:${config.port}/widget.js`);
+  console.log(`  Session history: max 20 turns, 30-min TTL`);
   console.log('');
 });
 
