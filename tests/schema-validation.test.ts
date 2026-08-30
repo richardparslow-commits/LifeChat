@@ -323,6 +323,23 @@ describe('Schema — cross-field rule validation', () => {
     }
   });
 
+  test('all-null medical_profile without consent is not treated as populated', () => {
+    const response = makeValidResponse();
+    response.lead_data.medical_profile = {
+      date_of_birth: null,
+      gender: null,
+      height_inches: null,
+      weight_lbs: null,
+      tobacco_nicotine_use: null,
+      medical_conditions: [],
+      medications: [],
+      diabetes: null,
+      cancer: null,
+    };
+    const errors = validateSchemaRules(response);
+    expect(errors.some((e) => e.includes('medical_profile data requires'))).toBe(false);
+  });
+
   test('diabetes and cancer sub-profiles parse', () => {
     const response = makeValidResponse();
     response.lead_data.medical_profile = {
