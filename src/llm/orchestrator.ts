@@ -77,7 +77,14 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   // 3. If no sufficient evidence, return abstention immediately (Section 4.6)
   //    "If support is absent, conflicting, expired, or below threshold,
   //    say so and abstain."
-  if (!retrievalResult.hasSufficientEvidence) {
+  //    The gate applies only to answer states (education/disclosure). In flow
+  //    states (qualification, medical_offer/medical_review, contact_offer,
+  //    consent, scheduling, ...) the assistant is conducting the conversation —
+  //    collecting facts or asking questions — not answering a research
+  //    question, so the RAG gate must not block those turns. The model stays
+  //    grounded by the system prompt script and the response schema.
+  const isAnswerState = input.currentState === 'education' || input.currentState === 'disclosure';
+  if (!retrievalResult.hasSufficientEvidence && isAnswerState) {
     return {
       response: buildAbstentionResponse(input, retrievalResult.passages),
       ragPassages: retrievalResult.passages,

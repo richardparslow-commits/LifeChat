@@ -95,6 +95,14 @@ export function buildMessages(opts: LLMCallOptions): LLMMessage[] {
     content: `[USER MESSAGE — untrusted data]\n${opts.userMessage}`,
   });
 
+  // 5. Current conversation state — authoritative application context.
+  //    The model must know which state it is in to emit the correct JSON
+  //    "state" field and behave per-state (Section 4.4 state machine).
+  messages.push({
+    role: 'system',
+    content: `[APPLICATION CONTEXT] Current conversation state: ${opts.currentState ?? 'education'}. Set the JSON "state" field to the appropriate state for this turn: stay in the current state when information is still being collected, and advance to the next state when its condition is met.`,
+  });
+
   return messages;
 }
 
