@@ -283,17 +283,17 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     sanitizeUrl(sourceUrl);
   }
 
-  // 6. Record the user message in session history
+  // 6. Capture PRIOR conversation history for this session BEFORE recording
+  //    the current message. buildMessages() also appends the current message
+  //    as its own user turn, so recording-then-reading here would send the
+  //    current turn TWICE to the LLM context.
+  const conversationHistory = getHistory(sessionId);
+
+  // 7. Record the current user message in session history (for FUTURE turns).
   //    If the message contains PII, store a redacted placeholder instead
-  //    (Section 8: do not store contact/health data in routine logs)
+  //    (Section 8: do not store contact/health data in routine logs).
   const messageIsSensitive = sensitiveDataCategory === 'pii';
   addUserMessage(sessionId, message, messageIsSensitive);
-
-  // 7. Get prior conversation history for this session
-  //    This lets the LLM see prior turns for follow-up questions.
-  //    The history is passed through the orchestrator to buildMessages()
-  //    where each user turn is marked as UNTRUSTED DATA (Section 4.9).
-  const conversationHistory = getHistory(sessionId);
 
   // 8. Determine next state via the state machine
   //    (The orchestrator will use the LLM response to refine the final state)
