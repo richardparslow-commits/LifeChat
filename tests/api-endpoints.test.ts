@@ -1,0 +1,244 @@
+/**
+ * End-to-end API tests for /api/chat and /api/consent (Sections 4.4, 4.8, 4.11).
+ *
+ * Drives the real Express app via supertest. Because src/index.ts reads
+ * process.env at module scope and starts a listener on import, each describe
+ * block re-imports the app with jest.resetModules() under the env it needs.
+ * LLM_API_KEY is emptied so the LLM call fails fast with no network traffic,
+ * keeping the orchestration paths deterministic (abstention/fallback).
+ */
+
+import request from 'supertest';
+import type { Express } from 'express';
+import type { Server } from 'http';
+
+interface LoadedApp {
+  app: Express;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Loads src/index.ts as a fresh module with the given env overrides,
+ * then restores the environment so later imports are unaffected.
+ */
+async function loadApp(env: Record<string, string>): Promise<LoadedApp> {
+  jest.resetModules();
+  const previous = { ...process.env };
+  Object.entries(env).forEach(([key, value]) => {
+    process.env[key] = value;
+  });
+
+  const { app, server } = (await import('../src/index')) as {
+    app: Express;
+    server: Server;
+  };
+
+  // Restore env after the module has read it
+  Object.keys(env).forEach((key) => {
+    if (previous[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = previous[key];
+    }
+  });
+
+  return {
+    app,
+    cleanup: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      }),
+  };
+}
+
+describe('GET / with the medical capture flag OFF (default)', () => {
+  let loaded: LoadedApp;
+
+  beforeAll(async () => {
+    loaded = await loadApp({
+      LIFECHAT_PORT: '0',
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'true',
+    });
+  });
+
+  afterAll(async () => {
+    await loaded.cleanup();
+  });
+
+  it('reports healthDataCollection as disabled', async () => {
+    const res = await request(loaded.app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.body.healthDataCollection).toBe('disabled');
+  });
+
+  it('blocks health data shared in the education state with a licensed-broker handoff', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-edu-health',
+      currentState: 'education',
+      message: 'I have diabetes and I take insulin',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('handoff');
+    expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
+    expect(res.body.proposed_action).toBe('request_human_handoff');
+  });
+
+  it('blocks health data in medical_offer even when a consent flag is sent (flag forces the flow off)', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-medoffer-health',
+      currentState: 'medical_offer',
+      message: 'I have diabetes and I take insulin',
+      medicalConsentAffirmative: true,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('handoff');
+    expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
+  });
+
+  it('does not honor medical consent when the flag is off (state stays medical_offer)', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-medoffer-consent',
+      currentState: 'medical_offer',
+      message: 'qzxvbnm asdfghj',
+      medicalConsentAffirmative: true,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('medical_offer');
+  });
+});
+
+describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () => {
+  let loaded: LoadedApp;
+
+  beforeAll(async () => {
+    loaded = await loadApp({
+      LIFECHAT_PORT: '0',
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'false',
+    });
+  });
+
+  afterAll(async () => {
+    await loaded.cleanup();
+  });
+
+  it('reports healthDataCollection as enabled', async () => {
+    const res = await request(loaded.app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.body.healthDataCollection).toBe('enabled');
+  });
+
+  it('still blocks health data outside the consented medical_review state', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'on-edu-health',
+      currentState: 'education',
+      message: 'I have diabetes and I take insulin',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('handoff');
+    expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
+  });
+
+  it('accepts health data in the consented medical_review state (no block, no handoff)', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'on-medreview-health',
+      currentState: 'medical_review',
+      message: 'I have diabetes and I take insulin',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('medical_review');
+    expect(res.body.risk_flags).not.toContain('sensitive_data_disclosed');
+    expect(res.body.proposed_action).not.toBe('request_human_handoff');
+  });
+
+  it('honors medical consent and transitions medical_offer -> medical_review', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'on-medoffer-consent',
+      currentState: 'medical_offer',
+      message: 'qzxvbnm asdfghj',
+      medicalConsentAffirmative: true,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('medical_review');
+  });
+
+  it('stays in medical_offer when no consent is given', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'on-medoffer-noconsent',
+      currentState: 'medical_offer',
+      message: 'qzxvbnm asdfghj',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('medical_offer');
+  });
+});
+
+describe('POST /api/consent', () => {
+  let loaded: LoadedApp;
+
+  beforeAll(async () => {
+    loaded = await loadApp({
+      LIFECHAT_PORT: '0',
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'true',
+    });
+  });
+
+  afterAll(async () => {
+    await loaded.cleanup();
+  });
+
+  it('rejects a submission without affirmative consent', async () => {
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: false,
+      contactChannel: 'email',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Affirmative consent required');
+  });
+
+  it('rejects an invalid email format', async () => {
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'email',
+      email: 'not-an-email',
+      firstName: 'Test',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid email format');
+  });
+
+  it('creates a lead with a valid email', async () => {
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'email',
+      email: 'test@example.com',
+      firstName: 'Test',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('created');
+    expect(res.body.leadId).toBeTruthy();
+  });
+
+  it('rejects an invalid phone format', async () => {
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'phone',
+      phone: '123',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid phone format');
+  });
+
+  it('creates a lead with a valid phone', async () => {
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'phone',
+      phone: '5125551234',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('created');
+    expect(res.body.leadId).toBeTruthy();
+  });
+});
