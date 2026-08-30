@@ -299,6 +299,30 @@ describe('Schema — cross-field rule validation', () => {
     expect(errors.some((e) => e.includes('medical_consent_affirmed requires'))).toBe(true);
   });
 
+  test('medical_profile with null diabetes/cancer sub-blocks parses (model emits null for unknown)', () => {
+    const response = makeValidResponse();
+    response.lead_data.medical_profile = {
+      date_of_birth: '1985-06-15',
+      gender: null,
+      height_inches: null,
+      weight_lbs: null,
+      tobacco_nicotine_use: null,
+      medical_conditions: [],
+      medications: [],
+      diabetes: null,
+      cancer: null,
+    };
+    response.consent.medical_consent_affirmed = true;
+    response.consent.medical_consent_version = '1.0.0';
+    const parsed = AssistantResponseSchema.safeParse(response);
+    expect(parsed.success).toBe(true);
+    // ... and the populated date_of_birth still counts as a populated profile
+    if (parsed.success) {
+      const errors = validateSchemaRules(parsed.data);
+      expect(errors.some((e) => e.includes('medical_profile data requires'))).toBe(false);
+    }
+  });
+
   test('diabetes and cancer sub-profiles parse', () => {
     const response = makeValidResponse();
     response.lead_data.medical_profile = {
@@ -317,8 +341,8 @@ describe('Schema — cross-field rule validation', () => {
     const parsed = AssistantResponseSchema.safeParse(response);
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.lead_data.medical_profile?.diabetes.diabetes_type).toBe('type2');
-      expect(parsed.data.lead_data.medical_profile?.cancer.years_cancer_free).toBe(5);
+      expect(parsed.data.lead_data.medical_profile?.diabetes?.diabetes_type).toBe('type2');
+      expect(parsed.data.lead_data.medical_profile?.cancer?.years_cancer_free).toBe(5);
     }
   });
 });

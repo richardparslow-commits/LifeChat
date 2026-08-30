@@ -50,8 +50,10 @@ export const MedicalProfileSchema = z.object({
     .default(null),
   medical_conditions: z.array(z.string()).default([]),
   medications: z.array(z.string()).default([]),
-  diabetes: DiabetesProfileSchema,
-  cancer: CancerProfileSchema,
+  // Sub-blocks are nullable: the model legitimately emits null until those
+  // facts are collected ("use null for unknown" per Section 15).
+  diabetes: DiabetesProfileSchema.nullable().default(null),
+  cancer: CancerProfileSchema.nullable().default(null),
 });
 
 /**
@@ -226,11 +228,11 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
       med.tobacco_nicotine_use !== null ||
       med.medical_conditions.length > 0 ||
       med.medications.length > 0 ||
-      med.diabetes.diabetes_type !== null ||
-      med.diabetes.treatment_method !== null ||
-      med.diabetes.last_a1c !== null ||
-      med.cancer.cancer_type !== null ||
-      med.cancer.years_cancer_free !== null);
+      med.diabetes?.diabetes_type !== null ||
+      med.diabetes?.treatment_method !== null ||
+      med.diabetes?.last_a1c !== null ||
+      med.cancer?.cancer_type !== null ||
+      med.cancer?.years_cancer_free !== null);
   if (medPopulated && !response.consent.medical_consent_affirmed) {
     errors.push('medical_profile data requires affirmative current medical consent');
   }
