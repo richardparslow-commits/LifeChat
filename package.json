@@ -21,6 +21,9 @@
   "author": "Richard Parslow / Life Policy Pilot",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "express": "^4.21.0",
     "uuid": "^11.1.1",
