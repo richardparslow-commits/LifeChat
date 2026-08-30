@@ -44,4 +44,19 @@ describe('buildMessages', () => {
     const userMsg = messages.find((m) => m.role === 'user');
     expect(userMsg?.content).toContain('[USER MESSAGE — untrusted data]');
   });
+
+  it('appends validation feedback as a system message when provided', () => {
+    const messages = buildMessages({
+      systemPrompt: 'system prompt',
+      ragContext: '',
+      userMessage: 'hello',
+      currentState: 'education',
+      validationFeedback: 'state: Required',
+    });
+
+    const last = messages[messages.length - 1];
+    expect(last.role).toBe('system');
+    expect(last.content).toContain('VALIDATION FEEDBACK');
+    expect(last.content).toContain('state: Required');
+  });
 });
