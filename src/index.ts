@@ -15,6 +15,9 @@
  * the architecture in place for later phases.
  */
 
+// Load .env before any module reads process.env (must be the first import)
+import 'dotenv/config';
+
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { config, PRODUCT_DEFINITION } from './config/app-config';
