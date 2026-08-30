@@ -41,6 +41,11 @@ every material change*, with "signed approval, version hash" as the required evi
 | F9 | **Standby** (`standby`) | Post-flow state; education only; re-enters an active flow only on user initiative | Educational | As F2 | **Enabled** | Covered by F2 approval |
 | F10 | **Safety paths** (kill switch, abstention, static fallback, rate limit, prompt-injection & sensitive-data detection) | Risk-control layer; not a consumer-facing flow | AI-system risk control (no advertising classification) | H.B. 149 human oversight / kill switch; NAIC AI Bulletin monitoring; NIST AI 600-1 | **Enabled** | Covered by governance matrix security control (prelaunch red-team, quarterly) |
 
+> **Machine-readable mirror:** served at `GET /health` → `compliance` (source:
+> `src/compliance/classification-matrix.ts`, version `1.0.0`). Each flow carries
+> `approvalStatus` (counsel record) and `runtimeStatus` (live gating, e.g. medical
+> review `gated_by_flag` until `HEALTH_DATA_COLLECTION_DISABLED=false` is flipped).
+
 ---
 
 ## 3. Cross-cutting controls (apply to every flow)

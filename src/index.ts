@@ -53,6 +53,7 @@ import {
   isKillSwitchActive,
 } from './security/security-controls';
 import { getStaffAvailabilityMessage } from './handoff/human-escalation';
+import { getComplianceOverview } from './compliance/classification-matrix';
 import {
   generateStaticFallback,
   FALLBACK_MESSAGES,
@@ -90,10 +91,15 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 /**
- * GET /health — Simple health check
+ * GET /health — Simple health check, plus the compliance matrix overview
+ * with per-flow approval status (Phase 0: counsel classification).
  */
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', killSwitch: isKillSwitchActive() });
+  res.json({
+    status: 'ok',
+    killSwitch: isKillSwitchActive(),
+    compliance: getComplianceOverview(),
+  });
 });
 
 /**

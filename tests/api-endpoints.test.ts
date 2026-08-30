@@ -120,6 +120,25 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(res.status).toBe(200);
     expect(res.body.analytics.event_name).not.toBe('ai_abstention');
   });
+
+  it('surfaces the compliance matrix on /health with per-flow approval status', async () => {
+    const res = await request(loaded.app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.compliance.matrixVersion).toBe('1.0.0');
+    expect(res.body.compliance.phaseStatus).toBe('pending_counsel_sign_off');
+    expect(res.body.compliance.flowCount).toBe(10);
+    // Nothing is approved until counsel signs the markdown matrix
+    for (const flow of res.body.compliance.flows) {
+      expect(flow.approvalStatus).toBe('pending_counsel');
+    }
+    // Runtime gating: medical review is blocked by the flag; scheduling has
+    // no calendar API connected; the rest can execute in pilot mode.
+    const byId = (id: string) => res.body.compliance.flows.find((f: { id: string }) => f.id === id);
+    expect(byId('F5').runtimeStatus).toBe('gated_by_flag');
+    expect(byId('F7').runtimeStatus).toBe('not_connected');
+    expect(byId('F2').runtimeStatus).toBe('enabled');
+  });
 });
 
 describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () => {
@@ -203,6 +222,15 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
     // Without consent the state machine stays in medical_offer (observable via
     // the stage passed to the orchestrator).
     expect(res.body.analytics.conversation_stage).toBe('medical_offer');
+  });
+
+  it('reports medical review as enabled on /health when the flag is flipped', async () => {
+    const res = await request(loaded.app).get('/health');
+    expect(res.status).toBe(200);
+    const f5 = res.body.compliance.flows.find((f: { id: string }) => f.id === 'F5');
+    expect(f5.runtimeStatus).toBe('enabled');
+    // Approval status is unchanged: enabling the flag is not counsel approval.
+    expect(f5.approvalStatus).toBe('pending_counsel');
   });
 });
 
