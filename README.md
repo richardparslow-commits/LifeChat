@@ -143,7 +143,7 @@ Add this script to your WordPress/Elementor site (via HTML widget or theme foote
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 0 | Compliance design — counsel classifies flows | Pending |
+| Phase 0 | Compliance design — counsel classifies flows — [classification matrix](docs/compliance-classification-matrix.md) | Pending — draft for counsel |
 | Phase 1 | Educational pilot — RAG over approved sources only | **Structured** |
 | Phase 2 | Consented lead capture — minimal fields + CRM | Structured |
 | Phase 3 | Scheduling — read-only availability then booking | Structured |
