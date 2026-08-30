@@ -1,0 +1,118 @@
+/**
+ * Elementor "Trust & Transition" Block (Section 4.16)
+ *
+ * Palette contrast results (calculated with WCAG relative-luminance formula):
+ *
+ * Pair                            Ratio    Normal text    Large text    Non-text boundary
+ * #CC0700 headline on #E2E8F0     4.735:1  Pass AA        Pass AA       Pass
+ * #485B61 border on #E2E8F0       5.785:1  Pass AA        Pass AA       Pass
+ * White text on #414C32 button    9.112:1  Pass AAA       Pass AAA      —
+ * #414C32 on #E2E8F0              7.392:1  Pass AAA       Pass AAA      Pass
+ * White on #485B61 hover          7.132:1  Pass AAA       Pass AAA      —
+ * #CC0700 against #485B61         1.222:1  FAIL           FAIL          FAIL
+ *
+ * Rules:
+ *   - Button text must be white and the red headline remains on light background
+ *   - Do NOT place the red headline on the slate border/hover color
+ *   - Preserve a 3:1 focus indicator against both normal and hover states
+ *
+ * Usage in Elementor:
+ *   Element-level selector syntax is correct in Elementor's Custom CSS field,
+ *   but that field requires a qualifying paid plan and is not available on
+ *   the Essential plan. Without qualifying Elementor Custom CSS, assign the
+ *   button wrapper a class such as "lpp-trust-cta" and replace "selector"
+ *   with ".lpp-trust-cta" in WordPress/theme Additional CSS.
+ *
+ * Recommended content:
+ *   Heading: When to Speak With a Licensed Texas Broker
+ *   Body: Educational tools can help you understand common coverage structures.
+ *         A licensed broker can review your goals, explain carrier-specific
+ *         options and underwriting, and answer questions that require an
+ *         individualized discussion. No recommendation or quote is provided
+ *         by this website assistant.
+ *   Button: Check Appointment Availability
+ *   Secondary link: Keep Reading Anonymously
+ *
+ * Do NOT say a broker can identify "the right mix without over-insuring";
+ * that is an individualized-result claim. Do NOT promise a "custom gap
+ * analysis" unless a defined, reviewed process actually produces one.
+ */
+
+/* ── Elementor configuration ── */
+/*
+ * Parent Container: Column
+ *   - Justify Content: Start (not Center)
+ *   - Align Items: Stretch or Start
+ *   - Gap: 20px
+ *   - Max width: controlled by site grid
+ *
+ * Padding: use responsive values, e.g., 24px mobile and 32-40px desktop
+ * Background: #E2E8F0
+ * Border: 2px solid #485B61
+ * Border radius: 8px
+ *
+ * Heading: #CC0700
+ * Body text: use a tested dark neutral (#1a1a1a)
+ * Button: #414C32 with white text
+ */
+
+/* ── Custom CSS (paste into Elementor Custom CSS or theme Additional CSS) ── */
+
+selector .elementor-button {
+  transition: background-color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+selector .elementor-button:hover,
+selector .elementor-button:focus-visible {
+  background-color: #485B61;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.18);
+}
+
+selector .elementor-button:focus-visible {
+  outline: 3px solid #000000;
+  outline-offset: 3px;
+}
+
+/* ── Reduced motion (WCAG 2.2) ── */
+@media (prefers-reduced-motion: reduce) {
+  selector .elementor-button {
+    transition: none;
+  }
+  selector .elementor-button:hover,
+  selector .elementor-button:focus-visible {
+    transform: none;
+  }
+}
+
+/* ── Fallback for plans without Elementor Custom CSS ── */
+/* Replace "selector" with ".lpp-trust-cta" in WordPress Additional CSS */
+/*
+.lpp-trust-cta .elementor-button {
+  transition: background-color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.lpp-trust-cta .elementor-button:hover,
+.lpp-trust-cta .elementor-button:focus-visible {
+  background-color: #485B61;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.18);
+}
+
+.lpp-trust-cta .elementor-button:focus-visible {
+  outline: 3px solid #000000;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lpp-trust-cta .elementor-button {
+    transition: none;
+  }
+  .lpp-trust-cta .elementor-button:hover,
+  .lpp-trust-cta .elementor-button:focus-visible {
+    transform: none;
+  }
+}
+*/
