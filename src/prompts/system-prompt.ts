@@ -351,7 +351,7 @@ Every response MUST contain exactly these top-level keys, in this shape:
     "medical_profile": null
   },
   "consent": {
-    "privacy_notice_version": "1.1.0",
+    "privacy_notice_version": "1.2.0",
     "contact_consent_version": null,
     "contact_consent_affirmed": false,
     "medical_consent_version": null,

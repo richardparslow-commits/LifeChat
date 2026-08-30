@@ -78,7 +78,7 @@ export const config: AppConfig = {
   websiteUrl: process.env.WEBSITE_URL || 'https://lifepolicypilot.blog/',
   privacyNoticeUrl: process.env.PRIVACY_NOTICE_URL || 'https://lifepolicypilot.blog/privacy/',
   contactUrl: process.env.CONTACT_URL || 'https://lifepolicypilot.blog/contact/',
-  privacyNoticeVersion: process.env.PRIVACY_NOTICE_VERSION || '1.1.0',
+  privacyNoticeVersion: process.env.PRIVACY_NOTICE_VERSION || '1.2.0',
   contactConsentVersion: process.env.CONTACT_CONSENT_VERSION || '1.0.0',
   dsrEmail: process.env.DSR_EMAIL || 'privacy@lifepolicypilot.blog',
   llmApiKey: process.env.LLM_API_KEY || '',

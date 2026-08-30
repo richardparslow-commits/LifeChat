@@ -1,6 +1,6 @@
 # Privacy Notice — Life Policy Pilot / Richard Parslow, Independent Texas Life Insurance Broker
 
-**Version:** 1.1.0 (draft for attorney review) · **Last updated:** 2026-08-30 · **Effective when published**
+**Version:** 1.2.0 (draft for attorney review) · **Last updated:** 2026-08-30 · **Effective when published**
 **Contact:** privacy@lifepolicypilot.blog
 
 > **Important caveat before you publish.** This notice is a working draft, not legal advice. Before
@@ -44,26 +44,47 @@ email, phone, or other communications with us.
 
 ## 3. Information We Collect
 
-- **Identity and contact information** — your name, email address, phone number, and preferred
-  contact channel, provided when you ask for a follow-up or appointment.
-- **Profile and preference information** — optional qualification answers (your goal, your decision
-  timeline, whether you currently have coverage), product interest, and coverage-amount interest.
-- **Health information (sensitive)** — date of birth, gender, height/weight, tobacco or nicotine
-  use, diagnosed conditions, and prescribed medications. Collected **only** with your explicit,
-  separate, versioned consent, and used solely to match carriers to your profile.
-- **Chat and usage information** — the text you send in the chat, session identifiers, the page you
-  were viewing, and de-identified analytics events (no personal information in analytics).
+### A. Information You Provide Directly
+
+| Category | Examples | Purpose |
+|---|---|---|
+| **Contact information** | Name, email address, phone number | To respond to your inquiries, schedule appointments, and provide the information you request |
+| **Profile and preference information** | Optional qualification answers (your goal, your decision timeline, whether you currently have coverage), product interest, coverage-amount interest | To help Richard Parslow prepare for a conversation and, with your consent, match carriers to your profile |
+| **Health information (sensitive)** | Date of birth, gender, height/weight, tobacco or nicotine use, diagnosed conditions, prescribed medications | Collected **only** with your explicit, separate, versioned consent, to help match carriers to your profile. This notice does not offer quotes; a personalized review requires the licensed broker |
+| **Chat and usage information** | The text you send in the chat, session identifiers, the page you were viewing | To answer your questions and improve the assistant through de-identified analytics (no personal information in analytics) |
+
+### B. We do NOT collect
+
+We do **not** collect:
+
+- Social Security numbers
+- Driver's license numbers
+- Financial account numbers
+- Credit or debit card numbers
+- Precise geolocation data
+- Biometric data
+- Information about children under 18
 
 ## 4. How We Use Your Information
 
-- To answer your general life-insurance education questions.
-- To prepare for and follow up on a consultation or appointment you request with Richard Parslow.
+We use your personal information for the following purposes:
+
+- To respond to your inquiries about life-insurance education, products, or services.
+- To schedule appointments with Richard Parslow.
+- To provide you with information you have requested about life insurance.
 - To match carriers to your profile, when you give separate consent for health information.
 - To carry out your insurance request — such as an application, policy service, or claim — with the
   carrier you choose.
-- To respond to your privacy and data-subject requests.
-- To improve the site and assistant through de-identified analytics.
-- To meet legal obligations (for example, fraud prevention, regulatory, and tax requirements).
+- To comply with legal obligations, including record-keeping requirements under Texas insurance
+  law, and to respond to privacy and data-subject requests.
+- To improve our blog and chatbot based on aggregate, de-identified usage patterns.
+
+We do **not**:
+
+- Sell your personal information to third parties.
+- Use your personal information for targeted advertising.
+- Make automated decisions about you that have legal or similarly significant effects.
+- Use your personal information for any purpose not disclosed in this notice without your consent.
 
 ## 5. Information We Share
 
@@ -119,7 +140,7 @@ deletion at any time through the contact below.
 
 ## 9. Children
 
-The blog and the LifeChat assistant are not directed at children under 13, and we do not knowingly
+The blog and the LifeChat assistant are not directed at children under 18, and we do not knowingly
 collect personal information from children.
 
 ## 10. Changes to This Notice
