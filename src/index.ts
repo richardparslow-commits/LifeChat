@@ -55,9 +55,10 @@ import {
   createLeadRecord,
   validateEmail,
   validatePhone,
-  JUST_IN_TIME_NOTICE,
+  getJustInTimeNotice,
   RECOMMENDED_PHONE_CONSENT_COPY,
 } from './consent/consent-model';
+import { submitDsr, getDsrRecord, DSR_RESPONSE_SLA_DAYS } from './privacy/dsr';
 import {
   detectPromptInjection,
   detectSensitiveData,
@@ -140,6 +141,8 @@ app.get('/api/disclosure', (_req: Request, res: Response) => {
     appointmentDisclaimer: APPOINTMENT_DISCLAIMER,
     appointedCarriers: config.appointedCarriers,
     privacyNoticeUrl: config.privacyNoticeUrl,
+    privacyNoticeVersion: config.privacyNoticeVersion,
+    dsrEmail: config.dsrEmail,
     contactUrl: config.contactUrl,
   });
 });
@@ -150,9 +153,11 @@ app.get('/api/disclosure', (_req: Request, res: Response) => {
 app.get('/api/consent-text', (_req: Request, res: Response) => {
   res.json({
     phoneConsentCopy: RECOMMENDED_PHONE_CONSENT_COPY,
-    justInTimeNotice: JUST_IN_TIME_NOTICE,
+    justInTimeNotice: getJustInTimeNotice(),
+    privacyNoticeUrl: config.privacyNoticeUrl,
     privacyNoticeVersion: config.privacyNoticeVersion,
     contactConsentVersion: config.contactConsentVersion,
+    dsrEmail: config.dsrEmail,
     note: 'All consent text must be reviewed and approved by Texas insurance counsel before use.',
   });
 });
@@ -518,6 +523,50 @@ app.post('/api/consent', (req: Request, res: Response) => {
     leadId: lead.lead_id,
     status: 'created',
     message: 'Your information has been received. Richard Parslow will follow up with you.',
+  });
+});
+
+/**
+ * POST /api/dsr — Submit a data subject request (TDPSA consumer rights)
+ *
+ * Accepts access, deletion, correction, and portability requests. Creates a
+ * validated record and returns an acknowledgment with the TDPSA response
+ * window. No PII is placed in analytics; the record is stored in the
+ * operational system (in-memory for the pilot).
+ */
+app.post('/api/dsr', (req: Request, res: Response) => {
+  const result = submitDsr({
+    requestType: req.body.requestType,
+    contactEmail: req.body.contactEmail,
+    detail: req.body.detail ?? null,
+  });
+
+  if (!result.ok) {
+    return res.status(400).json({ error: 'Invalid data subject request', reason: result.reason });
+  }
+
+  return res.json({
+    requestId: result.record.request_id,
+    status: result.record.status,
+    requestType: result.record.request_type,
+    responseWithinDays: DSR_RESPONSE_SLA_DAYS,
+    message: `We received your ${result.record.request_type} request. We will respond to ${result.record.contact_email} within ${DSR_RESPONSE_SLA_DAYS} days. You can also email ${config.dsrEmail} directly.`,
+  });
+});
+
+/**
+ * GET /api/dsr/:requestId — DSR request status (admin/debug)
+ */
+app.get('/api/dsr/:requestId', (req: Request, res: Response) => {
+  const record = getDsrRecord(req.params.requestId);
+  if (!record) {
+    return res.status(404).json({ error: 'DSR request not found' });
+  }
+  return res.json({
+    requestId: record.request_id,
+    status: record.status,
+    requestType: record.request_type,
+    createdAt: record.created_at,
   });
 });
 

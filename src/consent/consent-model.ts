@@ -6,6 +6,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { config } from '../config/app-config';
 
 /**
  * Permitted lead fields (Section 4.7).
@@ -230,6 +231,9 @@ export const RECOMMENDED_MEDICAL_CONSENT_COPY = `Optional: I consent to Life Pol
 /**
  * Just-in-time notice shown immediately before lead submission (Section 4.7).
  * Identifies exact fields, purpose, recipients, retention summary,
- * optionality, contact choices, and withdrawal/deletion route.
+ * optionality, contact choices, and the withdrawal/deletion route — with the
+ * DSR contact email (TDPSA consumer rights) from verified configuration.
  */
-export const JUST_IN_TIME_NOTICE = `Before you submit: The information you provide (name, email/phone, and optional preferences) will be shared with Richard Parslow, a licensed Texas life-insurance broker, to follow up about your life-insurance inquiry. Providing this information is optional. You can withdraw consent or request deletion at any time by contacting us. See our Privacy Notice for full details.`;
+export function getJustInTimeNotice(): string {
+  return `Before you submit: The information you provide (name, email/phone, and optional preferences) will be shared with Richard Parslow, a licensed Texas life-insurance broker, to follow up about your life-insurance inquiry. Providing this information is optional. You can withdraw consent, or submit an access, deletion, correction, or portability request, at any time by emailing ${config.dsrEmail}. See our Privacy Notice for full details.`;
+}

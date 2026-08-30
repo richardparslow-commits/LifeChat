@@ -152,7 +152,7 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     const res = await request(loaded.app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
-    expect(res.body.compliance.matrixVersion).toBe('1.2.0');
+    expect(res.body.compliance.matrixVersion).toBe('1.3.0');
     expect(res.body.compliance.phaseStatus).toBe('pending_counsel_sign_off');
     expect(res.body.compliance.flowCount).toBe(10);
     // Nothing is approved until counsel signs the markdown matrix
@@ -303,6 +303,13 @@ describe('GET /api/disclosure — license & appointment disclosure', () => {
         'Richard Parslow is appointed with select carriers. Coverage availability may vary.',
       );
     });
+
+    it('links the TDPSA privacy notice and exposes the DSR contact', async () => {
+      const res = await request(loaded.app).get('/api/disclosure');
+      expect(res.body.privacyNoticeUrl).toBe('https://lifepolicypilot.blog/privacy/');
+      expect(res.body.privacyNoticeVersion).toBe('1.0.0');
+      expect(res.body.dsrEmail).toBe('privacy@lifepolicypilot.blog');
+    });
   });
 
   describe('with a configured license number and appointment list', () => {
@@ -333,6 +340,72 @@ describe('GET /api/disclosure — license & appointment disclosure', () => {
       expect(res.body.appointedCarriers).toEqual(['Carrier A', 'Carrier B']);
       expect(res.body.appointmentDisclaimer).toBeTruthy();
     });
+  });
+});
+
+describe('POST /api/dsr — TDPSA consumer rights', () => {
+  let loaded: LoadedApp;
+
+  beforeAll(async () => {
+    loaded = await loadApp({
+      LIFECHAT_PORT: '0',
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'true',
+    });
+  });
+
+  afterAll(async () => {
+    await loaded.cleanup();
+  });
+
+  it('serves the DSR email and a privacy-notice-linked just-in-time notice', async () => {
+    const res = await request(loaded.app).get('/api/consent-text');
+    expect(res.status).toBe(200);
+    expect(res.body.justInTimeNotice).toContain('privacy@lifepolicypilot.blog');
+    expect(res.body.privacyNoticeUrl).toBe('https://lifepolicypilot.blog/privacy/');
+    expect(res.body.dsrEmail).toBe('privacy@lifepolicypilot.blog');
+  });
+
+  it('accepts a deletion request and returns the 45-day TDPSA response window', async () => {
+    const res = await request(loaded.app).post('/api/dsr').send({
+      requestType: 'deletion',
+      contactEmail: 'user@example.com',
+      detail: 'Please delete my data',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('received');
+    expect(res.body.requestType).toBe('deletion');
+    expect(res.body.responseWithinDays).toBe(45);
+    expect(res.body.requestId).toBeTruthy();
+
+    // Status lookup for the created request
+    const statusRes = await request(loaded.app).get(`/api/dsr/${res.body.requestId}`);
+    expect(statusRes.status).toBe(200);
+    expect(statusRes.body.status).toBe('received');
+    expect(statusRes.body.requestType).toBe('deletion');
+  });
+
+  it('rejects an unknown request type', async () => {
+    const res = await request(loaded.app).post('/api/dsr').send({
+      requestType: 'nuclear_option',
+      contactEmail: 'user@example.com',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.reason).toContain('requestType must be one of');
+  });
+
+  it('rejects an invalid contact email', async () => {
+    const res = await request(loaded.app).post('/api/dsr').send({
+      requestType: 'access',
+      contactEmail: 'not-an-email',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.reason).toContain('valid contact email');
+  });
+
+  it('returns 404 for an unknown DSR request id', async () => {
+    const res = await request(loaded.app).get('/api/dsr/does-not-exist');
+    expect(res.status).toBe(404);
   });
 });
 

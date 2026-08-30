@@ -29,6 +29,11 @@ export interface AppConfig {
   privacyNoticeVersion: string;
   /** Current contact consent version */
   contactConsentVersion: string;
+  /**
+   * Data subject request (DSR) contact — where consumers submit access,
+   * deletion, correction, and portability requests (TDPSA consumer rights).
+   */
+  dsrEmail: string;
   /** LLM API key (loaded from environment) */
   llmApiKey: string;
   /** LLM model identifier */
@@ -68,6 +73,7 @@ export const config: AppConfig = {
   contactUrl: process.env.CONTACT_URL || 'https://lifepolicypilot.blog/contact/',
   privacyNoticeVersion: process.env.PRIVACY_NOTICE_VERSION || '1.0.0',
   contactConsentVersion: process.env.CONTACT_CONSENT_VERSION || '1.0.0',
+  dsrEmail: process.env.DSR_EMAIL || 'privacy@lifepolicypilot.blog',
   llmApiKey: process.env.LLM_API_KEY || '',
   llmModel: process.env.LLM_MODEL || 'gpt-4o',
   pilotMode: process.env.PILOT_MODE !== 'false',

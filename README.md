@@ -39,6 +39,8 @@ LifeChat/
 │   │   └── response-schema.ts     # JSON output schema & validation (Section 15)
 │   ├── consent/
 │   │   └── consent-model.ts       # Lead data & consent model (Section 4.7)
+│   ├── privacy/
+│   │   └── dsr.ts                 # Data subject request intake (TDPSA rights)
 │   ├── tools/
 │   │   └── tool-controls.ts       # Tool & integration controls (Section 4.8)
 │   ├── security/
@@ -114,6 +116,7 @@ APPOINTED_CARRIERS="" # comma-separated carriers Richard Parslow is appointed wi
 WEBSITE_URL="https://lifepolicypilot.blog/"
 PRIVACY_NOTICE_URL="https://lifepolicypilot.blog/privacy/"
 CONTACT_URL="https://lifepolicypilot.blog/contact/"
+DSR_EMAIL="privacy@lifepolicypilot.blog" # data subject requests (TDPSA rights)
 LLM_API_KEY="your-api-key"
 LLM_MODEL="gpt-4o"
 PILOT_MODE=true
@@ -139,6 +142,8 @@ PILOT_MODE=true
 | GET | `/api/system-prompt` | Hardened system prompt (admin) |
 | POST | `/api/chat` | Main chat endpoint |
 | POST | `/api/consent` | Submit consent for lead capture (Phase 2) |
+| POST | `/api/dsr` | Submit a data subject request (access/deletion/correction/portability) |
+| GET | `/api/dsr/:requestId` | DSR request status (admin/debug) |
 | GET | `/api/analytics/example` | Example GTM dataLayer snippet |
 
 ## Embedding the Widget
@@ -163,7 +168,7 @@ Add this script to your WordPress/Elementor site (via HTML widget or theme foote
 ## Regulatory References
 
 - Texas Insurance Code §541.061 — misrepresentation & unfair/deceptive practices
-- Texas Data Privacy and Security Act (TDPSA) — sensitive data requires consent
+- Texas Data Privacy and Security Act (TDPSA) — sensitive data requires consent; privacy notice and consumer rights (access/deletion/correction/portability) via DSR
 - Texas H.B. 149 — Responsible AI Governance Act (effective Jan 1, 2026)
 - NAIC Model Bulletin on AI Systems (Dec 4, 2023)
 - NAIC Model 570 — life/annuity advertising disclosure
