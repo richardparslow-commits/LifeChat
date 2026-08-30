@@ -152,7 +152,7 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     const res = await request(loaded.app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
-    expect(res.body.compliance.matrixVersion).toBe('1.5.0');
+    expect(res.body.compliance.matrixVersion).toBe('1.6.0');
     expect(res.body.compliance.phaseStatus).toBe('pending_counsel_sign_off');
     expect(res.body.compliance.flowCount).toBe(10);
     // Nothing is approved until counsel signs the markdown matrix
@@ -307,7 +307,7 @@ describe('GET /api/disclosure — license & appointment disclosure', () => {
     it('links the TDPSA privacy notice and exposes the DSR contact', async () => {
       const res = await request(loaded.app).get('/api/disclosure');
       expect(res.body.privacyNoticeUrl).toBe('https://lifepolicypilot.blog/privacy/');
-      expect(res.body.privacyNoticeVersion).toBe('1.1.0');
+      expect(res.body.privacyNoticeVersion).toBe('1.2.0');
       expect(res.body.dsrEmail).toBe('privacy@lifepolicypilot.blog');
     });
   });
