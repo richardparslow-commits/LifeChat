@@ -24,6 +24,8 @@ function makeCtx(overrides: Partial<StateTransitionContext>): StateTransitionCon
     userAgreesToMedicalReview: false,
     medicalConsentAffirmative: false,
     medicalReviewComplete: false,
+    userRequestsDimeEstimator: false,
+    dimeComplete: false,
     userRequestsFollowup: false,
     contactChannelChosen: false,
     consentAffirmative: false,
@@ -134,6 +136,39 @@ describe('State Machine — getNextState', () => {
       );
       expect(next).toBe('clarify');
     });
+
+    test('transitions to dime_estimator when user requests a coverage estimate', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'education',
+          userRequestsDimeEstimator: true,
+        }),
+      );
+      expect(next).toBe('dime_estimator');
+    });
+
+    test('dime request takes priority over the qualification offer', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'education',
+          userRequestsDimeEstimator: true,
+          hasValueBeenDelivered: true,
+          userShowsInterest: true,
+        }),
+      );
+      expect(next).toBe('dime_estimator');
+    });
+
+    test('ambiguity still takes priority over a dime request', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'education',
+          queryIsAmbiguous: true,
+          userRequestsDimeEstimator: true,
+        }),
+      );
+      expect(next).toBe('clarify');
+    });
   });
 
   // ── clarify state ──
@@ -167,6 +202,17 @@ describe('State Machine — getNextState', () => {
         }),
       );
       expect(next).toBe('handoff');
+    });
+
+    test('routes a coverage-needs request from clarification to the estimator', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'clarify',
+          queryIsAmbiguous: true,
+          userRequestsDimeEstimator: true,
+        }),
+      );
+      expect(next).toBe('dime_estimator');
     });
   });
 
@@ -316,6 +362,49 @@ describe('State Machine — getNextState', () => {
         }),
       );
       expect(next).toBe('medical_review');
+    });
+  });
+
+  // ── dime_estimator state (educational sub-flow) ──
+  describe('dime_estimator state', () => {
+    test('transitions to contact_offer when all three inputs are collected', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'dime_estimator',
+          dimeComplete: true,
+        }),
+      );
+      expect(next).toBe('contact_offer');
+    });
+
+    test('returns to education when the user declines', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'dime_estimator',
+          userDeclinesOrFlowEnds: true,
+        }),
+      );
+      expect(next).toBe('education');
+    });
+
+    test('transitions to handoff on risk trigger', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'dime_estimator',
+          riskOrEscalationTrigger: true,
+        }),
+      );
+      expect(next).toBe('handoff');
+    });
+
+    test('stays in dime_estimator while collecting inputs', () => {
+      const next = getNextState(
+        makeCtx({
+          currentState: 'dime_estimator',
+          dimeComplete: false,
+        }),
+      );
+      expect(next).toBe('dime_estimator');
     });
   });
 

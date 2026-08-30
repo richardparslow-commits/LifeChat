@@ -120,6 +120,36 @@ export const ProposedActionSchema = z.enum([
 ]);
 
 /**
+ * DIME coverage-needs estimator — educational sub-flow (Section 9.2).
+ * Coarse, non-sensitive inputs only; the application computes the range.
+ */
+export const DimeEstimatorSchema = z.object({
+  /** Whether the estimator is active (offering or collecting). */
+  active: z.boolean().default(false),
+  /** Next question to ask (1–3); null while inactive or once complete. */
+  step: z.number().int().min(1).max(3).nullable().default(null),
+  has_mortgage_or_debt: z.boolean().nullable().default(null),
+  income_replacement_years: z.number().int().min(0).max(40).nullable().default(null),
+  future_expenses: z.boolean().nullable().default(null),
+  /** True when all three inputs are collected (application-derived). */
+  complete: z.boolean().default(false),
+});
+
+/**
+ * The default (inactive) DIME block. The model emits this shape with
+ * active=true when running the estimator; the application derives step and
+ * complete deterministically after each turn.
+ */
+export const EMPTY_DIME_ESTIMATOR: DimeEstimator = {
+  active: false,
+  step: null,
+  has_mortgage_or_debt: null,
+  income_replacement_years: null,
+  future_expenses: null,
+  complete: false,
+};
+
+/**
  * Analytics event — allowlisted categorical values only.
  * Never user-entered free text. Never PII.
  */
@@ -141,6 +171,8 @@ export const AnalyticsSchema = z.object({
       'ai_appointment_booked',
       'ai_handoff_request',
       'ai_handoff_complete',
+      'ai_dime_offer',
+      'ai_dime_complete',
       'ai_fallback_shown',
       'ai_error',
     ])
@@ -173,10 +205,13 @@ export const AssistantResponseSchema = z.object({
     'confirmation',
     'handoff',
     'standby',
+    'dime_estimator',
   ]),
   citations: z.array(CitationSchema).default([]),
   lead_data: LeadDataSchema,
   consent: ConsentSchema,
+  /** DIME coverage-needs estimator (educational sub-flow, Section 9.2). */
+  dime_estimator: DimeEstimatorSchema.default(() => ({ ...EMPTY_DIME_ESTIMATOR })),
   proposed_action: ProposedActionSchema.default('none'),
   action_arguments: z.record(z.unknown()).default({}),
   risk_flags: z.array(z.string()).default([]),
@@ -203,6 +238,7 @@ export type LeadData = z.infer<typeof LeadDataSchema>;
 export type Consent = z.infer<typeof ConsentSchema>;
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
 export type Analytics = z.infer<typeof AnalyticsSchema>;
+export type DimeEstimator = z.infer<typeof DimeEstimatorSchema>;
 export type AssistantResponse = z.infer<typeof AssistantResponseSchema>;
 
 /**
@@ -272,6 +308,37 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
     errors.push('do_not_contact=true must suppress all contact offers and lead creation');
   }
 
+  // DIME estimator coherence (Section 9.2 — educational sub-flow)
+  const dime = response.dime_estimator;
+  // Claiming the dime_estimator state requires an active DIME block
+  if (response.state === 'dime_estimator' && !dime.active) {
+    errors.push('state=dime_estimator requires dime_estimator.active=true');
+  }
+  // An active DIME block only runs in the estimator state (or the completion
+  // turn that advances to contact_offer); never in a plain education answer.
+  if (dime.active && response.state !== 'dime_estimator' && response.state !== 'contact_offer') {
+    errors.push(
+      'dime_estimator.active=true is only allowed in state dime_estimator or contact_offer',
+    );
+  }
+  // Completion requires all three inputs
+  if (
+    dime.complete &&
+    (dime.has_mortgage_or_debt === null ||
+      dime.income_replacement_years === null ||
+      dime.future_expenses === null)
+  ) {
+    errors.push('dime_estimator.complete=true requires all three inputs to be collected');
+  }
+  // Inputs imply an active estimator
+  const dimeHasInput =
+    dime.has_mortgage_or_debt !== null ||
+    dime.income_replacement_years !== null ||
+    dime.future_expenses !== null;
+  if (dimeHasInput && !dime.active) {
+    errors.push('dime_estimator inputs require active=true');
+  }
+
   return errors;
 }
 
@@ -306,6 +373,7 @@ export const STATIC_SAFE_FALLBACK: AssistantResponse = {
     medical_consent_affirmed: false,
     do_not_contact: false,
   },
+  dime_estimator: { ...EMPTY_DIME_ESTIMATOR },
   proposed_action: 'none',
   action_arguments: {},
   risk_flags: ['static_fallback_used'],

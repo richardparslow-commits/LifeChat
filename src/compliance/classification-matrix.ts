@@ -51,7 +51,7 @@ export interface ComplianceOverview {
   flows: ComplianceFlowOverview[];
 }
 
-export const MATRIX_VERSION = '1.0.0';
+export const MATRIX_VERSION = '1.1.0';
 export const MATRIX_DOCUMENT = 'docs/compliance-classification-matrix.md';
 
 /**
@@ -77,9 +77,9 @@ export const COMPLIANCE_CLASSIFICATION_MATRIX: ComplianceFlow[] = [
   {
     id: 'F2',
     name: 'Education',
-    states: ['education'],
+    states: ['education', 'dime_estimator'],
     description:
-      'Answers from RAG over the compliance-reviewed corpus with claim-level citations; abstains with a reason when evidence is absent, conflicting, or expired.',
+      'Answers from RAG over the compliance-reviewed corpus with claim-level citations; abstains with a reason when evidence is absent, conflicting, or expired. Includes the DIME coverage-needs estimator, a 3-step educational exercise (Debt, Income, Mortgage, Education) whose illustrative range is computed by the application from coarse, non-sensitive inputs — never a recommendation or quote.',
     proposedClassification: 'Educational; at most institutional advertisement',
     regulatoryDuties: [
       'Texas Insurance Code §541.061',
@@ -93,6 +93,7 @@ export const COMPLIANCE_CLASSIFICATION_MATRIX: ComplianceFlow[] = [
       'Approve citation format',
       'Approve abstention wording',
       'Confirm no policy/quote offers',
+      'Approve DIME estimator questions & illustrative range table',
     ],
   },
   {

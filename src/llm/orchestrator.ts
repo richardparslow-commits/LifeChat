@@ -42,6 +42,12 @@ export interface OrchestratorInput {
   currentState: ConversationState;
   conversationHistory?: LLMMessage[];
   topicCategory?: string;
+  /**
+   * Application-computed DIME estimator progress (Section 9.2), passed as
+   * authoritative application context so the model never re-asks a collected
+   * question or invents dollar figures.
+   */
+  dimeContext?: string;
 }
 
 export interface OrchestratorResult {
@@ -102,6 +108,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     currentState: input.currentState,
     temperature: 0.3,
     maxTokens: 800,
+    applicationContext: input.dimeContext,
   };
   const llmResult = await callLLM(llmOptions);
 
@@ -261,6 +268,14 @@ function buildAbstentionResponse(
       medical_consent_affirmed: false,
       do_not_contact: false,
     },
+    dime_estimator: {
+      active: false,
+      step: null,
+      has_mortgage_or_debt: null,
+      income_replacement_years: null,
+      future_expenses: null,
+      complete: false,
+    },
     proposed_action: 'none',
     action_arguments: {},
     risk_flags: [],
@@ -313,6 +328,14 @@ function buildFallbackResponse(
       medical_consent_version: null,
       medical_consent_affirmed: false,
       do_not_contact: false,
+    },
+    dime_estimator: {
+      active: false,
+      step: null,
+      has_mortgage_or_debt: null,
+      income_replacement_years: null,
+      future_expenses: null,
+      complete: false,
     },
     proposed_action: 'request_human_handoff',
     action_arguments: {

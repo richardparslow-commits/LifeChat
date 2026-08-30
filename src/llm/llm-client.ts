@@ -40,6 +40,12 @@ export interface LLMCallOptions {
   maxTokens?: number;
   /** Why a previous response was rejected, for a retry with feedback. */
   validationFeedback?: string;
+  /**
+   * Additional authoritative application context appended to the state block
+   * (e.g. DIME estimator progress so the model never re-asks a question or
+   * invents figures). Treated as data, not instructions from the user.
+   */
+  applicationContext?: string;
 }
 
 export interface LLMCallResult {
@@ -100,9 +106,10 @@ export function buildMessages(opts: LLMCallOptions): LLMMessage[] {
   // 5. Current conversation state — authoritative application context.
   //    The model must know which state it is in to emit the correct JSON
   //    "state" field and behave per-state (Section 4.4 state machine).
+  const stateBlock = `[APPLICATION CONTEXT] Current conversation state: ${opts.currentState ?? 'education'}. Set the JSON "state" field to the appropriate state for this turn: stay in the current state when information is still being collected, and advance to the next state when its condition is met.`;
   messages.push({
     role: 'system',
-    content: `[APPLICATION CONTEXT] Current conversation state: ${opts.currentState ?? 'education'}. Set the JSON "state" field to the appropriate state for this turn: stay in the current state when information is still being collected, and advance to the next state when its condition is met.`,
+    content: opts.applicationContext ? `${stateBlock}\n${opts.applicationContext}` : stateBlock,
   });
 
   // 6. Validation feedback for a retry — tells the model why its previous
