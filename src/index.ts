@@ -76,7 +76,7 @@ app.get('/', (_req: Request, res: Response) => {
     owner: PRODUCT_DEFINITION.owner,
     jurisdiction: PRODUCT_DEFINITION.initialJurisdiction,
     status: config.pilotMode ? 'pilot' : 'production',
-    healthDataCollection: 'disabled',
+    healthDataCollection: config.healthDataCollectionDisabled ? 'disabled' : 'enabled',
     outboundMarketing: config.outboundMarketingDisabled ? 'disabled' : 'enabled',
     endpoints: {
       chat: 'POST /api/chat',
@@ -159,11 +159,21 @@ interface ChatRequestBody {
   sourceUrl?: string;
   articleId?: string;
   topicCategory?: string;
+  /** Phase 2 medical capture — only honored when the feature flag is enabled */
+  userAgreesToMedicalReview?: boolean;
+  medicalConsentAffirmative?: boolean;
+  medicalReviewComplete?: boolean;
 }
 
 app.post('/api/chat', async (req: Request, res: Response) => {
   const { sessionId, message, currentState, sourceUrl, topicCategory } =
     req.body as ChatRequestBody;
+
+  // Phase 2 gate: the consented medical fact-finding flow is inert unless
+  // HEALTH_DATA_COLLECTION_DISABLED=false is set in .env (after counsel
+  // approval). When disabled, the medical context flags are forced off and
+  // health data shared in chat is blocked, exactly as in Phase 1.
+  const medicalCaptureEnabled = !config.healthDataCollectionDisabled;
 
   // 1. Check kill switch
   if (isKillSwitchActive()) {
@@ -240,51 +250,56 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   // 4. Security: detect sensitive data
   const sensitiveDataCategory = detectSensitiveData(message);
   if (sensitiveDataCategory === 'health_data') {
-    // Record a redacted user message and the assistant's handoff response
-    addUserMessage(sessionId, '[USER MESSAGE REDACTED — contained health data]', true);
-    const response: AssistantResponse = {
-      assistant_message: `This chat isn't the right place for medical or health information. Please don't share diagnoses, medications, or health details here. If you need individualized guidance, Richard Parslow, a licensed Texas broker, can help through a secure process. ${ABSTENTION_SENTENCE}`,
-      state: 'handoff',
-      citations: [],
-      lead_data: {
-        first_name: null,
-        email: null,
-        phone: null,
-        goal_category: null,
-        timeline_category: null,
-        current_coverage_category: null,
-        policy_type_seeking: null,
-        coverage_amount_seeking: null,
-        contact_channel: null,
-        time_zone: null,
-        preferred_contact_window: null,
-        medical_profile: null,
-      },
-      consent: {
-        privacy_notice_version: config.privacyNoticeVersion,
-        contact_consent_version: null,
-        contact_consent_affirmed: false,
-        medical_consent_version: null,
-        medical_consent_affirmed: false,
-        do_not_contact: false,
-      },
-      proposed_action: 'request_human_handoff',
-      action_arguments: {
-        handoff_reason: 'health_data_disclosed',
-        summary: 'User disclosed health information in public chat',
-      },
-      risk_flags: ['sensitive_data_disclosed'],
-      analytics: {
-        event_name: 'ai_handoff_request',
-        topic_category: topicCategory || null,
-        conversation_stage: currentState,
-        fallback_type: null,
-        handoff_reason: 'health_data_disclosed',
-        error_code: null,
-      },
-    };
-    addAssistantMessage(sessionId, response.assistant_message);
-    return res.json(response);
+    // Only the consented medical_review state may receive health details.
+    // Everywhere else (and whenever the medical feature flag is off),
+    // health data is blocked and routed to a licensed-broker handoff.
+    if (!medicalCaptureEnabled || currentState !== 'medical_review') {
+      // Record a redacted user message and the assistant's handoff response
+      addUserMessage(sessionId, '[USER MESSAGE REDACTED — contained health data]', true);
+      const response: AssistantResponse = {
+        assistant_message: `This chat isn't the right place for medical or health information. Please don't share diagnoses, medications, or health details here. If you need individualized guidance, Richard Parslow, a licensed Texas broker, can help through a secure process. ${ABSTENTION_SENTENCE}`,
+        state: 'handoff',
+        citations: [],
+        lead_data: {
+          first_name: null,
+          email: null,
+          phone: null,
+          goal_category: null,
+          timeline_category: null,
+          current_coverage_category: null,
+          policy_type_seeking: null,
+          coverage_amount_seeking: null,
+          contact_channel: null,
+          time_zone: null,
+          preferred_contact_window: null,
+          medical_profile: null,
+        },
+        consent: {
+          privacy_notice_version: config.privacyNoticeVersion,
+          contact_consent_version: null,
+          contact_consent_affirmed: false,
+          medical_consent_version: null,
+          medical_consent_affirmed: false,
+          do_not_contact: false,
+        },
+        proposed_action: 'request_human_handoff',
+        action_arguments: {
+          handoff_reason: 'health_data_disclosed',
+          summary: 'User disclosed health information in public chat',
+        },
+        risk_flags: ['sensitive_data_disclosed'],
+        analytics: {
+          event_name: 'ai_handoff_request',
+          topic_category: topicCategory || null,
+          conversation_stage: currentState,
+          fallback_type: null,
+          handoff_reason: 'health_data_disclosed',
+          error_code: null,
+        },
+      };
+      addAssistantMessage(sessionId, response.assistant_message);
+      return res.json(response);
+    }
   }
 
   // 5. Sanitize the source URL (never send raw window.location.href)
@@ -315,9 +330,17 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       userShowsInterest: false,
       queryIsAmbiguous: false,
       userAgreesToQualification: false,
-      userAgreesToMedicalReview: false, // Phase 2 — gated behind medical capture flag
-      medicalConsentAffirmative: false,
-      medicalReviewComplete: false,
+      // Phase 2 medical capture — request-body flags honored only when the
+      // feature flag is enabled; otherwise forced off (flow stays inert).
+      userAgreesToMedicalReview: medicalCaptureEnabled
+        ? (req.body.userAgreesToMedicalReview ?? false)
+        : false,
+      medicalConsentAffirmative: medicalCaptureEnabled
+        ? (req.body.medicalConsentAffirmative ?? false)
+        : false,
+      medicalReviewComplete: medicalCaptureEnabled
+        ? (req.body.medicalReviewComplete ?? false)
+        : false,
       userRequestsFollowup: false,
       contactChannelChosen: false,
       consentAffirmative: false,

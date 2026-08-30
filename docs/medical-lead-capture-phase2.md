@@ -62,7 +62,7 @@
 | `src/state-machine/state-machine.ts` | `medical_offer` / `medical_review` states, `APPROVED_MEDICAL_TOPICS` |
 | `src/prompts/system-prompt.ts` | §9.1 MEDICAL FACT-FINDING |
 | `src/evaluation/evaluation-plan.ts` | 4 medical guardrail scenarios |
-| `src/index.ts` | **Not yet wired** — endpoint gating is a follow-up |
+| `src/index.ts` | **Wired** — endpoint gating honors `HEALTH_DATA_COLLECTION_DISABLED` (default true). When disabled, medical context flags are forced off and health data in chat is blocked; when `HEALTH_DATA_COLLECTION_DISABLED=false`, the request-body medical flags flow into the state machine and health data is accepted only in the consented `medical_review` state |
 
 ## 7. Counsel checklist
 
