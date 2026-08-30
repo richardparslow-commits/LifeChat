@@ -47,6 +47,13 @@ export interface AppConfig {
   healthDataCollectionDisabled: boolean;
   /** Whether outbound marketing is disabled */
   outboundMarketingDisabled: boolean;
+  /**
+   * Whether promotional/free-offer terms ("free quote", "free consultation",
+   * "no-obligation") have passed marketing review. Default false — flagged
+   * for future marketing review. While false, the output guard rejects any
+   * assistant message containing those phrases.
+   */
+  freeOfferMarketingApproved: boolean;
 }
 
 /**
@@ -80,6 +87,9 @@ export const config: AppConfig = {
   // Phase 2 gate — enabled only by explicit opt-in in .env after counsel review
   healthDataCollectionDisabled: process.env.HEALTH_DATA_COLLECTION_DISABLED !== 'false',
   outboundMarketingDisabled: true,
+  // Marketing-review gate: flip to true only after the free-offer terms are
+  // reviewed and approved. Until then the output guard blocks the phrasing.
+  freeOfferMarketingApproved: process.env.FREE_OFFER_MARKETING_APPROVED === 'true',
 };
 
 /**

@@ -15,6 +15,8 @@ import {
   activateKillSwitch,
   deactivateKillSwitch,
   RATE_LIMIT_CONFIG,
+  detectProhibitedPromotionalOffer,
+  PROMOTIONAL_OFFER_PATTERNS,
 } from '../src/security/security-controls';
 import { validateEmail, validatePhone, createLeadRecord } from '../src/consent/consent-model';
 
@@ -200,6 +202,52 @@ describe('Security — detectSensitiveData', () => {
     // If a message contains both health and PII patterns, health is detected first
     const result = detectSensitiveData('I have diabetes and my email is test@example.com');
     expect(result).toBe('health_data');
+  });
+});
+
+describe('Security — detectProhibitedPromotionalOffer (marketing-review gate)', () => {
+  test('detects "free quote"', () => {
+    expect(detectProhibitedPromotionalOffer('Would you like a free quote today?')).toBe(true);
+  });
+
+  test('detects "free consultation"', () => {
+    expect(detectProhibitedPromotionalOffer('Sign up for a free consultation.')).toBe(true);
+  });
+
+  test('detects "free estimate" and "free review"', () => {
+    expect(detectProhibitedPromotionalOffer('Get a free estimate now.')).toBe(true);
+    expect(detectProhibitedPromotionalOffer('We offer a free review of your needs.')).toBe(true);
+  });
+
+  test('detects no-obligation phrasing', () => {
+    expect(detectProhibitedPromotionalOffer('No obligation assessment available.')).toBe(true);
+    expect(detectProhibitedPromotionalOffer('This is a no-obligation conversation.')).toBe(true);
+  });
+
+  test('detects emphatic free claims', () => {
+    expect(detectProhibitedPromotionalOffer('100% free quote')).toBe(true);
+    expect(detectProhibitedPromotionalOffer('Totally free consultation')).toBe(true);
+    expect(detectProhibitedPromotionalOffer('Completely free estimate')).toBe(true);
+    expect(detectProhibitedPromotionalOffer('This service is free of charge')).toBe(true);
+  });
+
+  test('does not flag ordinary educational conversation', () => {
+    expect(detectProhibitedPromotionalOffer('What is term life insurance?')).toBe(false);
+    expect(detectProhibitedPromotionalOffer('How much does life insurance cost?')).toBe(false);
+    expect(
+      detectProhibitedPromotionalOffer(
+        'Here is the difference between term and whole life insurance.',
+      ),
+    ).toBe(false);
+  });
+
+  test('does not flag the bare word "free" outside an offer', () => {
+    expect(detectProhibitedPromotionalOffer('You are free to ask questions anytime.')).toBe(false);
+    expect(detectProhibitedPromotionalOffer('This page is freely available.')).toBe(false);
+  });
+
+  test('exposes the pattern list for review', () => {
+    expect(PROMOTIONAL_OFFER_PATTERNS.length).toBeGreaterThan(0);
   });
 });
 

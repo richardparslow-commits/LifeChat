@@ -32,7 +32,10 @@ import {
   type AssistantResponse,
   type Citation,
 } from '../schema/response-schema';
-import { sanitizeRetrievedContent } from '../security/security-controls';
+import {
+  sanitizeRetrievedContent,
+  detectProhibitedPromotionalOffer,
+} from '../security/security-controls';
 import { FALLBACK_MESSAGES } from '../resilience/fallback-behavior';
 import { isKillSwitchActive } from '../security/security-controls';
 import type { ConversationState } from '../state-machine/state-machine';
@@ -168,6 +171,21 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
         ok: false,
         kind: 'schema_rule_violation',
         detail: `Cross-field rules were violated:\n${ruleErrors.map((e) => `- ${e}`).join('\n')}`,
+      };
+    }
+
+    // Marketing-review gate: while FREE_OFFER_MARKETING_APPROVED is false, an
+    // assistant message claiming a free quote/consultation/estimate or
+    // no-obligation review is rejected so the retry loop rewrites it.
+    if (
+      !config.freeOfferMarketingApproved &&
+      detectProhibitedPromotionalOffer(schemaResult.data.assistant_message)
+    ) {
+      return {
+        ok: false,
+        kind: 'marketing_review_pending',
+        detail:
+          'The response contains prohibited promotional phrasing (for example "free quote", "free consultation", or "no obligation"), which has not passed marketing review and is not approved. Rewrite the message without any free-offer or no-obligation claim; you may offer a conversation with the licensed broker without characterizing it as free.',
       };
     }
 

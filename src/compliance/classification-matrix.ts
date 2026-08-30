@@ -51,7 +51,7 @@ export interface ComplianceOverview {
   flows: ComplianceFlowOverview[];
 }
 
-export const MATRIX_VERSION = '1.3.0';
+export const MATRIX_VERSION = '1.4.0';
 export const MATRIX_DOCUMENT = 'docs/compliance-classification-matrix.md';
 
 /**
@@ -87,6 +87,7 @@ export const COMPLIANCE_CLASSIFICATION_MATRIX: ComplianceFlow[] = [
       'NAIC Model 570',
       'Texas H.B. 149',
       'FTC AI guidance substantiation (FTC Act §5; 2023–2025 guidance) — educational outputs are RAG-grounded with citations; abstention is the default when evidence is insufficient',
+      'Comparative statements — only fair, accurate, non-misleading category-level comparisons from approved sources; ranking, disparagement, and carrier-to-carrier comparisons prohibited (§541.061)',
     ],
     approvalStatus: 'pending_counsel',
     approvalArtifacts: [
@@ -219,6 +220,7 @@ export const COMPLIANCE_CLASSIFICATION_MATRIX: ComplianceFlow[] = [
       'NAIC AI Bulletin monitoring',
       'NIST AI 600-1',
       'FTC substantiation (FTC Act §5; 2023–2025 guidance) — abstention gate prevents unsupported claims',
+      'Marketing-review gate — free-offer phrasing (free quote / free consultation / no-obligation) blocked in outputs until FREE_OFFER_MARKETING_APPROVED=true after review',
     ],
     approvalStatus: 'pending_counsel',
     approvalArtifacts: [
