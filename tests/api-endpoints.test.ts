@@ -152,7 +152,7 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     const res = await request(loaded.app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
-    expect(res.body.compliance.matrixVersion).toBe('1.1.0');
+    expect(res.body.compliance.matrixVersion).toBe('1.2.0');
     expect(res.body.compliance.phaseStatus).toBe('pending_counsel_sign_off');
     expect(res.body.compliance.flowCount).toBe(10);
     // Nothing is approved until counsel signs the markdown matrix
@@ -165,6 +165,13 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(byId('F5').runtimeStatus).toBe('gated_by_flag');
     expect(byId('F7').runtimeStatus).toBe('not_connected');
     expect(byId('F2').runtimeStatus).toBe('enabled');
+    // FTC substantiation duty documented on the education flow: RAG-grounded
+    // answers with abstention as the default when evidence is insufficient.
+    const f2Duties: string[] = byId('F2').regulatoryDuties;
+    expect(f2Duties.some((d) => d.includes('FTC'))).toBe(true);
+    expect(f2Duties.some((d) => d.includes('abstention'))).toBe(true);
+    const f10Duties: string[] = byId('F10').regulatoryDuties;
+    expect(f10Duties.some((d) => d.includes('FTC'))).toBe(true);
   });
 });
 
