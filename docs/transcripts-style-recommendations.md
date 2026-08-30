@@ -8,7 +8,7 @@
 
 ## 1. The core tension, stated plainly
 
-The transcripts are classic **high-pressure, relationship-driven life-insurance sales coaching**. Their signature techniques — *"push at least twice,"* *"never take 'call me back,'"* *"pressure applied in certain situations is absolutely appropriate,"* *"scare them out of blood work,"* *"your wife is not going to be upset with you for prioritizing her protection"* — are **explicitly prohibited** by the assistant's Section 5/7 policy (no guilt, fear, false urgency, scarcity, shame, repeated persuasion, or family-protection-status claims) and by its loop controls (never re-ask a declined field, suppress offers after decline).
+The transcripts are classic **high-pressure, relationship-driven life-insurance sales coaching**. Their signature techniques — *"push at least twice,"* *"you never ever take that call back,"* *"pressure applied in certain situations is absolutely appropriate,"* *"scare them out of doing blood work,"* *"your wife is not going to be upset with you for prioritizing her protection"* — are **explicitly prohibited** by the assistant's Section 5/7 policy (no guilt, fear, false urgency, scarcity, shame, repeated persuasion, or family-protection-status claims) and by its loop controls (never re-ask a declined field, suppress offers after decline).
 
 However, a large portion of the transcripts is **communication craft that is fully compatible** with a compliance-first, educational assistant. The recommendations below mine that compatible layer and convert the incompatible layer into **negative guardrails** (rules + evaluation tests that fail on prohibited patterns).
 
@@ -17,7 +17,7 @@ However, a large portion of the transcripts is **communication craft that is ful
 ## 2. Adaptable patterns — recommended for implementation
 
 ### 2.1 "Role and Purpose" roadmap (Ep 14 — strongest match)
-The transcripts insist you tell the prospect *what is going to happen before it happens*, numbered and explicit: *"There are four things we're doing today…"* This is exactly what the assistant's disclosure state is for, and it is 100% compliance-compatible.
+The transcripts insist you tell the prospect *what is going to happen before it happens*, numbered and explicit: *"there is four things we are doing today…"* This is exactly what the assistant's disclosure state is for, and it is 100% compliance-compatible.
 
 **Implementation (system prompt §14 addition):**
 - At the start of a session and on every significant state transition, give a one-to-three-step roadmap: e.g., *"I'll answer your general questions first; then, only if you'd like, I can connect you with Richard Parslow, a licensed Texas life-insurance broker."*
@@ -25,19 +25,19 @@ The transcripts insist you tell the prospect *what is going to happen before it 
 - Never announce an action the assistant will not actually perform (no "we're doing an application today" equivalents).
 
 ### 2.2 Justify before you ask (Ep 9)
-*"I always justify what I'm doing before I do it — a way of asking for approval with confidence."* Before requesting anything (a scheduling slot, an optional qualification answer, contact info), state *why* it's needed and how it will be used.
+*"I always like to justify what I'm doing before I do it … a way of asking for approval with confidence."* Before requesting anything (a scheduling slot, an optional qualification answer, contact info), state *why* it's needed and how it will be used.
 
 **Implementation:** harden into the consent/qualification flow. The consent model already requires stating fields/purpose/recipient; make "state the reason before the question" a style rule for every collection point, and add the same rule to the LLM prompt so even non-consent questions (e.g., *"which state are you in?"* for jurisdiction) carry a brief reason.
 
 ### 2.3 Echo / regurgitation of the user's own words (Ep 3–4)
-*"It's their words, not your words… if they say it, there's undeniable fact behind it."* The transcripts build agreement by restating the prospect's statements back. For an educational assistant this is a **comprehension and trust** device, not a persuasion device.
+*"It's their words, not your words… if they say it there's this undeniable fact behind it."* The transcripts build agreement by restating the prospect's statements back. For an educational assistant this is a **comprehension and trust** device, not a persuasion device.
 
 **Implementation (system prompt style rule):**
 - Before answering, briefly restate the question in the user's own terms when it helps: *"So you're comparing term life that lasts 20 years with whole life that builds cash value — is that right?"* This also serves the existing `clarify` state (confirms understanding instead of guessing).
 - Keep it to one confirming sentence; never use it as a sales "tie-down" toward a decision.
 
-### 2.4 Alternative of choice, with recap (Ep 11, Ep 17, show-factor episode)
-*"Always offer two options, then repeat them at the end: 'Do you want A or do you want B?'"* Also: *"the first price you ever hear is always expensive"* → establish value/context before numbers; and *"the next person that talks loses"* → after presenting options, stop talking.
+### 2.4 Alternative of choice, with recap (Ep 11, Ep 17, show-factor; "the next person that talks loses" is Ep 4)
+*"Always offer two options, then repeat them at the end: 'do you want blank or do you want blank'?"* Also: *"the first price you ever hear is always expensive"* → establish value/context before numbers; and *"the next person that talks loses"* → after presenting options, stop talking.
 
 **Implementation:**
 - The state machine already presents **2–3 options** in scheduling; add an explicit "recap and ask" instruction (state the options, then ask which the user prefers) and a rule to **pause after asking** (one question per turn — already enforced).
@@ -45,7 +45,7 @@ The transcripts insist you tell the prospect *what is going to happen before it 
 - Context-before-detail: give the educational context *before* any number, quote, or comparison (no raw "here are three prices" behavior — the assistant doesn't quote prices, but the same principle applies to stats/facts from RAG: context first).
 
 ### 2.5 Preempt objections before they arise (Ep 14, Ep 8)
-*"The best way to overcome an objection is before it ever even comes up… talk about it before it ever comes up."*
+*"The best way to overcome an objection is before it ever even comes up … talk about it before it ever even comes up"* — the principle arises in both Ep 8 and Ep 14.
 
 **Implementation:** bake the known friction points into the disclosure/early states so the user never has to ask:
 - *"I can't give quotes, premiums, or policy recommendations here — I provide general education."* (preempts the #1 expectation mismatch)
@@ -67,7 +67,7 @@ The transcripts train agents to catch weak answers (*"if nothing comes up,"* *"I
 
 **Implementation (prompt + widget, not validation):** the raw consent text never reaches the application layer — the schema stores `contact_consent_affirmed` as a boolean (`response-schema.ts`) and `/api/consent` receives that boolean. So ambiguity must be handled *before* it becomes a boolean: (1) instruct the model in the system prompt to set `contact_consent_affirmed: false` for anything less than an unambiguous "yes" (e.g., "maybe," "I guess," "if nothing comes up," "probably") and to re-confirm once or decline gracefully; (2) the widget's consent control must be an explicit, unchecked opt-in checkbox — unambiguous by construction. The existing schema rule (create_lead requires `contact_consent_affirmed`) then blocks any residual ambiguity. Add an evaluation test that a hedged utterance yields `contact_consent_affirmed: false`.
 
-### 2.9 "The call doesn't start until you elicit resistance" → handle the real question first
+### 2.9 "The call doesn't even really start until you elicit resistance" (Good vs Bad Agent) → handle the real question first
 The transcripts: don't answer objections in the first 30 seconds; answer the *reason* for the call first. For the assistant this maps to the existing rule: **answer the user's question before any qualification or offer** (Section 7: "Answer the user's question before qualification"). No change needed — but worth a regression test that value is always delivered before any offer appears.
 
 ### 2.10 Curiosity and open-ended framing (Ep 3; "ferociously curious" — Good vs Bad Agent)
@@ -83,12 +83,12 @@ These techniques appear throughout the transcripts and must **never** appear in 
 |---|---|---|---|
 | "Push at least twice," never accept the first no (Ep 8) | Repeated persuasion prohibited | §7, §12, `LOOP_CONTROLS` | Add eval case: after a decline, assistant must not re-offer |
 | "Pressure applied in certain situations is absolutely appropriate" (Good vs Bad Agent) | Pressure tactics prohibited | `PROHIBITED_PRESSURE_TACTICS` | Add eval case: no urgency/scarcity language ever |
-| Guilt/fear/family-status claims ("your wife won't be upset," "you're 10 years late," "leave them with nothing") (Ep 3, Good vs Bad Agent) | Fear/guilt/family-protection-status claims prohibited | §7 | Add eval case: outputs containing these frames fail |
+| Guilt/fear/family-status claims ("your wife is not going to be upset with you for prioritizing her protection," "you needed to do this 5 years ago, 10 years ago," "he left his family with absolutely nothing") (Ep 3, Good vs Bad Agent) | Fear/guilt/family-protection-status claims prohibited | §7 | Add eval case: outputs containing these frames fail |
 | "Walk their pain," 7-layers-deep digging (Ep 3–4) | Would require emotional pressure + forbidden fields | §7, `APPROVED_QUALIFICATION_TOPICS` | Cap at the 3 approved topics; never "dig deeper" on refusal |
-| Assumptive closes ("go ahead with that," "I'll assume we're good," "we're doing an application today") (Ep 9, Ep 14) | No implied consent, no fabricated confirmations | §9, §5 | Add eval case: no language implying consent/agreement was given |
+| Assumptive closes ("go ahead with that," "I'll assume we're good to go," "we're doing an application today") (Ep 9, Ep 8, Ep 14) | No implied consent, no fabricated confirmations | §9, §5 | Add eval case: no language implying consent/agreement was given |
 | Income/asset/equity fact-finding (Ep 7) | `exact_income`, `exact_debt`, account data forbidden | `FORBIDDEN_CHAT_FIELDS` | Keep hard-blocked; note it explicitly in the style guide |
 | Third-party "success story" persuasion (Ep 13, Ep 17) | Fabricated stories/facts prohibited | §5 ("never fabricate") | Only approved, retrieved, cited content may be used — recommend **no** anecdote use in Phase 1 |
-| Fear-mongering about underwriting ("scare them out of blood work") (Ep 13) | Fear tactics; also implies underwriting advice | §5, §7 | Blocked; the assistant must not discuss underwriting outcomes |
+| Fear-mongering about underwriting ("scare them out of doing blood work") (Ep 13) | Fear tactics; also implies underwriting advice | §5, §7 | Blocked; the assistant must not discuss underwriting outcomes |
 | Multiple phone numbers / "stalk the lead" persistence (Ep 12) | N/A to chatbot + conflicts with consent | — | No analog; do not implement persistence behavior |
 
 ---
