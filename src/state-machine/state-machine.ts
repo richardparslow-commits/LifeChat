@@ -11,8 +11,6 @@ export type ConversationState =
   | 'clarify'
   | 'qualification_offer'
   | 'qualification'
-  | 'medical_offer'
-  | 'medical_review'
   | 'contact_offer'
   | 'consent'
   | 'lead_submit'
@@ -28,12 +26,6 @@ export interface StateTransitionContext {
   userShowsInterest: boolean;
   queryIsAmbiguous: boolean;
   userAgreesToQualification: boolean;
-  /** Phase 2 — user opts into optional medical fact-finding */
-  userAgreesToMedicalReview: boolean;
-  /** Phase 2 — user affirmed explicit medical consent */
-  medicalConsentAffirmative: boolean;
-  /** Phase 2 — consented medical questions complete */
-  medicalReviewComplete: boolean;
   userRequestsFollowup: boolean;
   contactChannelChosen: boolean;
   consentAffirmative: boolean;
@@ -101,10 +93,6 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
 
     case 'qualification':
       // Ask one question at a time; max three; no health details
-      // Phase 2: user may opt into optional medical fact-finding (consented)
-      if (ctx.userAgreesToMedicalReview) {
-        return 'medical_offer';
-      }
       if (ctx.userRequestsFollowup) {
         return 'contact_offer';
       }
@@ -112,32 +100,6 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
         return 'education';
       }
       return 'qualification';
-
-    case 'medical_offer':
-      // Phase 2 — propose optional medical fact-finding with just-in-time
-      // notice and explicit medical consent; never collect health data without it.
-      // A decline returns to education; loop controls suppress further offers.
-      if (ctx.medicalConsentAffirmative) {
-        return 'medical_review';
-      }
-      if (ctx.userDeclinesOrFlowEnds) {
-        return 'education';
-      }
-      return 'medical_offer';
-
-    case 'medical_review':
-      // Phase 2 — ask consented medical questions one at a time; never re-ask a
-      // declined field; on refusal return to education with offers suppressed
-      if (ctx.medicalReviewComplete) {
-        return 'contact_offer';
-      }
-      if (ctx.userDeclinesOrFlowEnds) {
-        return 'education';
-      }
-      if (ctx.riskOrEscalationTrigger) {
-        return 'handoff';
-      }
-      return 'medical_review';
 
     case 'contact_offer':
       // Offer email, manual call, or calendar; explain data use
@@ -251,23 +213,6 @@ export const APPROVED_QUALIFICATION_TOPICS = [
   'goal_category',
   'timeline_category',
   'current_coverage_category',
-] as const;
-
-/**
- * Approved medical topics (Phase 2, Section 9.1).
- * These may be asked ONLY after the user affirms explicit, current, versioned
- * medical consent. They are never asked in the default educational flow and
- * never re-asked after a refusal.
- */
-export const APPROVED_MEDICAL_TOPICS = [
-  'date_of_birth',
-  'gender',
-  'height_weight',
-  'tobacco_nicotine_use',
-  'diagnosed_conditions',
-  'prescribed_medications',
-  'diabetes_profile',
-  'cancer_history',
 ] as const;
 
 /**

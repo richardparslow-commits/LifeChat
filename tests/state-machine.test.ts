@@ -6,7 +6,6 @@
  */
 
 import {
-  APPROVED_MEDICAL_TOPICS,
   getNextState,
   LOOP_CONTROLS,
   type StateTransitionContext,
@@ -21,9 +20,6 @@ function makeCtx(overrides: Partial<StateTransitionContext>): StateTransitionCon
     userShowsInterest: false,
     queryIsAmbiguous: false,
     userAgreesToQualification: false,
-    userAgreesToMedicalReview: false,
-    medicalConsentAffirmative: false,
-    medicalReviewComplete: false,
     userRequestsFollowup: false,
     contactChannelChosen: false,
     consentAffirmative: false,
@@ -231,91 +227,6 @@ describe('State Machine — getNextState', () => {
         }),
       );
       expect(next).toBe('qualification');
-    });
-
-    test('transitions to medical_offer when user agrees to medical review', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'qualification',
-          userAgreesToMedicalReview: true,
-        }),
-      );
-      expect(next).toBe('medical_offer');
-    });
-  });
-
-  // ── medical_offer state (Phase 2) ──
-  describe('medical_offer state', () => {
-    test('transitions to medical_review when medical consent is affirmed', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'medical_offer',
-          medicalConsentAffirmative: true,
-        }),
-      );
-      expect(next).toBe('medical_review');
-    });
-
-    test('returns to education when user declines', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'medical_offer',
-          userDeclinesOrFlowEnds: true,
-        }),
-      );
-      expect(next).toBe('education');
-    });
-
-    test('stays in medical_offer without affirmative consent', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'medical_offer',
-          medicalConsentAffirmative: false,
-        }),
-      );
-      expect(next).toBe('medical_offer');
-    });
-  });
-
-  // ── medical_review state (Phase 2) ──
-  describe('medical_review state', () => {
-    test('transitions to contact_offer when medical review completes', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'medical_review',
-          medicalReviewComplete: true,
-        }),
-      );
-      expect(next).toBe('contact_offer');
-    });
-
-    test('returns to education when user declines mid-review', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'medical_review',
-          userDeclinesOrFlowEnds: true,
-        }),
-      );
-      expect(next).toBe('education');
-    });
-
-    test('transitions to handoff on risk trigger', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'medical_review',
-          riskOrEscalationTrigger: true,
-        }),
-      );
-      expect(next).toBe('handoff');
-    });
-
-    test('stays in medical_review otherwise', () => {
-      const next = getNextState(
-        makeCtx({
-          currentState: 'medical_review',
-        }),
-      );
-      expect(next).toBe('medical_review');
     });
   });
 
@@ -554,20 +465,5 @@ describe('State Machine — loop controls', () => {
 
   test('max qualification questions is 3', () => {
     expect(LOOP_CONTROLS.MAX_QUALIFICATION_QUESTIONS).toBe(3);
-  });
-
-  test('approved medical topics are gated behind consent (Phase 2)', () => {
-    expect(APPROVED_MEDICAL_TOPICS).toEqual(
-      expect.arrayContaining([
-        'date_of_birth',
-        'gender',
-        'height_weight',
-        'tobacco_nicotine_use',
-        'diagnosed_conditions',
-        'prescribed_medications',
-        'diabetes_profile',
-        'cancer_history',
-      ]),
-    );
   });
 });

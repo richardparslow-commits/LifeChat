@@ -10,8 +10,6 @@ import { v4 as uuidv4 } from 'uuid';
 /**
  * Permitted lead fields (Section 4.7).
  * These are the ONLY fields that may be stored in the operational lead record.
- * Medical profile fields are permitted ONLY when the user has given explicit,
- * current, versioned medical consent (Phase 2) — see MedicalProfile below.
  */
 export interface LeadRecord {
   /** Server-generated UUID */
@@ -25,9 +23,6 @@ export interface LeadRecord {
   goal_category: string | null;
   timeline_category: string | null;
   current_coverage_category: string | null;
-  /** Product preference captured with contact consent (Phase 2) */
-  policy_type_seeking: 'term' | 'whole_life' | 'iul' | 'unsure' | null;
-  coverage_amount_seeking: string | null;
   /** Optional until booking */
   first_name: string | null;
   /** Email or phone according to selected channel */
@@ -41,47 +36,11 @@ export interface LeadRecord {
   contact_consent_version: string | null;
   consent_timestamp: string | null;
   consent_text_hash: string | null;
-  /** Medical consent tracking (Phase 2) — explicit, current, versioned */
-  medical_consent_version: string | null;
-  medical_consent_timestamp: string | null;
-  /** Consented medical profile (Phase 2) — only populated after medical consent */
-  medical_profile: MedicalProfile | null;
   /** Scheduling */
   appointment_id: string | null;
   appointment_status: string | null;
   /** PII-redacted summary for handoff */
   handoff_summary: string | null;
-}
-
-/**
- * Medical profile (Phase 2 — consented medical fact-finding).
- * Collected ONLY after the user gives explicit, current, versioned medical
- * consent (Section 9.1). Used by the licensed broker to match carriers to the
- * user's profile. Never placed in analytics events.
- */
-export interface MedicalProfile {
-  /** YYYY-MM-DD */
-  date_of_birth: string | null;
-  gender: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
-  height_inches: number | null;
-  weight_lbs: number | null;
-  tobacco_nicotine_use:
-    'none' | 'cigarettes' | 'vaping' | 'other_nicotine' | 'prefer_not_to_say' | null;
-  /** Diagnosed by a doctor, as stated by the user */
-  medical_conditions: string[];
-  /** Prescribed by a doctor, as stated by the user */
-  medications: string[];
-  /** Only populated when the user reports diabetes */
-  diabetes: {
-    diabetes_type: 'type1' | 'type2' | 'unsure' | null;
-    treatment_method: 'pills' | 'insulin' | 'other' | null;
-    last_a1c: string | null;
-  };
-  /** Only populated when the user reports cancer history */
-  cancer: {
-    cancer_type: string | null;
-    years_cancer_free: number | null;
-  };
 }
 
 /**
@@ -142,8 +101,6 @@ export function createLeadRecord(
     goal_category: null,
     timeline_category: null,
     current_coverage_category: null,
-    policy_type_seeking: null,
-    coverage_amount_seeking: null,
     first_name: null,
     email: null,
     phone: null,
@@ -154,9 +111,6 @@ export function createLeadRecord(
     contact_consent_version: null,
     consent_timestamp: null,
     consent_text_hash: null,
-    medical_consent_version: null,
-    medical_consent_timestamp: null,
-    medical_profile: null,
     appointment_id: null,
     appointment_status: null,
     handoff_summary: null,
@@ -218,14 +172,6 @@ export const PROCESSOR_CONTRACT_REQUIREMENTS = [
  * This text must be reviewed and approved by counsel before use.
  */
 export const RECOMMENDED_PHONE_CONSENT_COPY = `Optional: I agree that Life Policy Pilot and Richard Parslow may call or text the number I provide about my life-insurance inquiry, including using automated technology or an artificial/prerecorded voice if applicable. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to stop texts. See the Privacy Notice.`;
-
-/**
- * The recommended medical-consent copy for counsel review (Phase 2, Section 9.1).
- * This text must be reviewed and approved by Texas insurance counsel before use.
- * It must be presented through the application UI as an explicit, unchecked,
- * opt-in control — never inferred from continued chat or from contact consent.
- */
-export const RECOMMENDED_MEDICAL_CONSENT_COPY = `Optional: I consent to Life Policy Pilot and Richard Parslow collecting and using the medical information I provide in this chat (including date of birth, gender, height/weight, tobacco or nicotine use, diagnosed medical conditions, and prescribed medications) for the sole purpose of matching carriers to my profile for a life-insurance inquiry. I understand this is optional, that consent is not a condition of anything, that my information will be shared only with Richard Parslow, and that I can withdraw consent or request deletion at any time. See the Privacy Notice for full details.`;
 
 /**
  * Just-in-time notice shown immediately before lead submission (Section 4.7).

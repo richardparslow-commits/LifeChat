@@ -27,19 +27,14 @@ function makeValidResponse(overrides: Partial<AssistantResponse> = {}): Assistan
       goal_category: null,
       timeline_category: null,
       current_coverage_category: null,
-      policy_type_seeking: null,
-      coverage_amount_seeking: null,
       contact_channel: null,
       time_zone: null,
       preferred_contact_window: null,
-      medical_profile: null,
     },
     consent: {
       privacy_notice_version: '1.0.0',
       contact_consent_version: null,
       contact_consent_affirmed: false,
-      medical_consent_version: null,
-      medical_consent_affirmed: false,
       do_not_contact: false,
     },
     proposed_action: 'none',
@@ -243,84 +238,6 @@ describe('Schema — cross-field rule validation', () => {
     const errors = validateSchemaRules(response);
     expect(errors.some((e) => e.includes('do_not_contact'))).toBe(false);
   });
-
-  test('medical_profile without medical consent fails', () => {
-    const response = makeValidResponse();
-    response.lead_data.medical_profile = {
-      date_of_birth: '1985-06-15',
-      gender: null,
-      height_inches: null,
-      weight_lbs: null,
-      tobacco_nicotine_use: null,
-      medical_conditions: [],
-      medications: [],
-      diabetes: { diabetes_type: null, treatment_method: null, last_a1c: null },
-      cancer: { cancer_type: null, years_cancer_free: null },
-    };
-    const errors = validateSchemaRules(response);
-    expect(errors.some((e) => e.includes('medical_profile data requires affirmative'))).toBe(true);
-  });
-
-  test('medical_profile with affirmed medical consent passes', () => {
-    const response = makeValidResponse();
-    response.lead_data.medical_profile = {
-      date_of_birth: '1985-06-15',
-      gender: 'female',
-      height_inches: 66,
-      weight_lbs: 150,
-      tobacco_nicotine_use: 'none',
-      medical_conditions: [],
-      medications: [],
-      diabetes: { diabetes_type: null, treatment_method: null, last_a1c: null },
-      cancer: { cancer_type: null, years_cancer_free: null },
-    };
-    response.consent.medical_consent_affirmed = true;
-    response.consent.medical_consent_version = '1.0.0';
-    const errors = validateSchemaRules(response);
-    expect(errors.some((e) => e.includes('medical_profile data requires affirmative'))).toBe(false);
-    expect(errors.some((e) => e.includes('medical_consent_affirmed requires'))).toBe(false);
-  });
-
-  test('affirmed medical consent without version fails', () => {
-    const response = makeValidResponse();
-    response.lead_data.medical_profile = {
-      date_of_birth: '1985-06-15',
-      gender: null,
-      height_inches: null,
-      weight_lbs: null,
-      tobacco_nicotine_use: null,
-      medical_conditions: [],
-      medications: [],
-      diabetes: { diabetes_type: null, treatment_method: null, last_a1c: null },
-      cancer: { cancer_type: null, years_cancer_free: null },
-    };
-    response.consent.medical_consent_affirmed = true;
-    const errors = validateSchemaRules(response);
-    expect(errors.some((e) => e.includes('medical_consent_affirmed requires'))).toBe(true);
-  });
-
-  test('diabetes and cancer sub-profiles parse', () => {
-    const response = makeValidResponse();
-    response.lead_data.medical_profile = {
-      date_of_birth: null,
-      gender: null,
-      height_inches: null,
-      weight_lbs: null,
-      tobacco_nicotine_use: null,
-      medical_conditions: [],
-      medications: [],
-      diabetes: { diabetes_type: 'type2', treatment_method: 'insulin', last_a1c: '7.2' },
-      cancer: { cancer_type: 'breast', years_cancer_free: 5 },
-    };
-    response.consent.medical_consent_affirmed = true;
-    response.consent.medical_consent_version = '1.0.0';
-    const parsed = AssistantResponseSchema.safeParse(response);
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      expect(parsed.data.lead_data.medical_profile?.diabetes.diabetes_type).toBe('type2');
-      expect(parsed.data.lead_data.medical_profile?.cancer.years_cancer_free).toBe(5);
-    }
-  });
 });
 
 describe('Schema — static safe fallback', () => {
@@ -344,12 +261,6 @@ describe('Schema — static safe fallback', () => {
     expect(STATIC_SAFE_FALLBACK.lead_data.first_name).toBeNull();
     expect(STATIC_SAFE_FALLBACK.lead_data.email).toBeNull();
     expect(STATIC_SAFE_FALLBACK.lead_data.phone).toBeNull();
-  });
-
-  test('has no medical profile and no medical consent', () => {
-    expect(STATIC_SAFE_FALLBACK.lead_data.medical_profile).toBeNull();
-    expect(STATIC_SAFE_FALLBACK.consent.medical_consent_affirmed).toBe(false);
-    expect(STATIC_SAFE_FALLBACK.consent.medical_consent_version).toBeNull();
   });
 
   test('has no citations (no fabricated sources)', () => {

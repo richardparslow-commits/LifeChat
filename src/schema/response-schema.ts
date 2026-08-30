@@ -17,48 +17,8 @@ export const CitationSchema = z.object({
 });
 
 /**
- * Medical profile — Phase 2 consented medical fact-finding (Section 9.1).
- * Collected ONLY after the user gives explicit, current, versioned medical
- * consent. Never placed in analytics events.
- */
-export const DiabetesProfileSchema = z.object({
-  diabetes_type: z.enum(['type1', 'type2', 'unsure']).nullable().default(null),
-  treatment_method: z.enum(['pills', 'insulin', 'other']).nullable().default(null),
-  last_a1c: z.string().nullable().default(null),
-});
-
-/**
- * Cancer history — Phase 2 consented medical fact-finding (Section 9.1).
- */
-export const CancerProfileSchema = z.object({
-  cancer_type: z.string().nullable().default(null),
-  years_cancer_free: z.number().nullable().default(null),
-});
-
-/**
- * Medical profile — Phase 2 consented medical fact-finding (Section 9.1).
- * Only populated when medical consent is affirmed. Never in analytics.
- */
-export const MedicalProfileSchema = z.object({
-  date_of_birth: z.string().nullable().default(null),
-  gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).nullable().default(null),
-  height_inches: z.number().nullable().default(null),
-  weight_lbs: z.number().nullable().default(null),
-  tobacco_nicotine_use: z
-    .enum(['none', 'cigarettes', 'vaping', 'other_nicotine', 'prefer_not_to_say'])
-    .nullable()
-    .default(null),
-  medical_conditions: z.array(z.string()).default([]),
-  medications: z.array(z.string()).default([]),
-  diabetes: DiabetesProfileSchema,
-  cancer: CancerProfileSchema,
-});
-
-/**
  * Lead data — PII fields for the secure operational system only.
- * All fields are optional (null by default). Never include sensitive data in
- * analytics. The medical_profile block is Phase 2 and requires affirmed,
- * versioned medical consent (enforced by validateSchemaRules).
+ * All fields are optional (null by default). Never include sensitive data.
  */
 export const LeadDataSchema = z.object({
   first_name: z.string().nullable().default(null),
@@ -79,27 +39,18 @@ export const LeadDataSchema = z.object({
     .nullable()
     .default(null),
   current_coverage_category: z.enum(['yes', 'no', 'unsure']).nullable().default(null),
-  /** Product preference captured with contact consent (Phase 2) */
-  policy_type_seeking: z.enum(['term', 'whole_life', 'iul', 'unsure']).nullable().default(null),
-  coverage_amount_seeking: z.string().nullable().default(null),
   contact_channel: z.enum(['email', 'phone', 'calendar']).nullable().default(null),
   time_zone: z.string().nullable().default(null),
   preferred_contact_window: z.string().nullable().default(null),
-  /** Phase 2 consented medical profile */
-  medical_profile: MedicalProfileSchema.nullable().default(null),
 });
 
 /**
- * Consent state — tracks privacy notice, contact consent, and Phase 2
- * medical consent versions.
+ * Consent state — tracks privacy notice and contact consent versions.
  */
 export const ConsentSchema = z.object({
   privacy_notice_version: z.string().nullable().default(null),
   contact_consent_version: z.string().nullable().default(null),
   contact_consent_affirmed: z.boolean().default(false),
-  /** Phase 2 — explicit, current, versioned medical consent */
-  medical_consent_version: z.string().nullable().default(null),
-  medical_consent_affirmed: z.boolean().default(false),
   do_not_contact: z.boolean().default(false),
 });
 
@@ -162,8 +113,6 @@ export const AssistantResponseSchema = z.object({
     'clarify',
     'qualification_offer',
     'qualification',
-    'medical_offer',
-    'medical_review',
     'contact_offer',
     'consent',
     'lead_submit',
@@ -215,33 +164,6 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
     errors.push('proposed_action=create_lead requires affirmative current contact consent');
   }
 
-  // Any populated medical profile requires affirmative current medical consent
-  const med = response.lead_data.medical_profile;
-  const medPopulated =
-    med !== null &&
-    (med.date_of_birth !== null ||
-      med.gender !== null ||
-      med.height_inches !== null ||
-      med.weight_lbs !== null ||
-      med.tobacco_nicotine_use !== null ||
-      med.medical_conditions.length > 0 ||
-      med.medications.length > 0 ||
-      med.diabetes.diabetes_type !== null ||
-      med.diabetes.treatment_method !== null ||
-      med.diabetes.last_a1c !== null ||
-      med.cancer.cancer_type !== null ||
-      med.cancer.years_cancer_free !== null);
-  if (medPopulated && !response.consent.medical_consent_affirmed) {
-    errors.push('medical_profile data requires affirmative current medical consent');
-  }
-  if (
-    medPopulated &&
-    response.consent.medical_consent_affirmed &&
-    !response.consent.medical_consent_version
-  ) {
-    errors.push('medical_consent_affirmed requires a current medical_consent_version');
-  }
-
   // book_appointment requires a verified slot and explicit user confirmation
   if (response.proposed_action === 'book_appointment' && !response.action_arguments?.slot_id) {
     errors.push('proposed_action=book_appointment requires a verified slot_id in action_arguments');
@@ -287,19 +209,14 @@ export const STATIC_SAFE_FALLBACK: AssistantResponse = {
     goal_category: null,
     timeline_category: null,
     current_coverage_category: null,
-    policy_type_seeking: null,
-    coverage_amount_seeking: null,
     contact_channel: null,
     time_zone: null,
     preferred_contact_window: null,
-    medical_profile: null,
   },
   consent: {
     privacy_notice_version: null,
     contact_consent_version: null,
     contact_consent_affirmed: false,
-    medical_consent_version: null,
-    medical_consent_affirmed: false,
     do_not_contact: false,
   },
   proposed_action: 'none',
