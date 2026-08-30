@@ -19,13 +19,16 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { config, PRODUCT_DEFINITION } from './config/app-config';
 import { SYSTEM_PROMPT, FIRST_MESSAGE_DISCLOSURE, BEFORE_CHAT_BANNER, ABSTENTION_SENTENCE } from './prompts/system-prompt';
-import { AssistantResponseSchema, STATIC_SAFE_FALLBACK, validateSchemaRules, type AssistantResponse } from './schema/response-schema';
+import { STATIC_SAFE_FALLBACK, type AssistantResponse } from './schema/response-schema';
+import { generateResponse } from './llm/orchestrator';
+import { retrieveFromCorpus } from './rag/retrieval';
 import { getNextState, type ConversationState } from './state-machine/state-machine';
 import { createLeadRecord, validateEmail, validatePhone, JUST_IN_TIME_NOTICE, RECOMMENDED_PHONE_CONSENT_COPY } from './consent/consent-model';
 import { authorizeToolAction } from './tools/tool-controls';
-import { sanitizeRetrievedContent, detectPromptInjection, detectSensitiveData, checkRateLimit, isKillSwitchActive } from './security/security-controls';
+import { detectPromptInjection, detectSensitiveData, checkRateLimit, isKillSwitchActive } from './security/security-controls';
 import { getStaffAvailabilityMessage, createHandoffSummary, EMERGENCY_RESPONSE } from './handoff/human-escalation';
 import { generateStaticFallback, FALLBACK_MESSAGES, LATENCY_CONFIG } from './resilience/fallback-behavior';
+// generateResponse orchestrator handles LLM + RAG + schema validation
 import { sanitizeUrl, generateDataLayerSnippet, type AnalyticsEvent } from './analytics/analytics';
 import { isDocumentValid, type CorpusDocument } from './rag/rag-architecture';
 
@@ -224,11 +227,12 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   // 5. Sanitize the source URL (never send raw window.location.href)
   const sanitizedPath = sourceUrl ? sanitizeUrl(sourceUrl) : '/';
 
-  // 6. Determine next state
+  // 6. Determine next state via the state machine
+  //    (The orchestrator will use the LLM response to refine the final state)
   const nextState = getNextState({
     currentState,
     userMessage: message,
-    hasValueBeenDelivered: false, // In production, determined by LLM response quality
+    hasValueBeenDelivered: false, // Determined by LLM response quality
     userShowsInterest: false,
     queryIsAmbiguous: false,
     userAgreesToQualification: false,
@@ -242,51 +246,22 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     userDeclinesOrFlowEnds: false,
   }) ?? currentState;
 
-  // 7. In a real implementation, this is where the LLM would be called
-  //    with the system prompt, retrieved RAG context, and the user message.
-  //    For the pilot structure, we return a placeholder educational response.
-  //
-  //    const llmResponse = await callLLM({
-  //      systemPrompt: SYSTEM_PROMPT,
-  //      userMessage: sanitizeRetrievedContent(message),
-  //      ragContext: await retrieveFromCorpus(message, sanitizedPath),
-  //      currentState: nextState,
-  //    });
-  //    const validated = AssistantResponseSchema.parse(llmResponse);
+  // 7. Run the LLM + RAG orchestrator (Sections 4.6, 4.8, 4.9, 4.11, 15)
+  //    This replaces the placeholder and calls the actual model with:
+  //    - the hardened system prompt
+  //    - retrieved RAG context (approved sources only)
+  //    - the user message (sanitized, marked as untrusted)
+  //    The orchestrator validates the response against the Zod schema,
+  //    enforces cross-field consent rules, and falls back safely on failure.
+  const { response, latencyMs, ragPassages } = await generateResponse({
+    userMessage: message,
+    currentState: nextState,
+    topicCategory,
+  });
 
-  const response: AssistantResponse = {
-    assistant_message: FIRST_MESSAGE_DISCLOSURE,
-    state: nextState,
-    citations: [],
-    lead_data: {
-      first_name: null, email: null, phone: null, goal_category: null,
-      timeline_category: null, current_coverage_category: null,
-      contact_channel: null, time_zone: null, preferred_contact_window: null,
-    },
-    consent: {
-      privacy_notice_version: config.privacyNoticeVersion,
-      contact_consent_version: null,
-      contact_consent_affirmed: false,
-      do_not_contact: false,
-    },
-    proposed_action: 'none',
-    action_arguments: {},
-    risk_flags: [],
-    analytics: {
-      event_name: 'ai_answer_shown',
-      topic_category: topicCategory || null,
-      conversation_stage: nextState,
-      fallback_type: null,
-      handoff_reason: null,
-      error_code: null,
-    },
-  };
-
-  // 8. Validate the response schema
-  const schemaErrors = validateSchemaRules(response);
-  if (schemaErrors.length > 0) {
-    console.error('Schema validation errors:', schemaErrors);
-    return res.json(STATIC_SAFE_FALLBACK);
+  // 8. Log latency and retrieval info (non-PII)
+  if (latencyMs > LATENCY_CONFIG.P95_ANSWER_TARGET_MS) {
+    console.warn(`Response latency ${latencyMs}ms exceeds P95 target ${LATENCY_CONFIG.P95_ANSWER_TARGET_MS}ms`);
   }
 
   return res.json(response);
@@ -351,6 +326,33 @@ app.get('/api/analytics/example', (_req: Request, res: Response) => {
       article_id: 'policy-laddering-001',
     }),
     note: 'Push this to window.dataLayer at the verified application state transition, not when the model merely writes fallback words.',
+  });
+});
+
+/**
+ * GET /api/rag/search — Test RAG retrieval without calling the LLM
+ * Useful for verifying the corpus and retrieval quality.
+ * Query param: ?q=your+search+query
+ */
+app.get('/api/rag/search', (req: Request, res: Response) => {
+  const query = (req.query.q as string) || '';
+  if (!query.trim()) {
+    return res.status(400).json({ error: 'Query parameter "q" is required' });
+  }
+
+  const result = retrieveFromCorpus(query);
+  res.json({
+    query,
+    hasSufficientEvidence: result.hasSufficientEvidence,
+    passageCount: result.passages.length,
+    passages: result.passages.map((p) => ({
+      title: p.title,
+      url: p.url,
+      jurisdiction: p.jurisdiction,
+      priority: p.priority,
+      score: p.score,
+      contentPreview: p.content.slice(0, 200) + '...',
+    })),
   });
 });
 
