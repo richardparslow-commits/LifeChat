@@ -51,7 +51,7 @@ export interface ComplianceOverview {
   flows: ComplianceFlowOverview[];
 }
 
-export const MATRIX_VERSION = '1.4.0';
+export const MATRIX_VERSION = '1.5.0';
 export const MATRIX_DOCUMENT = 'docs/compliance-classification-matrix.md';
 
 /**
@@ -153,7 +153,7 @@ export const COMPLIANCE_CLASSIFICATION_MATRIX: ComplianceFlow[] = [
     proposedClassification: 'Lead generation (commercial)',
     regulatoryDuties: [
       'TDPSA consent (personal data)',
-      'TDPSA privacy notice — categories, purposes, sharing, third parties, and rights methods (linked from the disclosure/consent flows)',
+      'Privacy notice — GLBA NPI + TDPSA (categories, purposes, sharing, third parties, safeguards, and rights methods; linked from the disclosure/consent flows, docs/privacy-notice.md v1.1.0)',
       'TDPSA consumer rights — DSR process (access, deletion, correction, portability; 45-day response window)',
       'TCPA / prior express written consent for SMS and calls',
       'Do-Not-Call suppression',
