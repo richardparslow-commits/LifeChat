@@ -12,7 +12,7 @@ The assistant is **educational, not advisory**. It may explain approved content 
 
 1. **Legal and consumer safety first** — every design decision prioritizes compliance
 2. **Truthful, grounded education** — RAG over approved sources with claim-level citations
-3. **No health data collection by default** — health conditions are sensitive data under TDPSA; collection stays blocked unless `HEALTH_DATA_COLLECTION_DISABLED=false` is set after counsel approval, and then only with explicit medical consent (Phase 2)
+3. **No health data collection** — health conditions are sensitive data under TDPSA
 4. **Explicit channel-specific consent** — never implied or blanket consent
 5. **Deterministic tool authorization** — the model proposes; application code validates
 6. **Auditable events** — no PII in analytics; GA4 events are categorical and allowlisted

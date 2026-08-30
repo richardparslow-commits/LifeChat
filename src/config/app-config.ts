@@ -30,10 +30,7 @@ export interface AppConfig {
   llmModel: string;
   /** Whether the system is in pilot mode (Phase 1) */
   pilotMode: boolean;
-  /** Whether health data collection is disabled.
-   *  Phase 1/2 gate: default true. Flip to false only after counsel approval
-   *  of the medical consent flow (docs/medical-lead-capture-phase2.md).
-   *  Set HEALTH_DATA_COLLECTION_DISABLED=false in .env to enable. */
+  /** Whether health data collection is disabled (always true for MVP) */
   healthDataCollectionDisabled: boolean;
   /** Whether outbound marketing is disabled */
   outboundMarketingDisabled: boolean;
@@ -55,8 +52,7 @@ export const config: AppConfig = {
   llmApiKey: process.env.LLM_API_KEY || '',
   llmModel: process.env.LLM_MODEL || 'gpt-4o',
   pilotMode: process.env.PILOT_MODE !== 'false',
-  // Phase 2 gate — enabled only by explicit opt-in in .env after counsel review
-  healthDataCollectionDisabled: process.env.HEALTH_DATA_COLLECTION_DISABLED !== 'false',
+  healthDataCollectionDisabled: true,
   outboundMarketingDisabled: true,
 };
 
