@@ -71,17 +71,17 @@ export interface MedicalProfile {
   medical_conditions: string[];
   /** Prescribed by a doctor, as stated by the user */
   medications: string[];
-  /** Only populated when the user reports diabetes */
+  /** Only populated when the user reports diabetes; null until then (matches the response schema) */
   diabetes: {
     diabetes_type: 'type1' | 'type2' | 'unsure' | null;
     treatment_method: 'pills' | 'insulin' | 'other' | null;
     last_a1c: string | null;
-  };
-  /** Only populated when the user reports cancer history */
+  } | null;
+  /** Only populated when the user reports cancer history; null until then (matches the response schema) */
   cancer: {
     cancer_type: string | null;
     years_cancer_free: number | null;
-  };
+  } | null;
 }
 
 /**

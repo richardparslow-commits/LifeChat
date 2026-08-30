@@ -42,7 +42,7 @@
     'display:flex', 'flex-direction:column',
     'background:' + COLORS.bg, 'border:2px solid ' + COLORS.border,
     'border-radius:8px 8px 0 0', 'font-family:system-ui,-apple-system,sans-serif',
-    'font-size:15px', 'color:' + COLORS.text',
+    'font-size:15px', 'color:' + COLORS.text,
     'box-shadow:0 -4px 12px rgba(0,0,0,0.15)',
   ].join(';');
 
