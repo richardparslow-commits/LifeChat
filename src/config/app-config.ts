@@ -12,8 +12,13 @@ export interface AppConfig {
   businessName: string;
   /** Richard Parslow's approved licensed name */
   licensedBrokerName: string;
-  /** Richard Parslow's Texas license number (or registered assumed name) */
+  /** Richard Parslow's Texas license number (or registered assumed name).
+   *  Required before production startup; never served to users while unset. */
   texasLicenseNumber: string;
+  /** Carriers Richard Parslow is appointed with (allowlist).
+   *  The assistant must never imply coverage availability from carriers
+   *  outside this list. Empty until the broker supplies the appointment list. */
+  appointedCarriers: string[];
   /** The blog website URL */
   websiteUrl: string;
   /** Privacy notice URL */
@@ -42,11 +47,22 @@ export interface AppConfig {
 /**
  * Default configuration. Sensitive values come from environment variables.
  */
+/**
+ * Sentinel for an unconfigured license number. Never served to users —
+ * /api/disclosure returns null and the disclosure omits the license line
+ * until a real number is supplied, and production startup fails fast.
+ */
+export const LICENSE_PENDING_PLACEHOLDER = '[Pending compliance approval]';
+
 export const config: AppConfig = {
   port: parseInt(process.env.LIFECHAT_PORT || '3000', 10),
   businessName: process.env.BUSINESS_NAME || 'Life Policy Pilot',
   licensedBrokerName: process.env.LICENSED_BROKER_NAME || 'Richard Parslow',
-  texasLicenseNumber: process.env.TEXAS_LICENSE_NUMBER || '[Pending compliance approval]',
+  texasLicenseNumber: process.env.TEXAS_LICENSE_NUMBER || LICENSE_PENDING_PLACEHOLDER,
+  appointedCarriers: (process.env.APPOINTED_CARRIERS || '')
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean),
   websiteUrl: process.env.WEBSITE_URL || 'https://lifepolicypilot.blog/',
   privacyNoticeUrl: process.env.PRIVACY_NOTICE_URL || 'https://lifepolicypilot.blog/privacy/',
   contactUrl: process.env.CONTACT_URL || 'https://lifepolicypilot.blog/contact/',
@@ -59,6 +75,16 @@ export const config: AppConfig = {
   healthDataCollectionDisabled: process.env.HEALTH_DATA_COLLECTION_DISABLED !== 'false',
   outboundMarketingDisabled: true,
 };
+
+/**
+ * True when a real Texas license number is configured (not empty and not the
+ * pending-approval sentinel). The number is only ever displayed when this
+ * passes; otherwise the disclosure fails closed and shows no license line.
+ */
+export function isLicenseNumberConfigured(): boolean {
+  const value = config.texasLicenseNumber.trim();
+  return value.length > 0 && value !== LICENSE_PENDING_PLACEHOLDER;
+}
 
 /**
  * The product definition (Section 4.1).

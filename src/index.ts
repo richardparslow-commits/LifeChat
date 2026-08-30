@@ -20,10 +20,11 @@ import 'dotenv/config';
 
 import express, { Request, Response } from 'express';
 import path from 'path';
-import { config, PRODUCT_DEFINITION } from './config/app-config';
+import { config, PRODUCT_DEFINITION, isLicenseNumberConfigured } from './config/app-config';
 import {
   SYSTEM_PROMPT,
-  FIRST_MESSAGE_DISCLOSURE,
+  getFirstMessageDisclosure,
+  APPOINTMENT_DISCLAIMER,
   BEFORE_CHAT_BANNER,
   ABSTENTION_SENTENCE,
 } from './prompts/system-prompt';
@@ -123,14 +124,21 @@ app.get('/api/system-prompt', (_req: Request, res: Response) => {
 
 /**
  * GET /api/disclosure — Returns the first-message disclosure and banner
+ *
+ * The Texas license number is served ONLY when a real number is configured
+ * (Texas Insurance Code §541.003 / TAC §19.1004). While unconfigured it is
+ * null — never the placeholder — and the disclosure text omits the license
+ * line (fail closed).
  */
 app.get('/api/disclosure', (_req: Request, res: Response) => {
   res.json({
-    firstMessage: FIRST_MESSAGE_DISCLOSURE,
+    firstMessage: getFirstMessageDisclosure(),
     banner: BEFORE_CHAT_BANNER,
     businessName: config.businessName,
     licensedBrokerName: config.licensedBrokerName,
-    texasLicenseNumber: config.texasLicenseNumber,
+    texasLicenseNumber: isLicenseNumberConfigured() ? config.texasLicenseNumber : null,
+    appointmentDisclaimer: APPOINTMENT_DISCLAIMER,
+    appointedCarriers: config.appointedCarriers,
     privacyNoticeUrl: config.privacyNoticeUrl,
     contactUrl: config.contactUrl,
   });
@@ -582,6 +590,20 @@ app.delete('/api/session/:sessionId', (req: Request, res: Response) => {
 app.get('/api/sessions', (_req: Request, res: Response) => {
   res.json({ activeSessions: getActiveSessionCount() });
 });
+
+/**
+ * Production gate: a verified Texas license number is required before going
+ * live (Texas Insurance Code §541.003 / TAC §19.1004). In pilot mode the app
+ * may run without it (fail-closed disclosure); outside pilot mode it refuses
+ * to start rather than serve a placeholder.
+ */
+if (!config.pilotMode && !isLicenseNumberConfigured()) {
+  console.error(
+    'FATAL: production startup requires a verified TEXAS_LICENSE_NUMBER in the environment. ' +
+      'Set it before disabling pilot mode; the placeholder is never served to users.',
+  );
+  process.exit(1);
+}
 
 /**
  * Start the server
