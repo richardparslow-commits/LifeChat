@@ -228,11 +228,13 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
       med.tobacco_nicotine_use !== null ||
       med.medical_conditions.length > 0 ||
       med.medications.length > 0 ||
-      med.diabetes?.diabetes_type !== null ||
-      med.diabetes?.treatment_method !== null ||
-      med.diabetes?.last_a1c !== null ||
-      med.cancer?.cancer_type !== null ||
-      med.cancer?.years_cancer_free !== null);
+      // Loose nullish checks: when the sub-block is null, the optional-chained
+      // field is undefined, and `!== null` would wrongly count it as populated.
+      med.diabetes?.diabetes_type != null ||
+      med.diabetes?.treatment_method != null ||
+      med.diabetes?.last_a1c != null ||
+      med.cancer?.cancer_type != null ||
+      med.cancer?.years_cancer_free != null);
   if (medPopulated && !response.consent.medical_consent_affirmed) {
     errors.push('medical_profile data requires affirmative current medical consent');
   }
