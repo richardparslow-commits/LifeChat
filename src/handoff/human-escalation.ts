@@ -78,7 +78,9 @@ export function isCurrentlyStaffed(now: Date = new Date()): boolean {
   const startMinutes = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
   const endMinutes = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
 
-  const isBusinessDay = (SERVICE_LEVEL_AGREEMENT.BUSINESS_HOURS.days as readonly string[]).includes(weekday);
+  const isBusinessDay = (SERVICE_LEVEL_AGREEMENT.BUSINESS_HOURS.days as readonly string[]).includes(
+    weekday,
+  );
   const isBusinessHour = timeAsMinutes >= startMinutes && timeAsMinutes < endMinutes;
 
   return isBusinessDay && isBusinessHour;

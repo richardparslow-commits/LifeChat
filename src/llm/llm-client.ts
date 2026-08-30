@@ -16,7 +16,12 @@
  */
 
 import { config } from '../config/app-config';
-import { LATENCY_CONFIG, canCallService, recordServiceFailure, recordServiceSuccess } from '../resilience/fallback-behavior';
+import {
+  LATENCY_CONFIG,
+  canCallService,
+  recordServiceFailure,
+  recordServiceSuccess,
+} from '../resilience/fallback-behavior';
 
 const SERVICE_NAME = 'llm_api';
 
@@ -151,10 +156,7 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        LATENCY_CONFIG.TIMEOUT_MS
-      );
+      const timeoutId = setTimeout(() => controller.abort(), LATENCY_CONFIG.TIMEOUT_MS);
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -173,10 +175,7 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
         lastError = `api_error_${response.status}: ${errorBody.slice(0, 200)}`;
 
         // 429 rate limit or 5xx — retry once
-        if (
-          (response.status === 429 || response.status >= 500) &&
-          attempt < maxAttempts - 1
-        ) {
+        if ((response.status === 429 || response.status >= 500) && attempt < maxAttempts - 1) {
           continue;
         }
 
@@ -189,7 +188,9 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
         };
       }
 
-      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {

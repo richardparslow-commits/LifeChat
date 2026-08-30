@@ -18,7 +18,12 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { config, PRODUCT_DEFINITION } from './config/app-config';
-import { SYSTEM_PROMPT, FIRST_MESSAGE_DISCLOSURE, BEFORE_CHAT_BANNER, ABSTENTION_SENTENCE } from './prompts/system-prompt';
+import {
+  SYSTEM_PROMPT,
+  FIRST_MESSAGE_DISCLOSURE,
+  BEFORE_CHAT_BANNER,
+  ABSTENTION_SENTENCE,
+} from './prompts/system-prompt';
 import { STATIC_SAFE_FALLBACK, type AssistantResponse } from './schema/response-schema';
 import { generateResponse } from './llm/orchestrator';
 import { retrieveFromCorpus } from './rag/retrieval';
@@ -31,14 +36,27 @@ import {
   clearSession,
 } from './llm/session-store';
 import { getNextState, type ConversationState } from './state-machine/state-machine';
-import { createLeadRecord, validateEmail, validatePhone, JUST_IN_TIME_NOTICE, RECOMMENDED_PHONE_CONSENT_COPY } from './consent/consent-model';
-import { authorizeToolAction } from './tools/tool-controls';
-import { detectPromptInjection, detectSensitiveData, checkRateLimit, isKillSwitchActive } from './security/security-controls';
-import { getStaffAvailabilityMessage, createHandoffSummary, EMERGENCY_RESPONSE } from './handoff/human-escalation';
-import { generateStaticFallback, FALLBACK_MESSAGES, LATENCY_CONFIG } from './resilience/fallback-behavior';
+import {
+  createLeadRecord,
+  validateEmail,
+  validatePhone,
+  JUST_IN_TIME_NOTICE,
+  RECOMMENDED_PHONE_CONSENT_COPY,
+} from './consent/consent-model';
+import {
+  detectPromptInjection,
+  detectSensitiveData,
+  checkRateLimit,
+  isKillSwitchActive,
+} from './security/security-controls';
+import { getStaffAvailabilityMessage } from './handoff/human-escalation';
+import {
+  generateStaticFallback,
+  FALLBACK_MESSAGES,
+  LATENCY_CONFIG,
+} from './resilience/fallback-behavior';
 // generateResponse orchestrator handles LLM + RAG + schema validation
 import { sanitizeUrl, generateDataLayerSnippet, type AnalyticsEvent } from './analytics/analytics';
-import { isDocumentValid, type CorpusDocument } from './rag/rag-architecture';
 
 const app = express();
 app.use(express.json());
@@ -141,7 +159,8 @@ interface ChatRequestBody {
 }
 
 app.post('/api/chat', async (req: Request, res: Response) => {
-  const { sessionId, message, currentState, sourceUrl, articleId, topicCategory } = req.body as ChatRequestBody;
+  const { sessionId, message, currentState, sourceUrl, topicCategory } =
+    req.body as ChatRequestBody;
 
   // 1. Check kill switch
   if (isKillSwitchActive()) {
@@ -156,7 +175,8 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   if (!rateLimitResult.allowed) {
     const response: AssistantResponse = {
       ...STATIC_SAFE_FALLBACK,
-      assistant_message: 'I\'ve received a lot of messages in a short time. Please try again in a moment.',
+      assistant_message:
+        "I've received a lot of messages in a short time. Please try again in a moment.",
       analytics: {
         ...STATIC_SAFE_FALLBACK.analytics,
         event_name: 'ai_error',
@@ -172,13 +192,20 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     // Record the (sanitized) user message and the assistant's response in history
     addUserMessage(sessionId, '[USER MESSAGE REDACTED — prompt injection attempt]', true);
     const response: AssistantResponse = {
-      assistant_message: 'I can help with general life-insurance education questions. What would you like to learn about?',
+      assistant_message:
+        'I can help with general life-insurance education questions. What would you like to learn about?',
       state: 'education',
       citations: [],
       lead_data: {
-        first_name: null, email: null, phone: null, goal_category: null,
-        timeline_category: null, current_coverage_category: null,
-        contact_channel: null, time_zone: null, preferred_contact_window: null,
+        first_name: null,
+        email: null,
+        phone: null,
+        goal_category: null,
+        timeline_category: null,
+        current_coverage_category: null,
+        contact_channel: null,
+        time_zone: null,
+        preferred_contact_window: null,
       },
       consent: {
         privacy_notice_version: config.privacyNoticeVersion,
@@ -212,9 +239,15 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       state: 'handoff',
       citations: [],
       lead_data: {
-        first_name: null, email: null, phone: null, goal_category: null,
-        timeline_category: null, current_coverage_category: null,
-        contact_channel: null, time_zone: null, preferred_contact_window: null,
+        first_name: null,
+        email: null,
+        phone: null,
+        goal_category: null,
+        timeline_category: null,
+        current_coverage_category: null,
+        contact_channel: null,
+        time_zone: null,
+        preferred_contact_window: null,
       },
       consent: {
         privacy_notice_version: config.privacyNoticeVersion,
@@ -223,7 +256,10 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         do_not_contact: false,
       },
       proposed_action: 'request_human_handoff',
-      action_arguments: { handoff_reason: 'health_data_disclosed', summary: 'User disclosed health information in public chat' },
+      action_arguments: {
+        handoff_reason: 'health_data_disclosed',
+        summary: 'User disclosed health information in public chat',
+      },
       risk_flags: ['sensitive_data_disclosed'],
       analytics: {
         event_name: 'ai_handoff_request',
@@ -239,7 +275,10 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   }
 
   // 5. Sanitize the source URL (never send raw window.location.href)
-  const sanitizedPath = sourceUrl ? sanitizeUrl(sourceUrl) : '/';
+  //    sanitizeUrl is called here to ensure query params are stripped
+  if (sourceUrl) {
+    sanitizeUrl(sourceUrl);
+  }
 
   // 6. Record the user message in session history
   //    If the message contains PII, store a redacted placeholder instead
@@ -255,22 +294,23 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
   // 8. Determine next state via the state machine
   //    (The orchestrator will use the LLM response to refine the final state)
-  const nextState = getNextState({
-    currentState,
-    userMessage: message,
-    hasValueBeenDelivered: false, // Determined by LLM response quality
-    userShowsInterest: false,
-    queryIsAmbiguous: false,
-    userAgreesToQualification: false,
-    userRequestsFollowup: false,
-    contactChannelChosen: false,
-    consentAffirmative: false,
-    requiredFieldsValid: false,
-    userAsksToBook: false,
-    bookingApiConfirms: false,
-    riskOrEscalationTrigger: sensitiveDataCategory === 'pii',
-    userDeclinesOrFlowEnds: false,
-  }) ?? currentState;
+  const nextState =
+    getNextState({
+      currentState,
+      userMessage: message,
+      hasValueBeenDelivered: false, // Determined by LLM response quality
+      userShowsInterest: false,
+      queryIsAmbiguous: false,
+      userAgreesToQualification: false,
+      userRequestsFollowup: false,
+      contactChannelChosen: false,
+      consentAffirmative: false,
+      requiredFieldsValid: false,
+      userAsksToBook: false,
+      bookingApiConfirms: false,
+      riskOrEscalationTrigger: sensitiveDataCategory === 'pii',
+      userDeclinesOrFlowEnds: false,
+    }) ?? currentState;
 
   // 9. Run the LLM + RAG orchestrator (Sections 4.6, 4.8, 4.9, 4.11, 15)
   //    Passes conversation history so the model has context for follow-up
@@ -290,7 +330,9 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
   // 11. Log latency (non-PII)
   if (latencyMs > LATENCY_CONFIG.P95_ANSWER_TARGET_MS) {
-    console.warn(`Response latency ${latencyMs}ms exceeds P95 target ${LATENCY_CONFIG.P95_ANSWER_TARGET_MS}ms`);
+    console.warn(
+      `Response latency ${latencyMs}ms exceeds P95 target ${LATENCY_CONFIG.P95_ANSWER_TARGET_MS}ms`,
+    );
   }
 
   return res.json(response);
@@ -301,7 +343,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
  * (Phase 2 — consented lead capture)
  */
 app.post('/api/consent', (req: Request, res: Response) => {
-  const { sessionId, contactConsentAffirmed, contactChannel, email, phone, firstName } = req.body;
+  const { contactConsentAffirmed, contactChannel, email, phone, firstName } = req.body;
 
   if (!contactConsentAffirmed) {
     return res.status(400).json({
@@ -326,7 +368,7 @@ app.post('/api/consent', (req: Request, res: Response) => {
   const lead = createLeadRecord(
     req.body.articleId || 'unknown',
     sanitizeUrl(req.body.sourceUrl || ''),
-    req.body.topicCategory || 'general'
+    req.body.topicCategory || 'general',
   );
 
   lead.first_name = firstName || null;
@@ -380,7 +422,7 @@ app.get('/api/rag/search', (req: Request, res: Response) => {
       jurisdiction: p.jurisdiction,
       priority: p.priority,
       score: p.score,
-      contentPreview: p.content.slice(0, 200) + '...',
+      contentPreview: `${p.content.slice(0, 200)}...`,
     })),
   });
 });
@@ -424,7 +466,9 @@ const server = app.listen(config.port, () => {
   console.log(`  Owner: ${PRODUCT_DEFINITION.owner}`);
   console.log(`  Jurisdiction: ${PRODUCT_DEFINITION.initialJurisdiction}`);
   console.log(`  Pilot mode: ${config.pilotMode}`);
-  console.log(`  Health data collection: ${config.healthDataCollectionDisabled ? 'DISABLED' : 'enabled'}`);
+  console.log(
+    `  Health data collection: ${config.healthDataCollectionDisabled ? 'DISABLED' : 'enabled'}`,
+  );
   console.log(`  Outbound marketing: ${config.outboundMarketingDisabled ? 'DISABLED' : 'enabled'}`);
   console.log(`\n  Server running at http://localhost:${config.port}`);
   console.log(`  Widget at http://localhost:${config.port}/widget.js`);

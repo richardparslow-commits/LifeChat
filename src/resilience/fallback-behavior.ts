@@ -159,10 +159,8 @@ export const STATIC_FALLBACK_RESOURCES = [
  * This is used when the model is unavailable, the kill switch is active,
  * or all retries are exhausted.
  */
-export function generateStaticFallback(reason: string): string {
-  const resources = STATIC_FALLBACK_RESOURCES.map(
-    (r) => `• ${r.title}: ${r.url}`
-  ).join('\n');
+export function generateStaticFallback(_reason: string): string {
+  const resources = STATIC_FALLBACK_RESOURCES.map((r) => `• ${r.title}: ${r.url}`).join('\n');
 
   return `I'm having trouble responding right now. Here are some resources that may help:\n\n${resources}\n\nYou can also try again in a few moments.`;
 }

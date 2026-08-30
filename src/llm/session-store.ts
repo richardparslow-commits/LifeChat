@@ -65,8 +65,12 @@ export function getHistory(sessionId: string): LLMMessage[] {
  * @param message - The sanitized user message
  * @param isSensitive - If true, store a redacted placeholder instead
  */
-export function addUserMessage(sessionId: string, message: string, isSensitive: boolean = false): void {
-  let session = getOrCreateSession(sessionId);
+export function addUserMessage(
+  sessionId: string,
+  message: string,
+  isSensitive: boolean = false,
+): void {
+  const session = getOrCreateSession(sessionId);
 
   const content = isSensitive
     ? '[USER MESSAGE REDACTED — contained sensitive data, not stored]'
@@ -92,7 +96,7 @@ export function addUserMessage(sessionId: string, message: string, isSensitive: 
  * @param assistantMessage - The assistant_message field from the validated response
  */
 export function addAssistantMessage(sessionId: string, assistantMessage: string): void {
-  let session = getOrCreateSession(sessionId);
+  const session = getOrCreateSession(sessionId);
 
   session.messages.push({ role: 'assistant', content: assistantMessage });
 

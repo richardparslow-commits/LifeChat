@@ -72,7 +72,7 @@ Section 541.061 defines unfair methods of competition and unfair or deceptive ac
 
 This means an insurance advertisement or communication must not contain a material misstatement, a misleading omission, or a statement likely to mislead a reasonable person about the terms, benefits, or cost of a policy.
 
-This applies to all insurance advertising in Texas, including internet content and AI-assisted communications.`
+This applies to all insurance advertising in Texas, including internet content and AI-assisted communications.`,
     ),
     chunk_count: 1,
   },
@@ -101,7 +101,7 @@ This applies to all insurance advertising in Texas, including internet content a
 
 4. Under 28 TAC Section 21.122(c), an agent must submit affected advertising to the insurer for written approval before use.
 
-5. Under 28 TAC Section 21.116, insurers must maintain advertising specimens for at least three years.`
+5. Under 28 TAC Section 21.116, insurers must maintain advertising specimens for at least three years.`,
     ),
     chunk_count: 1,
   },
@@ -124,13 +124,14 @@ This applies to all insurance advertising in Texas, including internet content a
 
 The model requires that advertisements do not mislead purchasers and that all material information is disclosed. This includes information about policy benefits, limitations, exclusions, and costs.
 
-The model is a template that states may adopt. It is not Texas law unless Texas has adopted it. Texas has its own advertising rules under 28 TAC Section 21.104 and related provisions. Do not imply that NAIC models are Texas law unless a Texas source verifies adoption.`
+The model is a template that states may adopt. It is not Texas law unless Texas has adopted it. Texas has its own advertising rules under 28 TAC Section 21.104 and related provisions. Do not imply that NAIC models are Texas law unless a Texas source verifies adoption.`,
     ),
     chunk_count: 1,
   },
   {
     id: 'tdpsa-overview',
-    canonical_url: 'https://www.texasattorneygeneral.gov/consumer-protection/file-consumer-complaint/consumer-privacy-rights/texas-data-privacy-and-security-act',
+    canonical_url:
+      'https://www.texasattorneygeneral.gov/consumer-protection/file-consumer-complaint/consumer-privacy-rights/texas-data-privacy-and-security-act',
     title: 'Texas Data Privacy and Security Act (TDPSA) — Consumer Privacy Rights',
     author_or_owner: 'Texas Attorney General',
     jurisdiction: 'Texas',
@@ -152,7 +153,7 @@ Key provisions for covered controllers:
 - Sensitive data (including physical or mental health conditions and diagnoses) requires consent before processing
 - Sensitive-data or heightened-risk processing requires a data-protection assessment
 
-There is a small-business exemption, but even exempt small businesses must obtain consent before selling sensitive data.`
+There is a small-business exemption, but even exempt small businesses must obtain consent before selling sensitive data.`,
     ),
     chunk_count: 1,
   },
@@ -181,7 +182,7 @@ Key differences:
 - Term has no cash value component
 - Whole life premiums are generally higher
 
-Which is right for a specific person depends on their individual circumstances, goals, and budget. A licensed broker can review those factors and provide individualized guidance. This educational article cannot recommend a specific policy or coverage amount.`
+Which is right for a specific person depends on their individual circumstances, goals, and budget. A licensed broker can review those factors and provide individualized guidance. This educational article cannot recommend a specific policy or coverage amount.`,
     ),
     chunk_count: 1,
   },
@@ -211,7 +212,7 @@ General factors that may influence cost include:
 - Carrier: different insurers price differently
 - Riders and features: additional benefits add cost
 
-A reliable personalized premium cannot be determined from age alone. It requires a licensed review including carrier-specific underwriting, product selection, and approved factors. Do not share medical history or health details in a public chat.`
+A reliable personalized premium cannot be determined from age alone. It requires a licensed review including carrier-specific underwriting, product selection, and approved factors. Do not share medical history or health details in a public chat.`,
     ),
     chunk_count: 1,
   },
@@ -245,7 +246,7 @@ Q: What is legacy planning?
 A: Legacy planning generally refers to arranging how assets pass to beneficiaries. It may involve life insurance, trusts, and estate considerations. Tax-advantaged strategies should be discussed with a qualified tax or legal professional. This chat does not provide tax, legal, or estate-planning advice.
 
 Q: Where can I file a complaint?
-A: You can contact the Texas Department of Insurance at tdi.texas.gov or Richard Parslow directly for policy service requests.`
+A: You can contact the Texas Department of Insurance at tdi.texas.gov or Richard Parslow directly for policy service requests.`,
     ),
     chunk_count: 1,
   },
@@ -320,17 +321,98 @@ export function retrieveFromCorpus(query: string, topK: number = 3): RetrievalRe
  */
 function tokenize(text: string): string[] {
   const stopWords = new Set([
-    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should',
-    'could', 'may', 'might', 'must', 'can', 'shall', 'to', 'of', 'in',
-    'for', 'on', 'at', 'by', 'with', 'from', 'as', 'into', 'about',
-    'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why',
-    'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most',
-    'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'same', 'than',
-    'too', 'very', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
-    'he', 'she', 'it', 'they', 'them', 'their', 'this', 'that',
-    'these', 'those', 'and', 'or', 'but', 'if', 'then', 'else',
-    'so', 'up', 'out', 'its', 'my',
+    'a',
+    'an',
+    'the',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'do',
+    'does',
+    'did',
+    'will',
+    'would',
+    'should',
+    'could',
+    'may',
+    'might',
+    'must',
+    'can',
+    'shall',
+    'to',
+    'of',
+    'in',
+    'for',
+    'on',
+    'at',
+    'by',
+    'with',
+    'from',
+    'as',
+    'into',
+    'about',
+    'what',
+    'which',
+    'who',
+    'whom',
+    'whose',
+    'when',
+    'where',
+    'why',
+    'how',
+    'all',
+    'each',
+    'every',
+    'both',
+    'few',
+    'more',
+    'most',
+    'other',
+    'some',
+    'such',
+    'no',
+    'nor',
+    'not',
+    'only',
+    'same',
+    'than',
+    'too',
+    'very',
+    'i',
+    'me',
+    'my',
+    'we',
+    'our',
+    'you',
+    'your',
+    'he',
+    'she',
+    'it',
+    'they',
+    'them',
+    'their',
+    'this',
+    'that',
+    'these',
+    'those',
+    'and',
+    'or',
+    'but',
+    'if',
+    'then',
+    'else',
+    'so',
+    'up',
+    'out',
+    'its',
+    'my',
   ]);
 
   return text
@@ -359,6 +441,8 @@ export function formatRetrievedContext(passages: RetrievedPassage[]): string {
 /**
  * Gets the citations from retrieved passages for the response schema.
  */
-export function passagesToCitations(passages: RetrievedPassage[]): Array<{ title: string; url: string }> {
+export function passagesToCitations(
+  passages: RetrievedPassage[],
+): Array<{ title: string; url: string }> {
   return passages.map((p) => ({ title: p.title, url: p.url }));
 }

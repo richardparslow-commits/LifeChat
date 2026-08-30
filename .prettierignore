@@ -1,0 +1,6 @@
+dist/
+node_modules/
+coverage/
+public/
+package-lock.json
+.freebuff/

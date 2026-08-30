@@ -155,7 +155,9 @@ export function authorizeToolAction(ctx: ToolAuthorizationContext): ToolAuthoriz
   // 6. send_transactional_confirmation requires a booking to have succeeded
   if (ctx.proposedAction === 'send_transactional_confirmation') {
     if (!ctx.actionArguments.appointment_id) {
-      errors.push('send_transactional_confirmation requires an appointment_id from a confirmed booking');
+      errors.push(
+        'send_transactional_confirmation requires an appointment_id from a confirmed booking',
+      );
     } else {
       sanitizedArgs.appointment_id = ctx.actionArguments.appointment_id;
     }
@@ -238,8 +240,9 @@ export const SCHEDULING_RULES = {
  * The application layer must never confirm a lead, message, or booking
  * until the downstream service returns success.
  */
-export function confirmOnlyAfterDownstreamSuccess(
-  downstreamResult: { success: boolean; data?: unknown }
-): boolean {
+export function confirmOnlyAfterDownstreamSuccess(downstreamResult: {
+  success: boolean;
+  data?: unknown;
+}): boolean {
   return downstreamResult.success === true;
 }

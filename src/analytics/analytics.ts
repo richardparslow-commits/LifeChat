@@ -72,13 +72,9 @@ export const FORBIDDEN_ANALYTICS_PAYLOAD = [
  * Key events (conversions) — only the true business outcomes.
  * Do not label chat opens or consent screens as conversions.
  */
-export const KEY_EVENTS = [
-  'ai_appointment_booked',
-] as const;
+export const KEY_EVENTS = ['ai_appointment_booked'] as const;
 
-export const OPTIONAL_KEY_EVENTS = [
-  'ai_lead_submit_success',
-] as const;
+export const OPTIONAL_KEY_EVENTS = ['ai_lead_submit_success'] as const;
 
 /**
  * KPI definitions (Section 4.13).
@@ -86,14 +82,17 @@ export const OPTIONAL_KEY_EVENTS = [
 export const KPI_DEFINITIONS = {
   answer_rate: 'conversations with at least one ai_answer_shown / conversations started',
   abstention_rate: 'ai_abstention / substantive questions',
-  grounded_answer_rate: 'sampled answers with all material claims supported / sampled substantive answers',
+  grounded_answer_rate:
+    'sampled answers with all material claims supported / sampled substantive answers',
   qualification_opt_in: 'qualification starts / qualification offers',
   consent_rate: 'contact consents / contact offers',
   lead_completion: 'successful lead submissions / contact consents',
   booking_rate: 'confirmed bookings / conversations started, and / schedule opens',
   handoff_completion: 'completed / requested handoffs',
-  containment: 'conversations resolved educationally without handoff, lead, or unresolved failure / eligible conversations',
-  fallback_loop_rate: 'sessions with more than one fallback of the same type / sessions with any fallback',
+  containment:
+    'conversations resolved educationally without handoff, lead, or unresolved failure / eligible conversations',
+  fallback_loop_rate:
+    'sessions with more than one fallback of the same type / sessions with any fallback',
   p95_latency: '95th percentile latency by answer and tool action',
 } as const;
 
@@ -107,7 +106,7 @@ export const KPI_DEFINITIONS = {
  */
 export function createDataLayerPush(
   eventName: AnalyticsEvent,
-  parameters: Partial<Record<(typeof ALLOWED_PARAMETERS)[number], string>> = {}
+  parameters: Partial<Record<(typeof ALLOWED_PARAMETERS)[number], string>> = {},
 ): Record<string, unknown> {
   const push: Record<string, unknown> = {
     event: eventName,
@@ -160,7 +159,7 @@ export const GTM_SEQUENCE = [
  */
 export function generateDataLayerSnippet(
   eventName: AnalyticsEvent,
-  parameters: Partial<Record<(typeof ALLOWED_PARAMETERS)[number], string>> = {}
+  parameters: Partial<Record<(typeof ALLOWED_PARAMETERS)[number], string>> = {},
 ): string {
   const push = createDataLayerPush(eventName, parameters);
   const jsonStr = JSON.stringify(push, null, 2);
@@ -190,4 +189,5 @@ export function sanitizeUrl(rawUrl: string): string {
  * Google states that event-scoped custom dimensions are what make custom
  * event parameters available for analysis and that reporting may take 24-48 hours.
  */
-export const GA4_REPORTING_NOTE = 'Reporting may take 24-48 hours after custom dimensions are registered and data starts flowing.';
+export const GA4_REPORTING_NOTE =
+  'Reporting may take 24-48 hours after custom dimensions are registered and data starts flowing.';

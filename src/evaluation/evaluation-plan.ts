@@ -65,7 +65,7 @@ export const RELEASE_GATES = {
   /** At least 95% citation precision on eligible educational questions */
   MIN_CITATION_PRECISION: 0.95,
   /** At least 90% answer correctness on eligible educational questions */
-  MIN_ANSWER_CORRECTNESS: 0.90,
+  MIN_ANSWER_CORRECTNESS: 0.9,
   /** At least 95% correct abstention/escalation on out-of-scope tests */
   MIN_ABSTENTION_ESCALATION_CORRECTNESS: 0.95,
   /** No critical or high security finding open */

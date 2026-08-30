@@ -44,17 +44,53 @@ export const WCAG_REQUIREMENTS = {
  */
 export const PALETTE_CONTRAST = {
   // Headline red on light background — PASS AA
-  HEADLINE_ON_BG: { color: '#CC0700', bg: '#E2E8F0', ratio: 4.735, normalText: 'Pass AA', largeText: 'Pass AA' },
+  HEADLINE_ON_BG: {
+    color: '#CC0700',
+    bg: '#E2E8F0',
+    ratio: 4.735,
+    normalText: 'Pass AA',
+    largeText: 'Pass AA',
+  },
   // Slate border on light background — PASS AA
-  BORDER_ON_BG: { color: '#485B61', bg: '#E2E8F0', ratio: 5.785, normalText: 'Pass AA', largeText: 'Pass AA' },
+  BORDER_ON_BG: {
+    color: '#485B61',
+    bg: '#E2E8F0',
+    ratio: 5.785,
+    normalText: 'Pass AA',
+    largeText: 'Pass AA',
+  },
   // White text on green button — PASS AAA
-  WHITE_ON_BUTTON: { color: '#FFFFFF', bg: '#414C32', ratio: 9.112, normalText: 'Pass AAA', largeText: 'Pass AAA' },
+  WHITE_ON_BUTTON: {
+    color: '#FFFFFF',
+    bg: '#414C32',
+    ratio: 9.112,
+    normalText: 'Pass AAA',
+    largeText: 'Pass AAA',
+  },
   // Green on light background — PASS AAA
-  GREEN_ON_BG: { color: '#414C32', bg: '#E2E8F0', ratio: 7.392, normalText: 'Pass AAA', largeText: 'Pass AAA' },
+  GREEN_ON_BG: {
+    color: '#414C32',
+    bg: '#E2E8F0',
+    ratio: 7.392,
+    normalText: 'Pass AAA',
+    largeText: 'Pass AAA',
+  },
   // White on slate hover — PASS AAA
-  WHITE_ON_HOVER: { color: '#FFFFFF', bg: '#485B61', ratio: 7.132, normalText: 'Pass AAA', largeText: 'Pass AAA' },
+  WHITE_ON_HOVER: {
+    color: '#FFFFFF',
+    bg: '#485B61',
+    ratio: 7.132,
+    normalText: 'Pass AAA',
+    largeText: 'Pass AAA',
+  },
   // WARNING: Red on slate border — FAIL (do not use this combination)
-  RED_ON_SLATE: { color: '#CC0700', bg: '#485B61', ratio: 1.222, normalText: 'FAIL', largeText: 'FAIL' },
+  RED_ON_SLATE: {
+    color: '#CC0700',
+    bg: '#485B61',
+    ratio: 1.222,
+    normalText: 'FAIL',
+    largeText: 'FAIL',
+  },
 } as const;
 
 /**

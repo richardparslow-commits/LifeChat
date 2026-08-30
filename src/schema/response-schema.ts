@@ -25,21 +25,21 @@ export const LeadDataSchema = z.object({
   email: z.string().email().nullable().default(null),
   phone: z.string().nullable().default(null),
   goal_category: z
-    .enum(['income_replacement', 'mortgage_time_limited_need', 'final_expenses', 'legacy_planning', 'other'])
+    .enum([
+      'income_replacement',
+      'mortgage_time_limited_need',
+      'final_expenses',
+      'legacy_planning',
+      'other',
+    ])
     .nullable()
     .default(null),
   timeline_category: z
     .enum(['researching', 'comparing_soon', 'putting_coverage_in_place_now'])
     .nullable()
     .default(null),
-  current_coverage_category: z
-    .enum(['yes', 'no', 'unsure'])
-    .nullable()
-    .default(null),
-  contact_channel: z
-    .enum(['email', 'phone', 'calendar'])
-    .nullable()
-    .default(null),
+  current_coverage_category: z.enum(['yes', 'no', 'unsure']).nullable().default(null),
+  contact_channel: z.enum(['email', 'phone', 'calendar']).nullable().default(null),
   time_zone: z.string().nullable().default(null),
   preferred_contact_window: z.string().nullable().default(null),
 });
@@ -160,23 +160,13 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
   const errors: string[] = [];
 
   // create_lead requires affirmative current contact consent
-  if (
-    response.proposed_action === 'create_lead' &&
-    !response.consent.contact_consent_affirmed
-  ) {
-    errors.push(
-      'proposed_action=create_lead requires affirmative current contact consent'
-    );
+  if (response.proposed_action === 'create_lead' && !response.consent.contact_consent_affirmed) {
+    errors.push('proposed_action=create_lead requires affirmative current contact consent');
   }
 
   // book_appointment requires a verified slot and explicit user confirmation
-  if (
-    response.proposed_action === 'book_appointment' &&
-    !response.action_arguments?.slot_id
-  ) {
-    errors.push(
-      'proposed_action=book_appointment requires a verified slot_id in action_arguments'
-    );
+  if (response.proposed_action === 'book_appointment' && !response.action_arguments?.slot_id) {
+    errors.push('proposed_action=book_appointment requires a verified slot_id in action_arguments');
   }
 
   // Health disclosure requires handoff or none + risk flag
@@ -186,7 +176,7 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
     response.proposed_action !== 'none'
   ) {
     errors.push(
-      'sensitive_data_disclosed risk flag requires proposed_action=request_human_handoff or none'
+      'sensitive_data_disclosed risk flag requires proposed_action=request_human_handoff or none',
     );
   }
 
@@ -197,9 +187,7 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
       response.state === 'contact_offer' ||
       response.state === 'consent')
   ) {
-    errors.push(
-      'do_not_contact=true must suppress all contact offers and lead creation'
-    );
+    errors.push('do_not_contact=true must suppress all contact offers and lead creation');
   }
 
   return errors;

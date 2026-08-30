@@ -69,7 +69,8 @@ export const FORBIDDEN_ANALYTICS_FIELDS = [
  */
 export function validateEmail(email: string): boolean {
   // Basic RFC 5322 compliant pattern for server-side validation
-  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  const emailRegex =
+    /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
   return emailRegex.test(email);
 }
 
@@ -86,7 +87,11 @@ export function validatePhone(phone: string): boolean {
 /**
  * Creates a new empty lead record with server-generated ID and timestamp.
  */
-export function createLeadRecord(sourcePageId: string, sanitizedPath: string, topicCategory: string): LeadRecord {
+export function createLeadRecord(
+  sourcePageId: string,
+  sanitizedPath: string,
+  topicCategory: string,
+): LeadRecord {
   return {
     lead_id: uuidv4(),
     created_at: new Date().toISOString(),

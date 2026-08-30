@@ -17,7 +17,9 @@ function makeValidResponse(overrides: Partial<AssistantResponse> = {}): Assistan
   return {
     assistant_message: 'Term life insurance provides coverage for a specific period.',
     state: 'education',
-    citations: [{ title: 'Term vs Whole Life', url: 'https://lifepolicypilot.blog/term-vs-whole/' }],
+    citations: [
+      { title: 'Term vs Whole Life', url: 'https://lifepolicypilot.blog/term-vs-whole/' },
+    ],
     lead_data: {
       first_name: null,
       email: null,
@@ -66,14 +68,14 @@ describe('Schema — Zod parsing', () => {
 
   test('rejects invalid state enum value', () => {
     const result = AssistantResponseSchema.safeParse(
-      makeValidResponse({ state: 'invalid_state' as never })
+      makeValidResponse({ state: 'invalid_state' as never }),
     );
     expect(result.success).toBe(false);
   });
 
   test('rejects invalid proposed_action value', () => {
     const result = AssistantResponseSchema.safeParse(
-      makeValidResponse({ proposed_action: 'hack_the_mainframe' as never })
+      makeValidResponse({ proposed_action: 'hack_the_mainframe' as never }),
     );
     expect(result.success).toBe(false);
   });

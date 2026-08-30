@@ -85,6 +85,18 @@ npm run typecheck
 
 # Run tests
 npm test
+
+# Lint
+npm run lint
+
+# Auto-fix lint errors
+npm run lint:fix
+
+# Format code
+npm run format
+
+# Check formatting without writing
+npm run format:check
 ```
 
 ## Configuration

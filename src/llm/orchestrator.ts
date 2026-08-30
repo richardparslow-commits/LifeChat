@@ -17,7 +17,7 @@
 
 import { config } from '../config/app-config';
 import { SYSTEM_PROMPT, ABSTENTION_SENTENCE } from '../prompts/system-prompt';
-import { callLLM, extractJSON, buildMessages, type LLMMessage } from './llm-client';
+import { callLLM, extractJSON, type LLMMessage } from './llm-client';
 import {
   retrieveFromCorpus,
   formatRetrievedContext,
@@ -32,7 +32,7 @@ import {
   type Citation,
 } from '../schema/response-schema';
 import { sanitizeRetrievedContent } from '../security/security-controls';
-import { FALLBACK_MESSAGES, LATENCY_CONFIG } from '../resilience/fallback-behavior';
+import { FALLBACK_MESSAGES } from '../resilience/fallback-behavior';
 import { isKillSwitchActive } from '../security/security-controls';
 import type { ConversationState } from '../state-machine/state-machine';
 
@@ -156,8 +156,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   // 9. Override citations with retrieved RAG passages
   //    The model may not always include exact citations, so we inject
   //    the retrieved sources to ensure grounding (Section 4.6).
-  const citations: Citation[] = passagesToCitations(retrievalResult.passages)
-    .slice(0, 3); // Max 3 citations per Section 4.6
+  const citations: Citation[] = passagesToCitations(retrievalResult.passages).slice(0, 3); // Max 3 citations per Section 4.6
 
   // 10. Ensure privacy notice version is set from config
   validated.consent.privacy_notice_version = config.privacyNoticeVersion;
@@ -186,16 +185,22 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
  */
 function buildAbstentionResponse(
   input: OrchestratorInput,
-  passages: RetrievedPassage[]
+  passages: RetrievedPassage[],
 ): AssistantResponse {
   return {
     assistant_message: ABSTENTION_SENTENCE,
     state: input.currentState === 'disclosure' ? 'education' : input.currentState,
     citations: passagesToCitations(passages),
     lead_data: {
-      first_name: null, email: null, phone: null, goal_category: null,
-      timeline_category: null, current_coverage_category: null,
-      contact_channel: null, time_zone: null, preferred_contact_window: null,
+      first_name: null,
+      email: null,
+      phone: null,
+      goal_category: null,
+      timeline_category: null,
+      current_coverage_category: null,
+      contact_channel: null,
+      time_zone: null,
+      preferred_contact_window: null,
     },
     consent: {
       privacy_notice_version: config.privacyNoticeVersion,
@@ -224,7 +229,7 @@ function buildAbstentionResponse(
 function buildFallbackResponse(
   input: OrchestratorInput,
   errorType: string,
-  errorDetail: string | null | undefined
+  errorDetail: string | null | undefined,
 ): AssistantResponse {
   const isTimeout = errorDetail?.includes('aborted') || errorType === 'llm_call_failed';
 
@@ -235,9 +240,15 @@ function buildFallbackResponse(
     state: 'standby',
     citations: [],
     lead_data: {
-      first_name: null, email: null, phone: null, goal_category: null,
-      timeline_category: null, current_coverage_category: null,
-      contact_channel: null, time_zone: null, preferred_contact_window: null,
+      first_name: null,
+      email: null,
+      phone: null,
+      goal_category: null,
+      timeline_category: null,
+      current_coverage_category: null,
+      contact_channel: null,
+      time_zone: null,
+      preferred_contact_window: null,
     },
     consent: {
       privacy_notice_version: config.privacyNoticeVersion,

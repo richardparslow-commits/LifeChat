@@ -11,11 +11,7 @@
  * article context, and tool results must be marked as separate trust zones.
  */
 export type TrustZone =
-  | 'system_instructions'
-  | 'developer_policy'
-  | 'user_text'
-  | 'article_context'
-  | 'tool_result';
+  'system_instructions' | 'developer_policy' | 'user_text' | 'article_context' | 'tool_result';
 
 /**
  * Defense-in-depth controls from Section 4.9.
@@ -110,17 +106,21 @@ export function sanitizeRetrievedContent(content: string): string {
   // Remove hidden text (display:none, visibility:hidden, etc.)
   sanitized = sanitized.replace(
     /<[^>]*style="[^"]*(?:display\s*:\s*none|visibility\s*:\s*hidden)[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi,
-    ''
+    '',
   );
   sanitized = sanitized.replace(/<[^>]*hidden[^>]*>[\s\S]*?<\/[^>]+>/gi, '');
 
   // Remove instruction-like patterns that could be prompt injection
   // e.g., "Ignore previous instructions", "You are now", "System:"
-  sanitized = sanitized.replace(/(?:ignore|disregard)\s+(?:previous|all|above)\s+instructions?/gi, '');
+  sanitized = sanitized.replace(
+    /(?:ignore|disregard)\s+(?:previous|all|above)\s+instructions?/gi,
+    '',
+  );
   sanitized = sanitized.replace(/(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be)\s/gi, '');
   sanitized = sanitized.replace(/^system\s*:/gim, '');
 
   // Remove null bytes and other control characters
+  // eslint-disable-next-line no-control-regex
   sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
   return sanitized.trim();
@@ -155,7 +155,7 @@ export function detectPromptInjection(userInput: string): boolean {
  * @returns The category of sensitive data detected, or null
  */
 export function detectSensitiveData(
-  userInput: string
+  userInput: string,
 ): (typeof INPUT_CLASSIFICATION_CATEGORIES)[number] | null {
   // Health data patterns
   const healthPatterns = [
