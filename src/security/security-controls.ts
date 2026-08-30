@@ -186,6 +186,32 @@ export function detectSensitiveData(
 }
 
 /**
+ * Prohibited promotional/free-offer phrases (marketing-review gate).
+ *
+ * The word "free" alone is not flagged — only promotional offers whose terms
+ * are not approved. Until FREE_OFFER_MARKETING_APPROVED=true after marketing
+ * review, the assistant must never claim a free quote, free consultation,
+ * free estimate, or no-obligation review.
+ */
+export const PROMOTIONAL_OFFER_PATTERNS = [
+  /\bfree\s+(?:quote|consultation|estimate|review|assessment|evaluation)\b/i,
+  /\b(?:100\s*%|totally|absolutely|completely)\s+free\b/i,
+  /\bfree\s+of\s+charge\b/i,
+  /\bno[\s-]?obligation\b/i,
+] as const;
+
+/**
+ * Returns true when the text contains a promotional free-offer claim whose
+ * terms are not approved (free quote / free consultation / no-obligation).
+ * Used as an output guard while FREE_OFFER_MARKETING_APPROVED is false.
+ *
+ * @param text - The assistant message or other text to inspect
+ */
+export function detectProhibitedPromotionalOffer(text: string): boolean {
+  return PROMOTIONAL_OFFER_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/**
  * Rate limiting state tracking (per session/IP).
  * In production, this should use Redis or a similar shared store.
  */

@@ -120,6 +120,7 @@ DSR_EMAIL="privacy@lifepolicypilot.blog" # data subject requests (TDPSA rights)
 LLM_API_KEY="your-api-key"
 LLM_MODEL="gpt-4o"
 PILOT_MODE=true
+FREE_OFFER_MARKETING_APPROVED=false # free-quote/free-consultation phrasing blocked until marketing review
 ```
 
 > **License disclosure:** `TEXAS_LICENSE_NUMBER` is required before going live

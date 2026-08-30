@@ -9,6 +9,7 @@
 
 import { generateResponse } from '../src/llm/orchestrator';
 import { callLLM } from '../src/llm/llm-client';
+import { config } from '../src/config/app-config';
 
 jest.mock('../src/llm/llm-client', () => {
   const actual = jest.requireActual('../src/llm/llm-client');
@@ -71,6 +72,11 @@ beforeEach(() => {
   mockCallLLM.mockReset();
 });
 
+afterEach(() => {
+  // Restore the marketing-review gate for other suites
+  config.freeOfferMarketingApproved = false;
+});
+
 describe('generateResponse retry-on-invalid-JSON', () => {
   it('retries once with feedback and returns the valid retry response', async () => {
     mockCallLLM
@@ -116,5 +122,67 @@ describe('generateResponse retry-on-invalid-JSON', () => {
     expect(response.state).toBe('standby');
     expect(response.risk_flags).toContain('static_fallback_used');
     expect(response.analytics.event_name).toBe('ai_fallback_shown');
+  });
+});
+
+describe('generateResponse — promotional-offer output guard (marketing review)', () => {
+  it('rejects a "free quote" claim and retries until the phrasing is removed', async () => {
+    mockCallLLM
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Would you like a free quote today?'),
+        latencyMs: 5,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Would you like to talk with Richard about your coverage?'),
+        latencyMs: 5,
+      });
+
+    const { response } = await generateResponse(input);
+
+    expect(response.assistant_message).toBe(
+      'Would you like to talk with Richard about your coverage?',
+    );
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+    const feedback = mockCallLLM.mock.calls[1][0].validationFeedback;
+    expect(feedback).toBeDefined();
+    expect(feedback).toContain('free');
+    expect(feedback).toContain('marketing');
+  });
+
+  it('falls back when the retry still contains the free-offer phrasing', async () => {
+    mockCallLLM
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Get a free consultation!'),
+        latencyMs: 5,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Sign up for a no-obligation review.'),
+        latencyMs: 5,
+      });
+
+    const { response } = await generateResponse(input);
+
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+    expect(response.risk_flags).toContain('static_fallback_used');
+    // The fallback never contains the promotional phrasing
+    expect(response.assistant_message).not.toMatch(/free|obligation/i);
+  });
+
+  it('allows the phrasing once marketing review approves it (flag on)', async () => {
+    config.freeOfferMarketingApproved = true;
+    mockCallLLM.mockResolvedValueOnce({
+      success: true,
+      content: validJson('Would you like a free quote today?'),
+      latencyMs: 5,
+    });
+
+    const { response } = await generateResponse(input);
+
+    expect(response.assistant_message).toBe('Would you like a free quote today?');
+    expect(mockCallLLM).toHaveBeenCalledTimes(1);
   });
 });
