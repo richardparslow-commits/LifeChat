@@ -10,13 +10,22 @@
  * disclosure/consent copy; this endpoint is the structured intake route.
  * Records are persisted to an append-only JSONL file so they survive process
  * restarts (DSR records are legal artifacts under TDPSA's 45-day response
- * SLA). In production, also persist to the operational CRM/lead store.
+ * SLA). Each line is encrypted at rest with AES-256-GCM when a
+ * RECORD_ENCRYPTION_KEY is configured (required in production). In
+ * production, also persist to the operational CRM/lead store.
+ *
+ * Persistence is fail-closed: a submission is only acknowledged if its record
+ * was durably written. If the append fails (read-only directory, full disk),
+ * submitDsr returns ok:false and the consumer is not told the request was
+ * received — a TDPSA response obligation must never be acknowledged if it
+ * may have been lost.
  */
 
 import { v4 as uuidv4 } from 'uuid';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
-import { dirname } from 'path';
+import { dirname as pathDirname } from 'path';
 import { config } from '../config/app-config';
+import { encryptRecordLine, decryptRecordLine } from './record-encryption';
 import { validateEmail } from '../consent/consent-model';
 
 /** The TDPSA consumer-rights request types this intake accepts. */
@@ -50,7 +59,8 @@ export interface DsrRecord {
  * In-memory store for the pilot phase (mirrors session-store pattern).
  * Backed by an append-only JSONL file so records survive process restarts —
  * DSR records are legal artifacts under TDPSA (45-day response SLA) and must
- * not be lost when the server restarts.
+ * not be lost when the server restarts. Only records that were successfully
+ * persisted are added to this in-memory store.
  */
 const dsrRecords: DsrRecord[] = [];
 
@@ -64,7 +74,9 @@ function loadDsrRecordsFromDisk(): void {
       .filter((l) => l.trim().length > 0);
     for (const line of lines) {
       try {
-        const parsed = JSON.parse(line) as DsrRecord;
+        const plain = decryptRecordLine(line);
+        if (plain === null) continue; // cannot decode — skip
+        const parsed = JSON.parse(plain) as DsrRecord;
         if (parsed && parsed.request_id && parsed.request_type) {
           dsrRecords.push(parsed);
         }
@@ -80,17 +92,23 @@ function loadDsrRecordsFromDisk(): void {
 // Load persisted records on module init so they survive restarts
 loadDsrRecordsFromDisk();
 
-/** Appends a DSR record to the JSONL log (best-effort, never throws). */
-function persistDsrRecord(record: DsrRecord): void {
+/**
+ * Appends a DSR record to the JSONL log.
+ * Returns true on success. Returns false (and pushes nothing) on failure so
+ * the caller can fail closed and never acknowledge a request that was not
+ * durably stored.
+ */
+function persistDsrRecord(record: DsrRecord): boolean {
   try {
     const logPath = config.dsrLogPath;
-    const dir = dirname(logPath);
+    const dir = pathDirname(logPath);
     if (dir && dir !== '.') {
       mkdirSync(dir, { recursive: true });
     }
-    appendFileSync(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+    appendFileSync(logPath, `${encryptRecordLine(JSON.stringify(record))}\n`, 'utf8');
+    return true;
   } catch {
-    // Best-effort only — persistence must never block a DSR submission
+    return false;
   }
 }
 
@@ -121,8 +139,18 @@ export function submitDsr(input: {
     detail: input.detail?.trim() ? input.detail.trim().slice(0, 2000) : null,
     status: 'received',
   };
+
+  // Fail closed: only acknowledge the request if it was durably persisted.
+  if (!persistDsrRecord(record)) {
+    return {
+      ok: false,
+      reason:
+        'We could not securely store your request right now. Please try again later or email ' +
+        `${config.dsrEmail} directly.`,
+    };
+  }
+
   dsrRecords.push(record);
-  persistDsrRecord(record);
   return { ok: true, record };
 }
 

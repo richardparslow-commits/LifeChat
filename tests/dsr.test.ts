@@ -124,6 +124,7 @@ describe('DSR store', () => {
  * simulating a fresh process start. The reloaded module should see all
  * previously persisted records in its in-memory store.
  */
+
 describe('DSR persistence across restarts', () => {
   test('a submitted record is loaded after a simulated restart', async () => {
     // 1. Submit a record (persists to JSONL)
@@ -188,5 +189,137 @@ describe('DSR persistence across restarts', () => {
     jest.resetModules();
     const reloaded = await import('../src/privacy/dsr');
     expect(reloaded.listDsrRecords()).toHaveLength(0);
+  });
+});
+
+/**
+ * At-rest encryption tests — verify that when RECORD_ENCRYPTION_KEY is set,
+ * DSR records are written as AES-256-GCM envelopes (never plaintext JSON)
+ * and are still decoded correctly on reload.
+ */
+describe('DSR at-rest encryption', () => {
+  const encryptedLog = `data/dsr-enc-${Date.now()}.jsonl`;
+  const key = 'test-encryption-key-123';
+
+  afterAll(async () => {
+    // Clean up the encrypted log file created during these tests
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.DSR_LOG_PATH = encryptedLog;
+    jest.resetModules();
+    const mod = await import('../src/privacy/dsr');
+    mod.clearAllDsrRecords();
+    delete process.env.RECORD_ENCRYPTION_KEY;
+    delete process.env.DSR_LOG_PATH;
+    jest.resetModules();
+    await import('../src/privacy/dsr');
+  });
+
+  // NOTE: reload the module per test because config is read at module init.
+  async function loadEncryptedModule() {
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.DSR_LOG_PATH = encryptedLog;
+    jest.resetModules();
+    return await import('../src/privacy/dsr');
+  }
+
+  afterEach(() => {
+    delete process.env.RECORD_ENCRYPTION_KEY;
+    delete process.env.DSR_LOG_PATH;
+  });
+
+  test('writes an encrypted envelope, not plaintext, when a key is configured', async () => {
+    const mod = await loadEncryptedModule();
+    const result = mod.submitDsr({
+      requestType: 'access',
+      contactEmail: 'encrypted@example.com',
+      detail: 'sensitive PII detail',
+    });
+    expect(result.ok).toBe(true);
+
+    const { readFileSync } = await import('fs');
+    const line = readFileSync(encryptedLog, 'utf8').trim();
+    // No plaintext fields should appear on disk
+    expect(line).not.toContain('encrypted@example.com');
+    expect(line).not.toContain('sensitive PII detail');
+    // The line should be an AES-256-GCM envelope
+    expect(line).toContain('"v":1');
+    expect(line).toContain('"alg":"aes-256-gcm"');
+    expect(line).toContain('"iv"');
+    expect(line).toContain('"data"');
+  });
+
+  test('decrypts encrypted records on reload so in-memory lookup still works', async () => {
+    const first = await loadEncryptedModule();
+    const result = first.submitDsr({
+      requestType: 'deletion',
+      contactEmail: 'reencrypt@example.com',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Simulate a restart — the reloaded module loads + decrypts from disk
+    jest.resetModules();
+    const reloaded = await import('../src/privacy/dsr');
+    const found = reloaded.getDsrRecord(result.record.request_id);
+    expect(found).toBeDefined();
+    expect(found?.contact_email).toBe('reencrypt@example.com');
+    expect(found?.request_type).toBe('deletion');
+
+    reloaded.clearAllDsrRecords();
+  });
+
+  test('cannot decrypt encrypted records without the correct key', async () => {
+    const first = await loadEncryptedModule();
+    first.submitDsr({ requestType: 'access', contactEmail: 'wrongkey@example.com' });
+
+    // Reload with a DIFFERENT key — the auth-tag check fails and the line is
+    // skipped (never silently misread).
+    process.env.RECORD_ENCRYPTION_KEY = 'a-different-key';
+    process.env.DSR_LOG_PATH = encryptedLog;
+    jest.resetModules();
+    const reloaded = await import('../src/privacy/dsr');
+    // No records load because the stored envelope can't be authenticated
+    expect(reloaded.listDsrRecords()).toHaveLength(0);
+  });
+});
+
+/**
+ * Fail-closed tests — verify a DSR is NOT acknowledged when it could not be
+ * durably persisted (e.g. a read-only or unwritable log path). This prevents
+ * telling the consumer a TDPSA request was received when it may have been lost.
+ */
+describe('DSR fail-closed persistence', () => {
+  test('submitDsr returns ok:false (not acknowledged) when the log cannot be written', async () => {
+    process.env.DSR_LOG_PATH = '/dev/null/records.jsonl';
+    jest.resetModules();
+    const mod = await import('../src/privacy/dsr');
+
+    const result = mod.submitDsr({
+      requestType: 'deletion',
+      contactEmail: 'user@example.com',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain('could not securely store');
+      expect(result.reason).toContain('privacy@lifepolicypilot.blog');
+    }
+    // Nothing was added to the in-memory store either
+    expect(mod.listDsrRecords()).toHaveLength(0);
+  });
+
+  test('in-memory store is not polluted when persistence fails', async () => {
+    process.env.DSR_LOG_PATH = '/dev/null/records.jsonl';
+    jest.resetModules();
+    const mod = await import('../src/privacy/dsr');
+
+    // submit many — none should be stored or acknowledged
+    for (let i = 0; i < 3; i++) {
+      const r = mod.submitDsr({
+        requestType: 'access',
+        contactEmail: 'u@example.com',
+      });
+      expect(r.ok).toBe(false);
+    }
+    expect(mod.listDsrRecords()).toHaveLength(0);
   });
 });
