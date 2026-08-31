@@ -186,7 +186,8 @@ const leadRecords: LeadRecord[] = [];
 function loadLeadRecordsFromDisk(): void {
   const logPath = config.leadLogPath;
   if (!existsSync(logPath)) return;
-  let skippedEncrypted = 0;
+  let skippedMissingKey = 0;
+  let skippedUndecodable = 0;
   try {
     const lines = readFileSync(logPath, 'utf8')
       .split('\n')
@@ -195,10 +196,15 @@ function loadLeadRecordsFromDisk(): void {
       try {
         const plain = decryptRecordLine(line);
         if (plain === null) {
-          // Encrypted line with no key configured is an operational trap:
-          // records silently vanish on startup. Count them so we can warn.
-          if (isEncryptedRecordLine(line) && !isRecordEncryptionConfigured()) {
-            skippedEncrypted++;
+          // Skipped encrypted lines are an operational trap — records
+          // silently vanish on startup. Count them so we can warn, whether
+          // the key is missing or present-but-wrong.
+          if (isEncryptedRecordLine(line)) {
+            if (isRecordEncryptionConfigured()) {
+              skippedUndecodable++;
+            } else {
+              skippedMissingKey++;
+            }
           }
           continue; // cannot decode — skip
         }
@@ -213,11 +219,17 @@ function loadLeadRecordsFromDisk(): void {
   } catch {
     // Best-effort — don't block startup if the log can't be read
   }
-  if (skippedEncrypted > 0) {
+  if (skippedMissingKey > 0) {
     console.warn(
-      `WARNING: ${skippedEncrypted} encrypted lead record(s) in ${logPath} were skipped because ` +
+      `WARNING: ${skippedMissingKey} encrypted lead record(s) in ${logPath} were skipped because ` +
         'RECORD_ENCRYPTION_KEY is not configured. Set it to load existing records; without it, ' +
         'new writes fall back to plaintext (pilot mode only).',
+    );
+  }
+  if (skippedUndecodable > 0) {
+    console.warn(
+      `WARNING: ${skippedUndecodable} encrypted lead record(s) in ${logPath} could not be decoded ` +
+        'with the configured key — the key may have changed or the data may be corrupt.',
     );
   }
 }

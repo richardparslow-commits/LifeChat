@@ -283,4 +283,28 @@ describe('lead keyless-startup warning', () => {
       }
     }
   });
+
+  test('warns when encrypted records cannot be decoded with the configured key', async () => {
+    // Write with one key, then reload with a different key — the loader must
+    // warn that the records could not be decoded (key change / corruption),
+    // not silently drop the consent artifacts.
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.LEAD_LOG_PATH = encLog;
+    jest.resetModules();
+    const withKey = await import('../src/consent/consent-model');
+    const lead = withKey.createLeadRecord('article-wk', '/term-life', 'term_life');
+    lead.email = 'wrongkey@example.com';
+    expect(withKey.saveLeadRecord(lead)).toBe(true);
+
+    process.env.RECORD_ENCRYPTION_KEY = 'a-different-key-999';
+    jest.resetModules();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const wrongKey = await import('../src/consent/consent-model');
+      expect(wrongKey.listLeadRecords()).toHaveLength(0);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('could not be decoded'));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
