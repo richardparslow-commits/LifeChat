@@ -242,14 +242,21 @@ const rateLimitStore = new Map<string, RateLimitState>();
 
 /**
  * Rate limit configuration.
+ *
+ * All budgets are per-window (one minute), not per-session lifetime: every
+ * counter resets when WINDOW_MS elapses. The names use *_PER_WINDOW because
+ * the reset behavior is the guarantee — a session that exhausts a budget is
+ * limited for the current minute, never permanently locked out for the
+ * lifetime of the process. (The earlier *_PER_SESSION names described
+ * lifetime budgets that the reset contradicted.)
  */
 export const RATE_LIMIT_CONFIG = {
-  /** Max requests per session per minute */
-  MAX_REQUESTS_PER_MINUTE: 20,
-  /** Max tokens per session */
-  MAX_TOKENS_PER_SESSION: 50000,
-  /** Max tool calls per session */
-  MAX_TOOL_CALLS_PER_SESSION: 15,
+  /** Max requests per window (1 minute) */
+  MAX_REQUESTS_PER_WINDOW: 20,
+  /** Max tokens per window (1 minute) */
+  MAX_TOKENS_PER_WINDOW: 50000,
+  /** Max tool calls per window (1 minute) */
+  MAX_TOOL_CALLS_PER_WINDOW: 15,
   /** Window size in milliseconds (1 minute) */
   WINDOW_MS: 60_000,
   /** How long to keep a rate-limit entry after its last activity before
@@ -293,15 +300,15 @@ export function checkRateLimit(sessionId: string): { allowed: boolean; reason?: 
 
   state.lastActivity = now;
 
-  if (state.requestCount >= RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_MINUTE) {
+  if (state.requestCount >= RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_WINDOW) {
     return { allowed: false, reason: 'rate_limit_exceeded' };
   }
 
-  if (state.tokenCount >= RATE_LIMIT_CONFIG.MAX_TOKENS_PER_SESSION) {
+  if (state.tokenCount >= RATE_LIMIT_CONFIG.MAX_TOKENS_PER_WINDOW) {
     return { allowed: false, reason: 'token_budget_exceeded' };
   }
 
-  if (state.toolCallCount >= RATE_LIMIT_CONFIG.MAX_TOOL_CALLS_PER_SESSION) {
+  if (state.toolCallCount >= RATE_LIMIT_CONFIG.MAX_TOOL_CALLS_PER_WINDOW) {
     return { allowed: false, reason: 'tool_budget_exceeded' };
   }
 

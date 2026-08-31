@@ -61,7 +61,22 @@ describe('master-list verdict gate', () => {
       console.log(formatVerdictGateResult(result));
     }
     expect(result.failed).toBe(0);
-    expect(result.total).toBeGreaterThanOrEqual(250);
+    // Master list stays large; judged subset is smaller (state-machine skips excluded).
+    expect(result.scored.length).toBeGreaterThanOrEqual(250);
+  });
+
+  test('skipped state-machine samples are excluded from pass counts', () => {
+    const result = scoreVerdicts(GOLDEN_SET);
+    // The golden set includes state-machine-flow categories that this gate
+    // cannot judge; they must never inflate the passed/total headline.
+    expect(result.skipped).toBeGreaterThan(0);
+    expect(result.total + result.skipped).toBe(result.scored.length);
+    expect(result.passed + result.failed).toBe(result.total);
+    // Every sample is either judged or explicitly skipped — no silent gaps.
+    for (const s of result.scored) {
+      expect(s.skipped === (s.reason === 'skipped:state-machine-flow')).toBe(true);
+    }
+    expect(result.scored.every((s) => s.skipped || s.ok)).toBe(true);
   });
 
   test('verdict distribution is sane', () => {

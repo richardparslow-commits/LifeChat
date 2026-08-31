@@ -336,7 +336,7 @@ describe('Security — rate limiting', () => {
   test('blocks after exceeding max requests per minute', () => {
     const sessionId = `test_rate_limit_${Date.now()}`;
     // Make MAX_REQUESTS allowed calls
-    for (let i = 0; i < RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_MINUTE; i++) {
+    for (let i = 0; i < RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_WINDOW; i++) {
       const result = checkRateLimit(sessionId);
       expect(result.allowed).toBe(true);
     }
@@ -351,7 +351,7 @@ describe('Security — rate limiting', () => {
     const session2 = `test_independent_2_${Date.now()}`;
 
     // Use up session1's allowance
-    for (let i = 0; i < RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_MINUTE; i++) {
+    for (let i = 0; i < RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_WINDOW; i++) {
       checkRateLimit(session1);
     }
     const blocked1 = checkRateLimit(session1);
