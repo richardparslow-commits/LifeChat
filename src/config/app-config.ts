@@ -71,6 +71,16 @@ export interface AppConfig {
    * a code change.
    */
   visualCardsEnabled: boolean;
+  /**
+   * Abstention logging for content strategy — append an anonymized JSONL record
+   * whenever the RAG layer has insufficient evidence and the assistant abstains.
+   * No raw question text or PII is ever written; only a SHA-256 hash of the
+   * normalized question plus an allowlisted category label. Kill switch: set
+   * ABSTENTION_LOGGING_ENABLED=false to disable without a code change.
+   */
+  abstentionLoggingEnabled: boolean;
+  /** Where the append-only JSONL abstention log is written. */
+  abstentionLogPath: string;
 }
 
 /**
@@ -113,6 +123,11 @@ export const config: AppConfig = {
   // Visual Rich Cards kill switch. Default enabled; set to 'false' to disable
   // (rollback path). Cards are compliance-neutral and display-only.
   visualCardsEnabled: process.env.VISUAL_CARDS_ENABLED !== 'false',
+  // Abstention logging kill switch. Default enabled; set to 'false' to disable.
+  // JSONL path can be overridden (serverless read-only filesystems should set
+  // ABSTENTION_LOG_PATH to a writable volume).
+  abstentionLoggingEnabled: process.env.ABSTENTION_LOGGING_ENABLED !== 'false',
+  abstentionLogPath: process.env.ABSTENTION_LOG_PATH || 'data/abstention-log.jsonl',
 };
 
 /**
