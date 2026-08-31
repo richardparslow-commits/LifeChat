@@ -323,3 +323,108 @@ describe('DSR fail-closed persistence', () => {
     expect(mod.listDsrRecords()).toHaveLength(0);
   });
 });
+
+/**
+ * Keyless-startup warning — when the log holds encrypted records but
+ * RECORD_ENCRYPTION_KEY is not configured, the loader must warn instead of
+ * silently dropping the records (an operational trap).
+ */
+describe('DSR keyless-startup warning', () => {
+  const encLog = `data/dsr-keyless-${Date.now()}.jsonl`;
+  const plainLog = `data/dsr-keyless-plain-${Date.now()}.jsonl`;
+  // dsr.ts imports validateEmail from consent-model, so the lead loader runs
+  // transitively — point it at an empty temp file so the real dev log's
+  // encrypted records do not trigger a warning mid-test.
+  const tempLeadLog = `data/dsr-keyless-lead-${Date.now()}.jsonl`;
+  const key = 'warning-test-key-123';
+  const originalKey = process.env.RECORD_ENCRYPTION_KEY;
+  const originalLog = process.env.DSR_LOG_PATH;
+  const originalLeadLog = process.env.LEAD_LOG_PATH;
+
+  function restoreEnv() {
+    if (originalKey === undefined) {
+      delete process.env.RECORD_ENCRYPTION_KEY;
+    } else {
+      process.env.RECORD_ENCRYPTION_KEY = originalKey;
+    }
+    process.env.DSR_LOG_PATH = originalLog as string;
+    if (originalLeadLog === undefined) {
+      delete process.env.LEAD_LOG_PATH;
+    } else {
+      process.env.LEAD_LOG_PATH = originalLeadLog;
+    }
+  }
+
+  function useTempEnv() {
+    process.env.LEAD_LOG_PATH = tempLeadLog;
+  }
+
+  afterEach(() => {
+    restoreEnv();
+  });
+
+  afterAll(async () => {
+    // Remove the encrypted test logs created during these tests
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.DSR_LOG_PATH = encLog;
+    process.env.LEAD_LOG_PATH = tempLeadLog;
+    jest.resetModules();
+    const mod = await import('../src/privacy/dsr');
+    mod.clearAllDsrRecords();
+    jest.resetModules();
+    await import('../src/privacy/dsr');
+    restoreEnv();
+  });
+
+  test('warns and loads nothing when encrypted records exist but no key is set', async () => {
+    // Write one encrypted record with the key configured
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.DSR_LOG_PATH = encLog;
+    useTempEnv();
+    jest.resetModules();
+    const withKey = await import('../src/privacy/dsr');
+    const created = withKey.submitDsr({
+      requestType: 'access',
+      contactEmail: 'keyless@example.com',
+    });
+    expect(created.ok).toBe(true);
+
+    // Reload without the key — must warn and load zero records
+    delete process.env.RECORD_ENCRYPTION_KEY;
+    jest.resetModules();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const noKey = await import('../src/privacy/dsr');
+      expect(noKey.listDsrRecords()).toHaveLength(0);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('RECORD_ENCRYPTION_KEY'));
+      expect(warnSpy.mock.calls[0][0]).toContain('skipped');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('does not warn for a plaintext log without a key', async () => {
+    const { unlinkSync, existsSync } = await import('fs');
+    process.env.DSR_LOG_PATH = plainLog; // no key
+    useTempEnv();
+    jest.resetModules();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const mod = await import('../src/privacy/dsr');
+      const r = mod.submitDsr({
+        requestType: 'access',
+        contactEmail: 'plain@example.com',
+      });
+      expect(r.ok).toBe(true);
+      // plaintext log loads fine without a key — no warning expected
+      jest.resetModules();
+      await import('../src/privacy/dsr');
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+      if (existsSync(plainLog)) {
+        unlinkSync(plainLog);
+      }
+    }
+  });
+});

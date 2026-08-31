@@ -200,3 +200,87 @@ describe('lead fail-closed persistence', () => {
     expect(mod.listLeadRecords()).toHaveLength(0);
   });
 });
+
+/**
+ * Keyless-startup warning — when the log holds encrypted records but
+ * RECORD_ENCRYPTION_KEY is not configured, the loader must warn instead of
+ * silently dropping the consent artifacts (an operational trap).
+ */
+describe('lead keyless-startup warning', () => {
+  const encLog = `data/lead-keyless-${Date.now()}.jsonl`;
+  const plainLog = `data/lead-keyless-plain-${Date.now()}.jsonl`;
+  const key = 'warning-test-key-999';
+  const originalKey = process.env.RECORD_ENCRYPTION_KEY;
+  const originalLog = process.env.LEAD_LOG_PATH;
+
+  function restoreEnv() {
+    if (originalKey === undefined) {
+      delete process.env.RECORD_ENCRYPTION_KEY;
+    } else {
+      process.env.RECORD_ENCRYPTION_KEY = originalKey;
+    }
+    process.env.LEAD_LOG_PATH = originalLog as string;
+  }
+
+  afterEach(() => {
+    restoreEnv();
+  });
+
+  afterAll(async () => {
+    // Remove the encrypted test log created during these tests
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.LEAD_LOG_PATH = encLog;
+    jest.resetModules();
+    const mod = await import('../src/consent/consent-model');
+    mod.clearAllLeadRecords();
+    jest.resetModules();
+    await import('../src/consent/consent-model');
+    restoreEnv();
+  });
+
+  test('warns and loads nothing when encrypted records exist but no key is set', async () => {
+    // Write one encrypted lead with the key configured
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.LEAD_LOG_PATH = encLog;
+    jest.resetModules();
+    const withKey = await import('../src/consent/consent-model');
+    const lead = withKey.createLeadRecord('article-k', '/term-life', 'term_life');
+    lead.email = 'keyless@example.com';
+    expect(withKey.saveLeadRecord(lead)).toBe(true);
+
+    // Reload without the key — must warn and load zero records
+    delete process.env.RECORD_ENCRYPTION_KEY;
+    jest.resetModules();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const noKey = await import('../src/consent/consent-model');
+      expect(noKey.listLeadRecords()).toHaveLength(0);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('RECORD_ENCRYPTION_KEY'));
+      expect(warnSpy.mock.calls[0][0]).toContain('skipped');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('does not warn for a plaintext log without a key', async () => {
+    const { unlinkSync, existsSync } = await import('fs');
+    process.env.LEAD_LOG_PATH = plainLog; // no key
+    jest.resetModules();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const mod = await import('../src/consent/consent-model');
+      const lead = mod.createLeadRecord('article-p', '/faq', 'general');
+      lead.email = 'plain@example.com';
+      expect(mod.saveLeadRecord(lead)).toBe(true);
+      // plaintext log loads fine without a key — no warning expected
+      jest.resetModules();
+      await import('../src/consent/consent-model');
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+      if (existsSync(plainLog)) {
+        unlinkSync(plainLog);
+      }
+    }
+  });
+});

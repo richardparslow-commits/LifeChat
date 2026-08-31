@@ -754,7 +754,14 @@ app.post('/api/dsr', (req: Request, res: Response) => {
   });
 
   if (!result.ok) {
-    return res.status(400).json({ error: 'Invalid data subject request', reason: result.reason });
+    // Validation failures are client errors (400). A failure to durably
+    // store the request is a transient server-side condition (503): the
+    // consumer must be able to retry rather than treat it as permanent.
+    const storageFailure = result.reason.startsWith('We could not securely store');
+    return res.status(storageFailure ? 503 : 400).json({
+      error: storageFailure ? 'Storage unavailable' : 'Invalid data subject request',
+      reason: result.reason,
+    });
   }
 
   return res.json({
