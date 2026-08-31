@@ -57,6 +57,7 @@ import {
 } from './estimator/dime-estimator';
 import {
   createLeadRecord,
+  saveLeadRecord,
   validateEmail,
   validatePhone,
   getJustInTimeNotice,
@@ -68,6 +69,7 @@ import {
   detectSensitiveData,
   checkRateLimit,
   isKillSwitchActive,
+  startRateLimitCleanup,
 } from './security/security-controls';
 import { getStaffAvailabilityMessage } from './handoff/human-escalation';
 import { getComplianceOverview } from './compliance/classification-matrix';
@@ -649,6 +651,10 @@ app.post('/api/consent', (req: Request, res: Response) => {
   lead.contact_consent_version = config.contactConsentVersion;
   lead.consent_timestamp = new Date().toISOString();
 
+  // Persist the lead record (with its consent artifact) so the broker can
+  // retrieve it and the record survives for the TDPSA retention window.
+  saveLeadRecord(lead);
+
   return res.json({
     leadId: lead.lead_id,
     status: 'created',
@@ -790,6 +796,9 @@ if (!config.pilotMode && !isLicenseNumberConfigured()) {
 const server = app.listen(config.port, () => {
   // Start periodic cleanup of expired sessions (30-min TTL)
   startSessionCleanup();
+  // Start periodic cleanup of stale rate-limit entries (prevents unbounded
+  // memory growth from unique session IDs and clears expired lockouts)
+  startRateLimitCleanup();
 
   console.log(`\n  ${PRODUCT_DEFINITION.name}`);
   console.log(`  Owner: ${PRODUCT_DEFINITION.owner}`);

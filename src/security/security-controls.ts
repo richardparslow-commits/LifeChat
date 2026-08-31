@@ -221,6 +221,8 @@ interface RateLimitState {
   windowStart: number;
   tokenCount: number;
   toolCallCount: number;
+  /** Last activity timestamp, used by the cleanup timer to prune stale entries. */
+  lastActivity: number;
 }
 
 const rateLimitStore = new Map<string, RateLimitState>();
@@ -237,6 +239,12 @@ export const RATE_LIMIT_CONFIG = {
   MAX_TOOL_CALLS_PER_SESSION: 15,
   /** Window size in milliseconds (1 minute) */
   WINDOW_MS: 60_000,
+  /** How long to keep a rate-limit entry after its last activity before
+   *  it is eligible for cleanup. Keeps the store bounded so it doesn't
+   *  grow forever with unique session IDs. */
+  ENTRY_TTL_MS: 10 * 60_000, // 10 minutes of inactivity
+  /** Interval for pruning stale rate-limit entries. */
+  CLEANUP_INTERVAL_MS: 5 * 60_000, // 5 minutes
 } as const;
 
 /**
@@ -254,15 +262,23 @@ export function checkRateLimit(sessionId: string): { allowed: boolean; reason?: 
       windowStart: now,
       tokenCount: 0,
       toolCallCount: 0,
+      lastActivity: now,
     };
     rateLimitStore.set(sessionId, state);
   }
 
-  // Reset window if expired
+  // Reset the per-window counters when the window expires. Previously only
+  // requestCount was reset, which left tokenCount and toolCallCount
+  // permanently elevated — a session that hit the tool-call budget stayed
+  // locked out for the lifetime of the process.
   if (now - state.windowStart > RATE_LIMIT_CONFIG.WINDOW_MS) {
     state.requestCount = 0;
+    state.tokenCount = 0;
+    state.toolCallCount = 0;
     state.windowStart = now;
   }
+
+  state.lastActivity = now;
 
   if (state.requestCount >= RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_MINUTE) {
     return { allowed: false, reason: 'rate_limit_exceeded' };
@@ -287,7 +303,52 @@ export function incrementToolCallCount(sessionId: string): void {
   const state = rateLimitStore.get(sessionId);
   if (state) {
     state.toolCallCount++;
+    state.lastActivity = Date.now();
   }
+}
+
+/**
+ * Periodic cleanup of stale rate-limit entries. Without this the
+ * rateLimitStore Map grows unboundedly with unique session IDs, leaking
+ * memory in a long-running process. Runs on a timer that does not keep
+ * the process alive on its own (unref).
+ */
+let rateLimitCleanupTimer: NodeJS.Timeout | null = null;
+
+export function startRateLimitCleanup(): void {
+  if (rateLimitCleanupTimer) {
+    return; // Already running
+  }
+  rateLimitCleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [id, state] of rateLimitStore.entries()) {
+      if (now - state.lastActivity > RATE_LIMIT_CONFIG.ENTRY_TTL_MS) {
+        rateLimitStore.delete(id);
+      }
+    }
+  }, RATE_LIMIT_CONFIG.CLEANUP_INTERVAL_MS);
+
+  // Don't keep the process alive just for the cleanup timer
+  if (rateLimitCleanupTimer.unref) {
+    rateLimitCleanupTimer.unref();
+  }
+}
+
+/**
+ * Stops the cleanup timer (for graceful shutdown / tests).
+ */
+export function stopRateLimitCleanup(): void {
+  if (rateLimitCleanupTimer) {
+    clearInterval(rateLimitCleanupTimer);
+    rateLimitCleanupTimer = null;
+  }
+}
+
+/**
+ * Clears all rate-limit state (for testing).
+ */
+export function clearAllRateLimits(): void {
+  rateLimitStore.clear();
 }
 
 /**
