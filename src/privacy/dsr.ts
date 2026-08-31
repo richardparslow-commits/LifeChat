@@ -25,7 +25,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
 import { dirname as pathDirname } from 'path';
 import { config } from '../config/app-config';
-import { encryptRecordLine, decryptRecordLine } from './record-encryption';
+import {
+  encryptRecordLine,
+  decryptRecordLine,
+  isEncryptedRecordLine,
+  isRecordEncryptionConfigured,
+} from './record-encryption';
 import { validateEmail } from '../consent/consent-model';
 
 /** The TDPSA consumer-rights request types this intake accepts. */
@@ -68,6 +73,7 @@ const dsrRecords: DsrRecord[] = [];
 function loadDsrRecordsFromDisk(): void {
   const logPath = config.dsrLogPath;
   if (!existsSync(logPath)) return;
+  let skippedEncrypted = 0;
   try {
     const lines = readFileSync(logPath, 'utf8')
       .split('\n')
@@ -75,7 +81,14 @@ function loadDsrRecordsFromDisk(): void {
     for (const line of lines) {
       try {
         const plain = decryptRecordLine(line);
-        if (plain === null) continue; // cannot decode — skip
+        if (plain === null) {
+          // Encrypted line with no key configured is an operational trap:
+          // records silently vanish on startup. Count them so we can warn.
+          if (isEncryptedRecordLine(line) && !isRecordEncryptionConfigured()) {
+            skippedEncrypted++;
+          }
+          continue; // cannot decode — skip
+        }
         const parsed = JSON.parse(plain) as DsrRecord;
         if (parsed && parsed.request_id && parsed.request_type) {
           dsrRecords.push(parsed);
@@ -86,6 +99,13 @@ function loadDsrRecordsFromDisk(): void {
     }
   } catch {
     // Best-effort — don't block startup if the log can't be read
+  }
+  if (skippedEncrypted > 0) {
+    console.warn(
+      `WARNING: ${skippedEncrypted} encrypted DSR record(s) in ${logPath} were skipped because ` +
+        'RECORD_ENCRYPTION_KEY is not configured. Set it to load existing records; without it, ' +
+        'new writes fall back to plaintext (pilot mode only).',
+    );
   }
 }
 

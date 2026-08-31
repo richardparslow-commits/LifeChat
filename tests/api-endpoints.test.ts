@@ -459,6 +459,35 @@ describe('POST /api/dsr — TDPSA consumer rights', () => {
   });
 });
 
+describe('POST /api/dsr fails closed when the log is unwritable', () => {
+  let loaded: LoadedApp;
+
+  beforeAll(async () => {
+    loaded = await loadApp({
+      LIFECHAT_PORT: '0',
+      LLM_API_KEY: '',
+      DSR_LOG_PATH: '/dev/null/records.jsonl',
+    });
+  });
+
+  afterAll(async () => {
+    await loaded.cleanup();
+  });
+
+  it('returns 503 (not 400) when the record could not be durably stored', async () => {
+    // A storage failure is a transient server-side condition — the consumer
+    // must be able to retry, so it must not be classified as a client error.
+    const res = await request(loaded.app).post('/api/dsr').send({
+      requestType: 'deletion',
+      contactEmail: 'user@example.com',
+    });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('Storage unavailable');
+    expect(res.body.reason).toContain('could not securely store');
+    expect(res.body.requestId).toBeUndefined();
+  });
+});
+
 describe('POST /api/consent', () => {
   let loaded: LoadedApp;
 

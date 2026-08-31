@@ -22,6 +22,20 @@ export function isRecordEncryptionConfigured(): boolean {
   return config.recordEncryptionKey.trim().length > 0;
 }
 
+/**
+ * True when the line is an encrypted envelope (v:1, aes-256-gcm) without
+ * attempting to decrypt it. Used by the record loaders to distinguish
+ * "encrypted but unreadable without a key" from malformed/corrupt lines.
+ */
+export function isEncryptedRecordLine(line: string): boolean {
+  try {
+    const parsed = JSON.parse(line) as { v?: number; alg?: string } | null;
+    return parsed !== null && parsed.v === 1 && parsed.alg === 'aes-256-gcm';
+  } catch {
+    return false;
+  }
+}
+
 /** Deterministic 32-byte AES-256 key derived from the configured secret. */
 function deriveKey(): Buffer {
   return createHash('sha256').update(config.recordEncryptionKey).digest();
