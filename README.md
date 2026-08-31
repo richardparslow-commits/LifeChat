@@ -170,6 +170,14 @@ Add this script to your WordPress/Elementor site (via HTML widget or theme foote
 | Phase 3 | Scheduling — read-only availability then booking | Structured |
 | Phase 4 | Controlled optimization — A/B test presentation only | Future |
 
+## Key Design Documents
+
+- [Compliance Classification Matrix](docs/compliance-classification-matrix.md) — counsel-approved classification of every conversation flow (Phase 0)
+- [AI Chatbot Persona Configuration](docs/ai-chatbot-persona-configuration.md) — the assistant's persona spec; mirrors the system prompt; keep in sync per its §13 change triggers
+- [Medical Lead Capture — Phase 2](docs/medical-lead-capture-phase2.md) — consented medical fact-finding (draft, requires approval)
+- [Privacy Notice](docs/privacy-notice.md) — GLBA + TDPSA disclosures
+- [Transcript Review — Speech Patterns](docs/transcripts-style-recommendations.md) — adaptable vs. rejected sales-training patterns
+
 ## Regulatory References
 
 - Texas Insurance Code §541.061 — misrepresentation & unfair/deceptive practices

@@ -187,3 +187,159 @@ describe('generateResponse — promotional-offer output guard (marketing review)
     expect(mockCallLLM).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('generateResponse — persona guardrail output gate', () => {
+  it('rejects a presumptive purchase-framing message and retries with feedback', async () => {
+    mockCallLLM
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Are you looking to buy life insurance today?'),
+        latencyMs: 5,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('What would you like to understand about life insurance today?'),
+        latencyMs: 5,
+      });
+
+    const { response } = await generateResponse(input);
+
+    expect(response.assistant_message).toBe(
+      'What would you like to understand about life insurance today?',
+    );
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+    const feedback = mockCallLLM.mock.calls[1][0].validationFeedback;
+    expect(feedback).toBeDefined();
+    expect(feedback).toContain('persona guardrail');
+  });
+
+  it('flags the violation on the final response even when the retry succeeds', async () => {
+    mockCallLLM
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Are you looking to buy life insurance today?'),
+        latencyMs: 5,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Term life insurance covers a set period.'),
+        latencyMs: 5,
+      });
+
+    const { response } = await generateResponse(input);
+
+    expect(response.assistant_message).toBe('Term life insurance covers a set period.');
+    // The blocked attempt is auditable on the final response's risk_flags
+    expect(response.risk_flags).toContain('no_presumptive_purchase_framing');
+    expect(response.risk_flags).not.toContain('static_fallback_used');
+  });
+
+  it('flags and falls back when the retry still violates the persona guardrail', async () => {
+    mockCallLLM
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson("Your family won't be protected unless you act now."),
+        latencyMs: 5,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('One of my clients saved thousands after switching.'),
+        latencyMs: 5,
+      });
+
+    const { response } = await generateResponse(input);
+
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+    expect(response.state).toBe('standby');
+    expect(response.risk_flags).toContain('static_fallback_used');
+    // No prohibited persona content ever reaches the visitor
+    expect(response.assistant_message).not.toMatch(/act now|one of my clients|family/i);
+  });
+});
+
+describe('generateResponse — stateful re-offer guard (across turns)', () => {
+  // Prior conversation: the user already declined a call. The candidate re-offers it.
+  const declinedInput = {
+    userMessage: 'Actually I am sure I do not want a call.',
+    currentState: 'education' as const,
+    conversationHistory: [
+      {
+        role: 'user' as const,
+        content: 'No, thanks, I do not want a call.',
+      },
+      {
+        role: 'assistant' as const,
+        content: 'Understood. I will stay in general education.',
+      },
+    ],
+  };
+
+  it('rejects re-offering a declined step and retries with feedback', async () => {
+    mockCallLLM
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Would you like to set up a call with the licensed broker?'),
+        latencyMs: 5,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Understood. I will only answer your questions and stay in education.'),
+        latencyMs: 5,
+      });
+
+    const { response } = await generateResponse(declinedInput);
+
+    expect(response.assistant_message).toContain('education');
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+    const feedback = mockCallLLM.mock.calls[1][0].validationFeedback;
+    expect(feedback).toBeDefined();
+    expect(feedback).toContain('decline_no_reoffer');
+    // The blocked re-offer is auditable on the final response even after retry
+    expect(response.risk_flags).toContain('decline_no_reoffer');
+    expect(response.risk_flags).not.toContain('static_fallback_used');
+  });
+
+  it('flags and falls back when the retry also re-offers after a decline', async () => {
+    mockCallLLM
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Would you like to set up a call with the licensed broker?'),
+        latencyMs: 5,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: validJson('Can I schedule a time for you with Richard today?'),
+        latencyMs: 5,
+      });
+
+    const { response } = await generateResponse(declinedInput);
+
+    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+    expect(response.state).toBe('standby');
+    // Pure-fallback path guarantees the static-fallback flag (per existing contract).
+    expect(response.risk_flags).toContain('static_fallback_used');
+    // The visitor sees the neutral system-error fallback, never the re-offered call/schedule.
+    expect(response.assistant_message).not.toMatch(/set up a call|schedule a time/i);
+  });
+
+  it('allows an offer when there is no prior decline (first-time offer)', async () => {
+    const freshInput = {
+      userMessage: 'Hi, I have a question about term life.',
+      currentState: 'education' as const,
+      conversationHistory: [{ role: 'user' as const, content: 'What is term life insurance?' }],
+    };
+    mockCallLLM.mockResolvedValueOnce({
+      success: true,
+      content: validJson('Would you like to set up a call with the licensed broker?'),
+      latencyMs: 5,
+    });
+
+    const { response } = await generateResponse(freshInput);
+
+    expect(response.assistant_message).toBe(
+      'Would you like to set up a call with the licensed broker?',
+    );
+    expect(mockCallLLM).toHaveBeenCalledTimes(1);
+    expect(response.risk_flags).not.toContain('decline_no_reoffer');
+  });
+});

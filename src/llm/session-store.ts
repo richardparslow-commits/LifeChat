@@ -49,6 +49,12 @@ interface SessionData {
    * is sent once with the first message).
    */
   pageContext: PageContext | null;
+  /**
+   * Sanitized canonical path of the page the user was on when they started
+   * the chat (query params stripped — never raw window.location.href). Set
+   * on the first message that carries a sourceUrl and reused thereafter.
+   */
+  sourceUrl: string | null;
 }
 
 const sessions = new Map<string, SessionData>();
@@ -221,6 +227,28 @@ export function setPageContext(sessionId: string, pageContext: PageContext | nul
 }
 
 /**
+ * Returns the session's stored sanitized source URL (query params stripped),
+ * or null when no source URL was provided. Set on the first message that
+ * carries a sourceUrl so the canonical path is available for handoff and
+ * lead records without ever sending raw window.location.href to the model.
+ */
+export function getSourceUrl(sessionId: string): string | null {
+  const session = sessions.get(sessionId);
+  return session ? session.sourceUrl : null;
+}
+
+/**
+ * Stores the sanitized canonical path on the session. Called on the first
+ * message that carries a sourceUrl; subsequent messages reuse it. The
+ * value must already be sanitized (query params stripped) before calling.
+ */
+export function setSourceUrl(sessionId: string, sourceUrl: string | null): void {
+  const session = getOrCreateSession(sessionId);
+  session.sourceUrl = sourceUrl;
+  session.lastActivity = Date.now();
+}
+
+/**
  * Increments consecutive failure count for loop control (Section 4.11).
  * Returns the new count.
  */
@@ -280,6 +308,7 @@ function getOrCreateSession(sessionId: string): SessionData {
       consecutiveFailures: 0,
       dimeInputs: { ...EMPTY_DIME_INPUTS },
       pageContext: null,
+      sourceUrl: null,
     };
     sessions.set(sessionId, session);
   }

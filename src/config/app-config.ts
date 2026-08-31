@@ -81,6 +81,16 @@ export interface AppConfig {
   abstentionLoggingEnabled: boolean;
   /** Where the append-only JSONL abstention log is written. */
   abstentionLogPath: string;
+  /**
+   * Shared secret for admin/internal API endpoints (system-prompt, session
+   * history, session count, DSR status). When set, admin endpoints require
+   * an x-admin-key header matching this value. When unset in pilot mode the
+   * endpoints are accessible without auth (dev convenience); in production
+   * mode startup fails fast until a key is supplied.
+   */
+  adminApiKey: string;
+  /** Where the append-only JSONL DSR records log is written. */
+  dsrLogPath: string;
 }
 
 /**
@@ -128,6 +138,8 @@ export const config: AppConfig = {
   // ABSTENTION_LOG_PATH to a writable volume).
   abstentionLoggingEnabled: process.env.ABSTENTION_LOGGING_ENABLED !== 'false',
   abstentionLogPath: process.env.ABSTENTION_LOG_PATH || 'data/abstention-log.jsonl',
+  adminApiKey: process.env.ADMIN_API_KEY || '',
+  dsrLogPath: process.env.DSR_LOG_PATH || 'data/dsr-records.jsonl',
 };
 
 /**
@@ -138,6 +150,16 @@ export const config: AppConfig = {
 export function isLicenseNumberConfigured(): boolean {
   const value = config.texasLicenseNumber.trim();
   return value.length > 0 && value !== LICENSE_PENDING_PLACEHOLDER;
+}
+
+/**
+ * True when an admin API key is configured (non-empty). Admin endpoints use
+ * this to decide whether to enforce the x-admin-key header. In pilot mode
+ * the endpoints remain accessible without a key for dev convenience; in
+ * production mode startup fails fast until a key is supplied.
+ */
+export function isAdminApiKeyConfigured(): boolean {
+  return config.adminApiKey.trim().length > 0;
 }
 
 /**

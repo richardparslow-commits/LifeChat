@@ -231,6 +231,16 @@ describe('getContextualOpeningMessage', () => {
       out.indexOf('How can I help you learn about life insurance today?'),
     );
   });
+
+  it('appends the prompt when the base does not end with the closing question (L5 fallback)', () => {
+    // A custom/passed-in disclosure that omits the standard closing question
+    // must still surface the contextual prompt via the structural fallback,
+    // rather than silently failing to insert (the old regex-based approach).
+    const customBase = 'A completely custom disclosure without the standard closing.';
+    const out = getContextualOpeningMessage(customBase, 'I see you are reading about term life.');
+    expect(out).toContain('I see you are reading about term life.');
+    expect(out).toBe(`${customBase}\n\nI see you are reading about term life.`);
+  });
 });
 
 // ── endpoint behavior ──

@@ -39,6 +39,10 @@ import {
 } from '../security/security-controls';
 import { FALLBACK_MESSAGES } from '../resilience/fallback-behavior';
 import { isKillSwitchActive } from '../security/security-controls';
+import {
+  detectPersonaGuardrailViolation,
+  isReOfferAfterDecline,
+} from '../compliance/persona-guardrails';
 import type { ConversationState } from '../state-machine/state-machine';
 
 export interface OrchestratorInput {
@@ -160,6 +164,9 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   //    If the first attempt is invalid, retry ONCE with the validation
   //    errors fed back to the model, then fall back only if the retry is
   //    also invalid (Section 4.11 resilience).
+  // Records persona guardrail violations caught by the validator so they persist
+  // onto the final response's risk_flags even when a retry rewrites the message.
+  const personaViolationLog = new Set<string>();
   const attemptValidation = (
     raw: string,
   ): { ok: true; validated: AssistantResponse } | { ok: false; kind: string; detail: string } => {
@@ -220,6 +227,39 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       };
     }
 
+    // Persona guardrail gate (Section 4.14 + docs/ai-chatbot-persona-configuration.md):
+    // textual persona violations (presumptive purchase framing, pressure language, or
+    // fabricated anecdotes) are rejected so the retry loop rewrites them. The violation
+    // persists onto the final response's risk_flags so a blocked attempt is auditably
+    // flagged even after a successful retry.
+    const personaViolation = detectPersonaGuardrailViolation(schemaResult.data.assistant_message);
+    if (personaViolation) {
+      personaViolationLog.add(personaViolation);
+      return {
+        ok: false,
+        kind: 'persona_guardrail_violation',
+        detail: `The response violates persona guardrail "${personaViolation}": it uses presumptive purchase framing, pressure language, or fabricated content. Rewrite the message in neutral, educational, non-presumptive language without pressure or invented anecdotes.`,
+      };
+    }
+
+    // Re-offer guardrail (stateful, across turns): if the user declined a step earlier
+    // in the conversation and the candidate assistant message would offer it again,
+    // reject it so the retry loop rewrites it. conversationHistory is snapshotted before
+    // the current user turn is recorded, so fold the current userMessage in explicitly.
+    const priorUserMessages = [
+      ...(input.conversationHistory ?? []).filter((m) => m.role === 'user').map((m) => m.content),
+      ...(input.userMessage ? [input.userMessage] : []),
+    ];
+    if (isReOfferAfterDecline(priorUserMessages, schemaResult.data.assistant_message)) {
+      personaViolationLog.add('decline_no_reoffer');
+      return {
+        ok: false,
+        kind: 'persona_guardrail_violation',
+        detail:
+          'The response re-offers a step the user has already declined (guardrail "decline_no_reoffer"). Once a user declines qualification, contact capture, or booking, do not offer it again in the session. Acknowledge the decline once, stay in education, and do not repeat the offer.',
+      };
+    }
+
     return { ok: true, validated: schemaResult.data };
   };
 
@@ -264,6 +304,14 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
 
   // 10. Ensure privacy notice version is set from config
   validated.consent.privacy_notice_version = config.privacyNoticeVersion;
+
+  // 10b. Persist any persona guardrail violation that was caught and rewritten so a
+  //      blocked attempt is auditable on the final response, not just on the rejected one.
+  for (const v of personaViolationLog) {
+    if (!validated.risk_flags.includes(v)) {
+      validated.risk_flags = [...validated.risk_flags, v];
+    }
+  }
 
   // 11. Build final response
   const finalResponse: AssistantResponse = {

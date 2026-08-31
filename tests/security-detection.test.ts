@@ -198,6 +198,28 @@ describe('Security — detectSensitiveData', () => {
     expect(detectSensitiveData('What factors affect life insurance cost?')).toBeNull();
   });
 
+  test('does not flag a bare 10-digit number without phone context (L4 false-positive fix)', () => {
+    // A bare 10-digit number could be a reference/order/tracking id. Without a
+    // phone keyword, a +1 prefix, or an (XXX) area code, it must not be treated
+    // as PII.
+    expect(detectSensitiveData('My case id is 5551234567')).toBeNull();
+    expect(detectSensitiveData('Order tracking 1234567890')).toBeNull();
+  });
+
+  test('does not flag a bare 9-digit number that is not a canonical SSN (L4 false-positive fix)', () => {
+    // The old bare 9-digit pattern matched any number sequence; only the
+    // canonical XXX-XX-XXXX / XXX.XX.XXXX / XXX XX XXXX form counts now.
+    expect(detectSensitiveData('account 123456789')).toBeNull();
+    expect(detectSensitiveData('The record id 999887766')).toBeNull();
+  });
+
+  test('still flags phones in canonical/contextual formats (L4)', () => {
+    expect(detectSensitiveData('My number is +1 555 123 4567')).toBe('pii');
+    expect(detectSensitiveData('Reach me at 555-123-4567')).toBe('pii');
+    expect(detectSensitiveData('My fax line is 555 123 4567')).toBe('pii');
+    expect(detectSensitiveData('Call (512) 555-1234')).toBe('pii');
+  });
+
   test('health data takes priority over PII (health checked first)', () => {
     // If a message contains both health and PII patterns, health is detected first
     const result = detectSensitiveData('I have diabetes and my email is test@example.com');

@@ -88,6 +88,12 @@ These are enforced in code and must pass the **100% critical-compliance test gat
 
 ---
 
+## 3.1 Persona cross-reference
+
+The assistant's persona — identity, behavioral guidelines, medical fact-finding philosophy, qualification & lead-capture configuration/protocol, mentor-and-qualifier role, response ability, speech patterns, background, tone, and core purpose — is specified in [AI Chatbot Persona Configuration](ai-chatbot-persona-configuration.md). It mirrors the system prompt and maps each persona section to a matrix flow (§12 of that document). Changes to a persona section require the same re-approval as a change to its mapped flow (§4 below).
+
+---
+
 ## 4. Change triggers (re-approval required)
 
 Any of the following invalidates approval for the affected flows until counsel re-signs:
@@ -114,6 +120,8 @@ Any of the following invalidates approval for the affected flows until counsel r
 | 1.5.0 | 2026-08-30 | LifeChat implementation | Privacy notice rewritten for GLBA (NPI + safeguards) and TDPSA as an independent-broker notice (`docs/privacy-notice.md` v1.1.0); F6 duty updated |
 | 1.6.0 | 2026-08-30 | LifeChat implementation | Privacy notice v1.2.0 — added explicit "What we collect / We do NOT collect" and "We do NOT use" disclosures (no selling, no targeted advertising, no consequential automated decisions) |
 | 1.7.0 | 2026-08-30 | LifeChat implementation | Privacy notice v1.3.0 — restructured "How We Share Your Information" into the categories-of-third-parties table (insurance carriers with explicit consent, service providers, regulators & law enforcement) plus the "We do NOT share with" list (no marketers, data brokers, affiliates, or any undisclosed party) |
+| 1.8.0 | 2026-08-30 | LifeChat implementation | Added §3.1 persona cross-reference to `docs/ai-chatbot-persona-configuration.md`; persona changes now require the same re-approval as their mapped flows (§4) |
+| 1.9.0 | 2026-08-31 | LifeChat implementation | F2 corpus extended with 5 new educational documents: mortgage-protection overview, pandemic/quarantine overview, insurable-interest overview, occupation & hobby risk overview, and MIB transparency overview — all hedged, category-level, no figures, no carrier names; golden-set verdicts updated accordingly (answerable count raised) |
 
 ---
 

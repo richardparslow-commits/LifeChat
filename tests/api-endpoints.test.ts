@@ -173,6 +173,56 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     const f10Duties: string[] = byId('F10').regulatoryDuties;
     expect(f10Duties.some((d) => d.includes('FTC'))).toBe(true);
   });
+
+  it('stores the sanitized source URL on the session (query params stripped)', async () => {
+    // The raw sourceUrl carries PII in the query string. The /api/chat
+    // endpoint must sanitize it (strip query params) and store only the
+    // canonical pathname on the session so raw window.location.href never
+    // reaches the model or lead records.
+    //
+    // getSourceUrl must be imported AFTER loadApp (which calls
+    // jest.resetModules + import) so it shares the same module instance
+    // that the Express app is using.
+    const { getSourceUrl } = await import('../src/llm/session-store');
+
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-source-url',
+      currentState: 'education',
+      message: 'What is term life insurance?',
+      sourceUrl:
+        'https://lifepolicypilot.blog/term-vs-whole-life/?utm_source=google&email=user@example.com',
+    });
+    expect(res.status).toBe(200);
+
+    // Verify via the session store that only the pathname was stored
+    const stored = getSourceUrl('off-source-url');
+    expect(stored).toBe('/term-vs-whole-life/');
+    expect(stored).not.toContain('utm_source');
+    expect(stored).not.toContain('email');
+    expect(stored).not.toContain('user@example.com');
+  });
+
+  it('does not overwrite a stored source URL on subsequent messages', async () => {
+    // First message stores the path; a second message with a different
+    // sourceUrl must not overwrite it (mirrors the pageContext pattern).
+    const { getSourceUrl } = await import('../src/llm/session-store');
+
+    await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-source-url-persist',
+      currentState: 'education',
+      message: 'What is term life?',
+      sourceUrl: 'https://lifepolicypilot.blog/term-vs-whole-life/?ref=homepage',
+    });
+    await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-source-url-persist',
+      currentState: 'education',
+      message: 'And whole life?',
+      sourceUrl: 'https://lifepolicypilot.blog/whole-life/?different=true',
+    });
+
+    const stored = getSourceUrl('off-source-url-persist');
+    expect(stored).toBe('/term-vs-whole-life/');
+  });
 });
 
 describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () => {
@@ -475,5 +525,124 @@ describe('POST /api/consent', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('created');
     expect(res.body.leadId).toBeTruthy();
+  });
+});
+
+/**
+ * Admin auth middleware tests.
+ *
+ * Verifies that when ADMIN_API_KEY is set, the four admin endpoints
+ * (/api/system-prompt, /api/dsr/:id, /api/session/:id/history, /api/sessions)
+ * reject requests without a valid x-admin-key header (401) and accept
+ * requests that carry the correct header (200). When no key is configured
+ * (pilot/dev default), all endpoints remain accessible without auth.
+ */
+describe('Admin auth middleware', () => {
+  const ADMIN_KEY = 'test-admin-secret-123';
+
+  describe('with ADMIN_API_KEY configured', () => {
+    let loaded: LoadedApp;
+
+    beforeAll(async () => {
+      loaded = await loadApp({
+        LIFECHAT_PORT: '0',
+        LLM_API_KEY: '',
+        ADMIN_API_KEY: ADMIN_KEY,
+      });
+    });
+
+    afterAll(async () => {
+      await loaded.cleanup();
+    });
+
+    it('rejects GET /api/system-prompt without x-admin-key (401)', async () => {
+      const res = await request(loaded.app).get('/api/system-prompt');
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('Admin authentication required');
+    });
+
+    it('accepts GET /api/system-prompt with correct x-admin-key (200)', async () => {
+      const res = await request(loaded.app).get('/api/system-prompt').set('x-admin-key', ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(res.body.systemPrompt).toBeTruthy();
+    });
+
+    it('rejects GET /api/system-prompt with wrong x-admin-key (401)', async () => {
+      const res = await request(loaded.app)
+        .get('/api/system-prompt')
+        .set('x-admin-key', 'wrong-key');
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects GET /api/sessions without x-admin-key (401)', async () => {
+      const res = await request(loaded.app).get('/api/sessions');
+      expect(res.status).toBe(401);
+    });
+
+    it('accepts GET /api/sessions with correct x-admin-key (200)', async () => {
+      const res = await request(loaded.app).get('/api/sessions').set('x-admin-key', ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('activeSessions');
+    });
+
+    it('rejects GET /api/session/:id/history without x-admin-key (401)', async () => {
+      const res = await request(loaded.app).get('/api/session/test-admin-auth/history');
+      expect(res.status).toBe(401);
+    });
+
+    it('accepts GET /api/session/:id/history with correct x-admin-key (200)', async () => {
+      const res = await request(loaded.app)
+        .get('/api/session/test-admin-auth/history')
+        .set('x-admin-key', ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(res.body.sessionId).toBe('test-admin-auth');
+    });
+
+    it('rejects GET /api/dsr/:id without x-admin-key (401)', async () => {
+      const res = await request(loaded.app).get('/api/dsr/00000000-0000-4000-8000-000000000000');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 404 (not 401) for unknown DSR id with correct x-admin-key', async () => {
+      const res = await request(loaded.app)
+        .get('/api/dsr/00000000-0000-4000-8000-000000000000')
+        .set('x-admin-key', ADMIN_KEY);
+      // Auth passes, then the record lookup returns 404
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('DSR request not found');
+    });
+  });
+
+  describe('without ADMIN_API_KEY configured (pilot/dev default)', () => {
+    let loaded: LoadedApp;
+
+    beforeAll(async () => {
+      loaded = await loadApp({
+        LIFECHAT_PORT: '0',
+        LLM_API_KEY: '',
+      });
+    });
+
+    afterAll(async () => {
+      await loaded.cleanup();
+    });
+
+    it('allows GET /api/system-prompt without auth (200)', async () => {
+      const res = await request(loaded.app).get('/api/system-prompt');
+      expect(res.status).toBe(200);
+      expect(res.body.systemPrompt).toBeTruthy();
+    });
+
+    it('allows GET /api/sessions without auth (200)', async () => {
+      const res = await request(loaded.app).get('/api/sessions');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('activeSessions');
+    });
+
+    it('allows GET /api/session/:id/history without auth (200)', async () => {
+      const res = await request(loaded.app).get('/api/session/test-no-auth/history');
+      expect(res.status).toBe(200);
+      expect(res.body.sessionId).toBe('test-no-auth');
+    });
   });
 });

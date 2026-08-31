@@ -165,6 +165,45 @@ export function createLeadRecord(
 }
 
 /**
+ * In-memory lead store for the pilot phase (mirrors the DSR pattern).
+ * Persist to the operational CRM / lead database in production — lead
+ * records and their consent artifacts are legal records that must survive
+ * process restarts (TDPSA retention, consent proof).
+ */
+const leadRecords: LeadRecord[] = [];
+
+/**
+ * Persists a lead record to the store. The record should already be fully
+ * populated (PII fields, consent version, timestamp) before calling this.
+ * Returns the saved record (same reference).
+ */
+export function saveLeadRecord(lead: LeadRecord): LeadRecord {
+  leadRecords.push(lead);
+  return lead;
+}
+
+/**
+ * Gets a lead record by its lead_id (admin/debug + handoff lookup).
+ */
+export function getLeadRecord(leadId: string): LeadRecord | undefined {
+  return leadRecords.find((l) => l.lead_id === leadId);
+}
+
+/**
+ * Lists all lead records (admin).
+ */
+export function listLeadRecords(): LeadRecord[] {
+  return leadRecords.slice();
+}
+
+/**
+ * Clears all lead records (testing).
+ */
+export function clearAllLeadRecords(): void {
+  leadRecords.length = 0;
+}
+
+/**
  * Storage and security requirements (Section 4.7).
  * These are implementation requirements, not just types.
  */

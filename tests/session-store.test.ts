@@ -23,6 +23,8 @@ import {
   getActiveSessionCount,
   startSessionCleanup,
   stopSessionCleanup,
+  getSourceUrl,
+  setSourceUrl,
 } from '../src/llm/session-store';
 // Imported to pin the /api/chat aliasing regression: session history feeds
 // buildMessages, so a live-array reference would send the current turn twice.
@@ -206,6 +208,37 @@ describe('Session Store — failure tracking', () => {
     expect(getFailureCount('s14')).toBe(3);
     resetFailures('s14');
     expect(getFailureCount('s14')).toBe(0);
+  });
+});
+
+describe('Session Store — source URL storage', () => {
+  test('getSourceUrl returns null for a session with no source URL', () => {
+    expect(getSourceUrl('s-url-1')).toBeNull();
+  });
+
+  test('setSourceUrl stores the sanitized path and getSourceUrl returns it', () => {
+    setSourceUrl('s-url-2', '/term-vs-whole-life/');
+    expect(getSourceUrl('s-url-2')).toBe('/term-vs-whole-life/');
+  });
+
+  test('setSourceUrl with null clears the stored URL', () => {
+    setSourceUrl('s-url-3', '/some-article/');
+    expect(getSourceUrl('s-url-3')).toBe('/some-article/');
+    setSourceUrl('s-url-3', null);
+    expect(getSourceUrl('s-url-3')).toBeNull();
+  });
+
+  test('sourceUrl is independent of other session data', () => {
+    addUserMessage('s-url-4', 'Hello');
+    setSourceUrl('s-url-4', '/article-path/');
+    expect(getSourceUrl('s-url-4')).toBe('/article-path/');
+    expect(getHistory('s-url-4')).toHaveLength(1);
+  });
+
+  test('clearSession also clears the source URL', () => {
+    setSourceUrl('s-url-5', '/article/');
+    clearSession('s-url-5');
+    expect(getSourceUrl('s-url-5')).toBeNull();
   });
 });
 
