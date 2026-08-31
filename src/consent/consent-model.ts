@@ -205,8 +205,11 @@ function loadLeadRecordsFromDisk(): void {
 // Load persisted records on module init so they survive restarts
 loadLeadRecordsFromDisk();
 
-/** Appends a lead record to the JSONL log (best-effort, never throws). */
-function persistLeadRecord(lead: LeadRecord): void {
+/**
+ * Appends a lead record to the JSONL log.
+ * Returns true on success, false on failure (read-only dir, full disk).
+ */
+function persistLeadRecord(lead: LeadRecord): boolean {
   try {
     const logPath = config.leadLogPath;
     const dir = dirname(logPath);
@@ -214,20 +217,31 @@ function persistLeadRecord(lead: LeadRecord): void {
       mkdirSync(dir, { recursive: true });
     }
     appendFileSync(logPath, `${encryptRecordLine(JSON.stringify(lead))}\n`, 'utf8');
+    return true;
   } catch {
-    // Best-effort only — persistence must never block consent submission
+    return false;
   }
 }
 
 /**
  * Persists a lead record to the store. The record should already be fully
  * populated (PII fields, consent version, timestamp) before calling this.
- * Returns the saved record (same reference).
+ *
+ * Fail-closed: returns true only when the record was durably written, and
+ * only then adds it to the in-memory store. On a persistence failure it
+ * returns false and the record is neither stored nor acknowledged — the
+ * consent artifact is a legal record under TDPSA consent-proof
+ * requirements, so a lost write must not be confirmed (mirrors the DSR
+ * intake path in src/privacy/dsr.ts).
+ *
+ * @returns true when durably persisted, false when the write failed.
  */
-export function saveLeadRecord(lead: LeadRecord): LeadRecord {
+export function saveLeadRecord(lead: LeadRecord): boolean {
+  if (!persistLeadRecord(lead)) {
+    return false;
+  }
   leadRecords.push(lead);
-  persistLeadRecord(lead);
-  return lead;
+  return true;
 }
 
 /**

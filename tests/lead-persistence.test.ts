@@ -162,3 +162,41 @@ describe('lead at-rest encryption', () => {
     reloaded.clearAllLeadRecords();
   });
 });
+
+/**
+ * Fail-closed tests — verify a lead is NOT stored or acknowledged when it
+ * could not be durably persisted (mirrors the DSR fail-closed behavior in
+ * tests/dsr.test.ts). The consent artifact is the TDPSA consent proof, so a
+ * lost write must never be confirmed to the consumer.
+ */
+describe('lead fail-closed persistence', () => {
+  afterEach(() => {
+    delete process.env.LEAD_LOG_PATH;
+  });
+
+  test('saveLeadRecord returns false and stores nothing when the log cannot be written', async () => {
+    process.env.LEAD_LOG_PATH = '/dev/null/leads.jsonl';
+    jest.resetModules();
+    const mod = await import('../src/consent/consent-model');
+
+    const lead = mod.createLeadRecord('article-5', '/term-life', 'term_life');
+    lead.email = 'failclosed@example.com';
+
+    expect(mod.saveLeadRecord(lead)).toBe(false);
+    // Not acknowledged — nothing in the in-memory store either
+    expect(mod.getLeadRecord(lead.lead_id)).toBeUndefined();
+    expect(mod.listLeadRecords()).toHaveLength(0);
+  });
+
+  test('in-memory store is not polluted across repeated persistence failures', async () => {
+    process.env.LEAD_LOG_PATH = '/dev/null/leads.jsonl';
+    jest.resetModules();
+    const mod = await import('../src/consent/consent-model');
+
+    for (let i = 0; i < 3; i++) {
+      const lead = mod.createLeadRecord(`article-${i}`, '/x', 'general');
+      expect(mod.saveLeadRecord(lead)).toBe(false);
+    }
+    expect(mod.listLeadRecords()).toHaveLength(0);
+  });
+});
