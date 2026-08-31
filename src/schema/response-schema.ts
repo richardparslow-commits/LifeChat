@@ -197,6 +197,30 @@ export const AnalyticsSchema = z.object({
 });
 
 /**
+ * Visual Rich Card reference (Section 17 / 4.1).
+ *
+ * The model may reference AT MOST ONE pre-approved card by card_id; it can
+ * never supply card content. The application layer validates the id against
+ * the pre-approved library and attaches the full approved content. When the
+ * model emits no card, this is null.
+ */
+export const VisualCardReferenceSchema = z.object({
+  card_id: z.string().min(1),
+});
+
+/**
+ * The resolved, validated visual card payload returned to the widget (Section
+ * 4.2). Carries the full pre-approved content; never model-generated.
+ */
+export const VisualCardSchema = z.object({
+  card_id: z.string(),
+  card_type: z.string(),
+  title: z.string(),
+  content: z.record(z.unknown()),
+  disclaimer: z.string().nullable().default(null),
+});
+
+/**
  * The full response schema the model must return.
  */
 export const AssistantResponseSchema = z.object({
@@ -223,6 +247,11 @@ export const AssistantResponseSchema = z.object({
   consent: ConsentSchema,
   /** DIME coverage-needs estimator (educational sub-flow, Section 9.2). */
   dime_estimator: DimeEstimatorSchema.default(() => ({ ...EMPTY_DIME_ESTIMATOR })),
+  /**
+   * Visual Rich Card reference — the model emits only { card_id }; the
+   * application replaces it with the full approved card.
+   */
+  visual_card: VisualCardReferenceSchema.nullable().default(null),
   proposed_action: ProposedActionSchema.default('none'),
   action_arguments: z.record(z.unknown()).default({}),
   risk_flags: z.array(z.string()).default([]),
@@ -250,6 +279,8 @@ export type Consent = z.infer<typeof ConsentSchema>;
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
 export type Analytics = z.infer<typeof AnalyticsSchema>;
 export type DimeEstimator = z.infer<typeof DimeEstimatorSchema>;
+export type VisualCardReference = z.infer<typeof VisualCardReferenceSchema>;
+export type VisualCard = z.infer<typeof VisualCardSchema>;
 export type AssistantResponse = z.infer<typeof AssistantResponseSchema>;
 
 /**
@@ -398,6 +429,7 @@ export const STATIC_SAFE_FALLBACK: AssistantResponse = {
     do_not_contact: false,
   },
   dime_estimator: { ...EMPTY_DIME_ESTIMATOR },
+  visual_card: null,
   proposed_action: 'none',
   action_arguments: {},
   risk_flags: ['static_fallback_used'],

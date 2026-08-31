@@ -315,6 +315,7 @@ function buildAbstentionResponse(
     },
     proposed_action: 'none',
     action_arguments: {},
+    visual_card: null,
     risk_flags: [],
     analytics: {
       event_name: 'ai_abstention',
@@ -382,6 +383,7 @@ function buildFallbackResponse(
       handoff_reason: 'system_error',
       summary: `Fallback triggered: ${errorType}${errorDetail ? ` (${errorDetail.slice(0, 100)})` : ''}`,
     },
+    visual_card: null,
     risk_flags: ['static_fallback_used'],
     analytics: {
       event_name: 'ai_fallback_shown',
