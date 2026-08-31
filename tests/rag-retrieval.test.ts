@@ -99,6 +99,32 @@ describe('RAG Retrieval — retrieveFromCorpus', () => {
       expect(result.passages[i].score).toBeLessThanOrEqual(result.passages[i - 1].score);
     }
   });
+
+  test('NAIC main documents (tier 2) outrank Life Policy Pilot articles (tier 4)', () => {
+    // "life insurance advertising" matches the NAIC Model 570 doc (product_category
+    // 'advertising' = tier 2) and multiple blog education docs (tier 4). The
+    // priority weight must rank the NAIC source above the blog articles even
+    // though they share keywords, honoring Section 4.6's hierarchy.
+    const result = retrieveFromCorpus('life insurance advertising', 8);
+    const naicIdx = result.passages.findIndex((p) => p.productCategory === 'advertising');
+    const eduIdx = result.passages.findIndex((p) => p.productCategory === 'education');
+    expect(naicIdx).toBeGreaterThanOrEqual(0);
+    expect(eduIdx).toBeGreaterThanOrEqual(0);
+    expect(naicIdx).toBeLessThan(eduIdx);
+    // Each passage exposes its priority tier per Section 4.6.
+    expect(result.passages[naicIdx].priority).toBe(2);
+    expect(result.passages[eduIdx].priority).toBe(4);
+  });
+
+  test('a single weak keyword match is below the sufficient-evidence threshold', () => {
+    // "S&P 500" tokenizes to just "500", which matches the IUL doc once
+    // (score 2). Prior to the L2 fix a score of 2 counted as sufficient;
+    // now the threshold of 3 forces abstention for a single keyword hit.
+    const result = retrieveFromCorpus('S&P 500', 3);
+    expect(result.passages.length).toBeGreaterThan(0);
+    expect(result.passages[0].score).toBeLessThan(3);
+    expect(result.hasSufficientEvidence).toBe(false);
+  });
 });
 
 describe('RAG Retrieval — formatRetrievedContext', () => {
