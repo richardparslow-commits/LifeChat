@@ -800,6 +800,32 @@ export function getArticleById(id: string): CorpusDocument | null {
 }
 
 /**
+ * Maps a corpus document's product_category to its priority tier (Section 4.6).
+ *   1 = Texas statutes/TDI pages (regulation)
+ *   2 = NAIC model/guidance pages (advertising)
+ *   3 = carrier consumer materials (not yet in the pilot corpus)
+ *   4 = Life Policy Pilot articles (education)
+ *   5 = controlled FAQ (faq)
+ * Privacy docs (TDPSA) are tier 1 alongside regulation since they are
+ * Texas-specific consumer-protection law.
+ */
+function productCategoryToPriority(productCategory: string): number {
+  switch (productCategory) {
+    case 'regulation':
+    case 'privacy':
+      return 1;
+    case 'advertising':
+      return 2;
+    case 'education':
+      return 4;
+    case 'faq':
+      return 5;
+    default:
+      return 5; // unknown categories get the lowest priority
+  }
+}
+
+/**
  * Retrieves RAG passages, optionally prioritizing the article a user is
  * currently reading (Contextual Content Bridge).
  *
@@ -848,8 +874,12 @@ export function retrieveFromCorpus(
         }
       }
 
-      // Priority weight: priority 1 (Texas law) gets 3x, priority 5 (FAQ) gets 1x
-      const priorityWeight = 6 - Math.min(doc.product_category === 'regulation' ? 1 : 5, 5);
+      // Priority weight respects the 5-tier corpus hierarchy (Section 4.6):
+      //   1 = Texas statutes/TDI, 2 = NAIC models, 3 = carrier materials,
+      //   4 = Life Policy Pilot articles, 5 = controlled FAQ.
+      // Weight = 6 - priority, so tier-1 sources get 5x and tier-5 get 1x.
+      const docPriority = productCategoryToPriority(doc.product_category);
+      const priorityWeight = 6 - docPriority;
 
       let score = matchCount * priorityWeight;
 
@@ -865,7 +895,7 @@ export function retrieveFromCorpus(
         content: doc.content,
         jurisdiction: doc.jurisdiction,
         productCategory: doc.product_category,
-        priority: doc.product_category === 'regulation' ? 1 : 5,
+        priority: docPriority,
         score,
       } as RetrievedPassage;
     })
@@ -873,8 +903,12 @@ export function retrieveFromCorpus(
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
 
-  // Sufficient evidence: at least one passage with a meaningful score
-  const hasSufficientEvidence = scored.length > 0 && scored[0].score >= 2;
+  // Sufficient evidence: the top passage must clear a meaningful threshold.
+  // A score of 3 requires at least two content matches or one title match
+  // plus a content match (before priority weighting), preventing a single
+  // coincidental keyword from declaring evidence "sufficient" (Section 4.6
+  // — abstain when support is below threshold).
+  const hasSufficientEvidence = scored.length > 0 && scored[0].score >= 3;
 
   return {
     passages: scored,

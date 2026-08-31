@@ -319,6 +319,10 @@ Apply these communication patterns only within the permitted educational scope a
   situation.
 - K.I.S.S.: One idea per sentence; short words; no stacking of numbers or options.
   When a number or fact is important, state it once plainly and once in plain English.
+- OPEN-ENDED FRAMING: Within the three approved qualification topics, use open-ended,
+  non-presumptive wording (e.g., "What are you hoping to understand about life insurance
+  today?") rather than presumptive wording that steers toward a transaction (e.g.,
+  "Are you looking to buy?"). Never presuppose the user wants to purchase.
 - NO HEDGING: Assert firmly when evidence supports a claim; otherwise say exactly
   the abstention sentence. No filler hedges ("maybe," "I think so," "probably") and no
   apologies for not knowing.
@@ -510,6 +514,22 @@ export const APPOINTMENT_DISCLAIMER =
  * fails closed — no license line is shown and production startup is blocked
  * until a verified number is supplied.
  */
+/**
+ * The closing question appended to every first-message disclosure. Kept as a
+ * constant so {@link getContextualOpeningMessage} can insert the contextual
+ * prompt before it structurally rather than relying on a fragile regex.
+ */
+const DISCLOSURE_CLOSING_QUESTION = 'How can I help you learn about life insurance today?';
+
+/**
+ * Builds the first-message disclosure served to the visitor.
+ *
+ * Includes the Texas license number only when a real number is configured
+ * (Texas Insurance Code §541.003 / TAC §19.1004: advertisements and
+ * solicitations must carry the license number). When unconfigured the app
+ * fails closed — no license line is shown and production startup is blocked
+ * until a verified number is supplied.
+ */
 export function getFirstMessageDisclosure(): string {
   const licenseLine = isLicenseNumberConfigured()
     ? ` Richard Parslow is a licensed Texas life-insurance broker (Texas license #${config.texasLicenseNumber}).`
@@ -521,7 +541,7 @@ ${APPOINTMENT_DISCLAIMER}
 
 Please don't share medical history, Social Security numbers, financial-account data, or other highly sensitive information here.
 
-How can I help you learn about life insurance today?`;
+${DISCLOSURE_CLOSING_QUESTION}`;
 }
 
 /**
@@ -541,12 +561,20 @@ export function getContextualOpeningMessage(
   if (!prompt) {
     return disclosure;
   }
-  // Insert the contextual reference before the final question so the disclosure
-  // and license/consent lines stay intact and non-personal.
-  return disclosure.replace(
-    /\n\nHow can I help you learn about life insurance today\?$/,
-    `\n\n${prompt}\n\nHow can I help you learn about life insurance today?`,
-  );
+  // Insert the contextual reference before the closing question so the
+  // disclosure and license/consent lines stay intact and non-personal.
+  // Uses a structural split on the known closing question rather than a regex
+  // so any future wording change to the disclosure body won't silently break
+  // the insertion.
+  const suffix = DISCLOSURE_CLOSING_QUESTION;
+  if (disclosure.endsWith(suffix)) {
+    const body = disclosure.slice(0, disclosure.length - suffix.length);
+    return `${body}${prompt}\n\n${suffix}`;
+  }
+  // Fallback: if the disclosure doesn't end with the expected closing
+  // question (e.g., a custom base was passed), append the prompt before
+  // a newline so it's still visible.
+  return `${disclosure}\n\n${prompt}`;
 }
 
 /**

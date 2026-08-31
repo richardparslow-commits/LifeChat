@@ -169,13 +169,26 @@ export function detectSensitiveData(
     return 'health_data';
   }
 
-  // PII patterns
+  // PII patterns — tuned to reduce false positives on benign numbers.
+  //   SSN: requires the canonical XXX-XX-XXXX format (or XXX XX XXXX /
+  //   XXX.XX.XXXX). The bare \d{3}\d{2}\d{4} variant was removed because
+  //   it matched any 9-digit sequence.
+  //   Phone: requires a +1 prefix, or (XXX) area code, or an explicit phone
+  //   keyword nearby. A bare 10-digit number alone is not enough — it could
+  //   be a reference number or ZIP+4.
   const piiPatterns = [
-    /\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/, // SSN
-    /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/, // Phone
-    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/, // Email
-    /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/, // Credit card
-    /\b\d{3}-\d{2}-\d{4}\b/, // SSN formatted
+    // Email (high precision)
+    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+    // SSN — canonical format only (XXX-XX-XXXX or XXX.XX.XXXX or XXX XX XXXX)
+    /\b\d{3}[-.\s]\d{2}[-.\s]\d{4}\b/,
+    // Phone — with context: +1 prefix or (XXX) area-code format
+    /\+1\s?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/,
+    /\(\d{3}\)\s?\d{3}[-.\s]?\d{4}/,
+    // Phone — with an explicit keyword nearby (call/text/phone/number/fax)
+    /(?:call|text|phone|number|fax|reach|dial)[^\n]{0,30}\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/i,
+    /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b[^\n]{0,30}(?:call|text|phone|number|fax|reach|dial)/i,
+    // Credit card — 4 groups of 4 digits separated by spaces or dashes
+    /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/,
   ];
 
   if (piiPatterns.some((p) => p.test(userInput))) {
