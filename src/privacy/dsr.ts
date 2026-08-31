@@ -7,12 +7,16 @@
  * returned with the TDPSA response window.
  *
  * The consumer-facing contact is served through config.dsrEmail and the
- * disclosure/consent copy; this endpoint is the structured intake route
- * (in-memory for the pilot — persist to the operational lead/CRM store in
- * production, alongside the retention schedule).
+ * disclosure/consent copy; this endpoint is the structured intake route.
+ * Records are persisted to an append-only JSONL file so they survive process
+ * restarts (DSR records are legal artifacts under TDPSA's 45-day response
+ * SLA). In production, also persist to the operational CRM/lead store.
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
+import { dirname } from 'path';
+import { config } from '../config/app-config';
 import { validateEmail } from '../consent/consent-model';
 
 /** The TDPSA consumer-rights request types this intake accepts. */
@@ -42,8 +46,53 @@ export interface DsrRecord {
   status: 'received';
 }
 
-/** In-memory store for the pilot phase (mirrors session-store pattern). */
+/**
+ * In-memory store for the pilot phase (mirrors session-store pattern).
+ * Backed by an append-only JSONL file so records survive process restarts —
+ * DSR records are legal artifacts under TDPSA (45-day response SLA) and must
+ * not be lost when the server restarts.
+ */
 const dsrRecords: DsrRecord[] = [];
+
+/** Loads existing DSR records from the JSONL log at startup. */
+function loadDsrRecordsFromDisk(): void {
+  const logPath = config.dsrLogPath;
+  if (!existsSync(logPath)) return;
+  try {
+    const lines = readFileSync(logPath, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim().length > 0);
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line) as DsrRecord;
+        if (parsed && parsed.request_id && parsed.request_type) {
+          dsrRecords.push(parsed);
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+  } catch {
+    // Best-effort — don't block startup if the log can't be read
+  }
+}
+
+// Load persisted records on module init so they survive restarts
+loadDsrRecordsFromDisk();
+
+/** Appends a DSR record to the JSONL log (best-effort, never throws). */
+function persistDsrRecord(record: DsrRecord): void {
+  try {
+    const logPath = config.dsrLogPath;
+    const dir = dirname(logPath);
+    if (dir && dir !== '.') {
+      mkdirSync(dir, { recursive: true });
+    }
+    appendFileSync(logPath, `${JSON.stringify(record)}\n`, 'utf8');
+  } catch {
+    // Best-effort only — persistence must never block a DSR submission
+  }
+}
 
 /**
  * Validates a DSR submission and creates a record.
@@ -73,6 +122,7 @@ export function submitDsr(input: {
     status: 'received',
   };
   dsrRecords.push(record);
+  persistDsrRecord(record);
   return { ok: true, record };
 }
 
@@ -86,7 +136,17 @@ export function listDsrRecords(): DsrRecord[] {
   return dsrRecords.slice();
 }
 
-/** Clears all DSR records (testing). */
+/**
+ * Clears all DSR records (testing). Also removes the JSONL log file so
+ * tests start with a clean slate on disk as well as in memory.
+ */
 export function clearAllDsrRecords(): void {
   dsrRecords.length = 0;
+  try {
+    if (existsSync(config.dsrLogPath)) {
+      unlinkSync(config.dsrLogPath);
+    }
+  } catch {
+    // Best-effort — test cleanup must not throw
+  }
 }

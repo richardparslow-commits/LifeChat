@@ -5,6 +5,9 @@
  * record creation, and the in-memory store.
  */
 
+// Use a temp DSR log path before importing so tests don't touch the real file
+process.env.DSR_LOG_PATH = `data/dsr-test-${Date.now()}.jsonl`;
+
 import {
   clearAllDsrRecords,
   DSR_REQUEST_TYPES,

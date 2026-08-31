@@ -20,7 +20,12 @@ import 'dotenv/config';
 
 import express, { Request, Response } from 'express';
 import path from 'path';
-import { config, PRODUCT_DEFINITION, isLicenseNumberConfigured } from './config/app-config';
+import {
+  config,
+  PRODUCT_DEFINITION,
+  isLicenseNumberConfigured,
+  isAdminApiKeyConfigured,
+} from './config/app-config';
 import {
   SYSTEM_PROMPT,
   getFirstMessageDisclosure,
@@ -44,6 +49,8 @@ import {
   setDimeInputs,
   getPageContext,
   setPageContext,
+  getSourceUrl,
+  setSourceUrl,
 } from './llm/session-store';
 import { getNextState, type ConversationState } from './state-machine/state-machine';
 import {
@@ -90,6 +97,31 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 /**
+ * Admin auth middleware — protects internal/debug endpoints that expose the
+ * system prompt, session history, session counts, or DSR status. When an
+ * ADMIN_API_KEY is configured, requests must carry an x-admin-key header
+ * matching it. When no key is configured (pilot/dev), the endpoints remain
+ * accessible so local development is not blocked.
+ *
+ * In production mode (PILOT_MODE=false) startup fails fast unless a key is
+ * set, so this middleware is always enforced in production.
+ */
+function requireAdminAuth(req: Request, res: Response): boolean {
+  if (!isAdminApiKeyConfigured()) {
+    return true; // No key configured — allow (pilot/dev mode)
+  }
+  const provided = req.headers['x-admin-key'];
+  if (typeof provided === 'string' && provided === config.adminApiKey) {
+    return true;
+  }
+  res.status(401).json({
+    error: 'Admin authentication required',
+    message: 'Provide a valid x-admin-key header.',
+  });
+  return false;
+}
+
+/**
  * GET / — Health check and product info
  */
 app.get('/', (_req: Request, res: Response) => {
@@ -127,7 +159,8 @@ app.get('/health', (_req: Request, res: Response) => {
  * GET /api/system-prompt — Returns the hardened system prompt
  * (For admin/internal use only; should be protected in production)
  */
-app.get('/api/system-prompt', (_req: Request, res: Response) => {
+app.get('/api/system-prompt', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   res.json({ systemPrompt: SYSTEM_PROMPT });
 });
 
@@ -427,10 +460,14 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     }
   }
 
-  // 5. Sanitize the source URL (never send raw window.location.href)
-  //    sanitizeUrl is called here to ensure query params are stripped
+  // 5. Sanitize the source URL (never send raw window.location.href with
+  //    query-string PII). Store the sanitized canonical path on the session
+  //    so it is available for lead records and handoff without re-parsing.
   if (sourceUrl) {
-    sanitizeUrl(sourceUrl);
+    const sanitizedPath = sanitizeUrl(sourceUrl);
+    if (!getSourceUrl(sessionId)) {
+      setSourceUrl(sessionId, sanitizedPath);
+    }
   }
 
   // 6. Capture PRIOR conversation history for this session BEFORE recording
@@ -694,6 +731,7 @@ app.post('/api/dsr', (req: Request, res: Response) => {
  * GET /api/dsr/:requestId — DSR request status (admin/debug)
  */
 app.get('/api/dsr/:requestId', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   const record = getDsrRecord(req.params.requestId);
   if (!record) {
     return res.status(404).json({ error: 'DSR request not found' });
@@ -752,6 +790,7 @@ app.get('/api/rag/search', (req: Request, res: Response) => {
  * GET /api/session/:sessionId/history — Returns conversation history (admin/debug)
  */
 app.get('/api/session/:sessionId/history', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   const history = getHistory(req.params.sessionId);
   res.json({
     sessionId: req.params.sessionId,
@@ -772,7 +811,8 @@ app.delete('/api/session/:sessionId', (req: Request, res: Response) => {
 /**
  * GET /api/sessions — Returns active session count (admin/monitoring)
  */
-app.get('/api/sessions', (_req: Request, res: Response) => {
+app.get('/api/sessions', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   res.json({ activeSessions: getActiveSessionCount() });
 });
 
@@ -786,6 +826,20 @@ if (!config.pilotMode && !isLicenseNumberConfigured()) {
   console.error(
     'FATAL: production startup requires a verified TEXAS_LICENSE_NUMBER in the environment. ' +
       'Set it before disabling pilot mode; the placeholder is never served to users.',
+  );
+  process.exit(1);
+}
+
+/**
+ * Production gate: an admin API key is required before going live so the
+ * system prompt, session history, and DSR status endpoints are never exposed
+ * without authentication. In pilot mode the app may run without it (dev
+ * convenience); outside pilot mode it refuses to start.
+ */
+if (!config.pilotMode && !isAdminApiKeyConfigured()) {
+  console.error(
+    'FATAL: production startup requires an ADMIN_API_KEY in the environment. ' +
+      'Set it before disabling pilot mode; admin endpoints must not be public.',
   );
   process.exit(1);
 }
