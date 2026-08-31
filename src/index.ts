@@ -493,10 +493,12 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   // valid context was stored, this is inert.
   const storedPageContext = getPageContext(sessionId);
   let contextualArticleId: string | null = null;
+  let contextualArticleTopic: string | null = null;
   let contextualInstruction: string | null = null;
   if (config.contextualBridgeEnabled && storedPageContext) {
     const contextual = injectContext(storedPageContext);
     contextualArticleId = contextual.articleMapping?.articleId ?? null;
+    contextualArticleTopic = contextual.articleMapping?.topic ?? null;
     contextualInstruction = contextual.contextualInstruction;
   }
 
@@ -508,6 +510,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     dimeContext: inDimeFlow ? buildDimeProgressContext(getDimeInputs(sessionId)) : undefined,
     contextualArticleId,
     contextualInstruction,
+    contextualArticleTopic,
   });
 
   // 10. DIME estimator — merge collected inputs into the session, derive

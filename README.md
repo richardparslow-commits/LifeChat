@@ -123,6 +123,8 @@ PILOT_MODE=true
 FREE_OFFER_MARKETING_APPROVED=false # free-quote/free-consultation phrasing blocked until marketing review
 CONTEXTUAL_BRIDGE_ENABLED=true # Contextual Content Bridge: enrich opening message + RAG from the article being read (set false to disable)
 VISUAL_CARDS_ENABLED=true # Visual Rich Cards: attach pre-approved educational cards to responses (set false to disable)
+ABSTENTION_LOGGING_ENABLED=true # Abstention logging for content strategy: hashed, anonymized JSONL feed (set false to disable)
+ABSTENTION_LOG_PATH="data/abstention-log.jsonl" # where the abstention feed is written (point to a writable volume on serverless)
 ```
 
 > **License disclosure:** `TEXAS_LICENSE_NUMBER` is required before going live

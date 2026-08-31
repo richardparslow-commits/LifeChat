@@ -18,6 +18,7 @@
 
 import { config } from '../config/app-config';
 import { SYSTEM_PROMPT, ABSTENTION_SENTENCE } from '../prompts/system-prompt';
+import { logAbstention } from '../analytics/abstention-log';
 import { callLLM, extractJSON, type LLMMessage } from './llm-client';
 import {
   retrieveFromCorpus,
@@ -61,6 +62,11 @@ export interface OrchestratorInput {
    * and prohibits personal inference). Appended to the application context.
    */
   contextualInstruction?: string | null;
+  /**
+   * Section 16 contextual article topic label (educational), used only for the
+   * anonymized abstention log's audience category. Never user-supplied text.
+   */
+  contextualArticleTopic?: string | null;
 }
 
 export interface OrchestratorResult {
@@ -108,6 +114,15 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   //    grounded by the system prompt script and the response schema.
   const isAnswerState = input.currentState === 'education' || input.currentState === 'disclosure';
   if (!retrievalResult.hasSufficientEvidence && isAnswerState) {
+    // Content-strategy feed: record an anonymized abstention (hash + category,
+    // never the raw question or any PII) so the editorial calendar can close
+    // the knowledge gap the approved corpus cannot yet answer.
+    logAbstention({
+      userMessage: input.userMessage,
+      topicCategory: input.topicCategory,
+      contextualArticleTopic: input.contextualArticleTopic,
+      articleId: input.contextualArticleId ?? null,
+    });
     return {
       response: buildAbstentionResponse(input, retrievalResult.passages),
       ragPassages: retrievalResult.passages,

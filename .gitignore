@@ -25,5 +25,8 @@ npm-debug.log*
 # Test coverage
 coverage/
 
+# Runtime data files (e.g. the abstention-log content-strategy feed)
+data/
+
 # Freebuff client metadata
 .freebuff/
