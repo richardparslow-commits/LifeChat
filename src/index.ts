@@ -24,6 +24,7 @@ import { config, PRODUCT_DEFINITION, isLicenseNumberConfigured } from './config/
 import {
   SYSTEM_PROMPT,
   getFirstMessageDisclosure,
+  getContextualOpeningMessage,
   APPOINTMENT_DISCLAIMER,
   BEFORE_CHAT_BANNER,
   ABSTENTION_SENTENCE,
@@ -40,6 +41,8 @@ import {
   clearSession,
   getDimeInputs,
   setDimeInputs,
+  getPageContext,
+  setPageContext,
 } from './llm/session-store';
 import { getNextState, type ConversationState } from './state-machine/state-machine';
 import {
@@ -67,6 +70,8 @@ import {
 } from './security/security-controls';
 import { getStaffAvailabilityMessage } from './handoff/human-escalation';
 import { getComplianceOverview } from './compliance/classification-matrix';
+import { injectContext } from './contextual/context-injection';
+import { detectContextualInjection, validatePageContext } from './contextual/page-context';
 import {
   generateStaticFallback,
   FALLBACK_MESSAGES,
@@ -130,10 +135,51 @@ app.get('/api/system-prompt', (_req: Request, res: Response) => {
  * (Texas Insurance Code §541.003 / TAC §19.1004). While unconfigured it is
  * null — never the placeholder — and the disclosure text omits the license
  * line (fail closed).
+ *
+ * Contextual Content Bridge: may accept optional `url`, `title`, `category`,
+ * and `article_id` query params describing the page the user is reading. When
+ * the bridge is enabled and the context is valid + maps to an article, the
+ * returned firstMessage is enriched with the article-topic prompt (Section
+ * 16.3) and the matched article is reported. A prompt-injection attempt in
+ * the page title/category returns contextualInjection=true and is ignored.
  */
 app.get('/api/disclosure', (_req: Request, res: Response) => {
+  const baseDisclosure = getFirstMessageDisclosure();
+  let firstMessage = baseDisclosure;
+  let contextualInjection = false;
+  let articleId: string | null = null;
+
+  if (config.contextualBridgeEnabled) {
+    const url = typeof _req.query.url === 'string' ? _req.query.url : undefined;
+    const title = typeof _req.query.title === 'string' ? _req.query.title : undefined;
+    const category = typeof _req.query.category === 'string' ? _req.query.category : undefined;
+    const article_id =
+      typeof _req.query.article_id === 'string' ? _req.query.article_id : undefined;
+
+    const raw = {
+      ...(url !== undefined ? { url, title } : {}),
+      ...(category !== undefined ? { category } : {}),
+      ...(article_id !== undefined ? { article_id } : {}),
+    };
+
+    // Prompt-injection guarded: detect a crafted title/category before any
+    // content can reach the model. validatePageContext also rejects these, but
+    // we capture the flag explicitly to report contextualInjection.
+    const injectionAttempt =
+      detectContextualInjection(title ?? '') || detectContextualInjection(category ?? '');
+
+    const injection = injectContext(raw);
+    contextualInjection = injectionAttempt;
+    if (!injectionAttempt && injection.contextualPrompt !== null) {
+      firstMessage = getContextualOpeningMessage(baseDisclosure, injection.contextualPrompt);
+      articleId = injection.articleMapping?.articleId ?? null;
+    }
+  }
+
   res.json({
-    firstMessage: getFirstMessageDisclosure(),
+    firstMessage,
+    contextualInjection,
+    articleId,
     banner: BEFORE_CHAT_BANNER,
     businessName: config.businessName,
     licensedBrokerName: config.licensedBrokerName,
@@ -195,6 +241,12 @@ interface ChatRequestBody {
   medicalReviewComplete?: boolean;
   /** DIME educational sub-flow — user asked to estimate coverage needs */
   userRequestsDimeEstimator?: boolean;
+  /**
+   * Contextual Content Bridge — page being viewed. Optional, sent with the
+   * first message of a session. Treated as untrusted data and stored per
+   * session so the current article stays prioritized (Section 3.2).
+   */
+  page_context?: unknown;
 }
 
 app.post('/api/chat', async (req: Request, res: Response) => {
@@ -206,6 +258,20 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   // approval). When disabled, the medical context flags are forced off and
   // health data shared in chat is blocked, exactly as in Phase 1.
   const medicalCaptureEnabled = !config.healthDataCollectionDisabled;
+
+  // Contextual Content Bridge: persist validated page context on the first
+  // message of a session (Section 3.2 — page context is sent once). Subsequent
+  // messages reuse the stored context so the article stays prioritized for the
+  // whole conversation. When the bridge is disabled, nothing is stored.
+  if (config.contextualBridgeEnabled && !getPageContext(sessionId)) {
+    const pageContext = req.body.page_context;
+    if (pageContext !== undefined && pageContext !== null) {
+      const validated = validatePageContext(pageContext);
+      setPageContext(sessionId, validated);
+    } else {
+      setPageContext(sessionId, null);
+    }
+  }
 
   // 1. Check kill switch
   if (isKillSwitchActive()) {
@@ -417,12 +483,28 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   //    While the DIME estimator is active, pass its progress as authoritative
   //    application context (Section 9.2).
   const inDimeFlow = nextState === 'dime_estimator' || currentState === 'dime_estimator';
+
+  // Contextual Content Bridge (Section 16): inject the stored page context so
+  // the current article is prioritized in RAG retrieval and the model receives
+  // the no-personal-inference instruction. When the bridge is disabled or no
+  // valid context was stored, this is inert.
+  const storedPageContext = getPageContext(sessionId);
+  let contextualArticleId: string | null = null;
+  let contextualInstruction: string | null = null;
+  if (config.contextualBridgeEnabled && storedPageContext) {
+    const contextual = injectContext(storedPageContext);
+    contextualArticleId = contextual.articleMapping?.articleId ?? null;
+    contextualInstruction = contextual.contextualInstruction;
+  }
+
   const { response, latencyMs } = await generateResponse({
     userMessage: message,
     currentState: nextState,
     conversationHistory,
     topicCategory,
     dimeContext: inDimeFlow ? buildDimeProgressContext(getDimeInputs(sessionId)) : undefined,
+    contextualArticleId,
+    contextualInstruction,
   });
 
   // 10. DIME estimator — merge collected inputs into the session, derive
