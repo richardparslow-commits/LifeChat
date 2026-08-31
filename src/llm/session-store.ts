@@ -18,6 +18,7 @@
 
 import type { LLMMessage } from './llm-client';
 import { EMPTY_DIME_INPUTS, type DimeInputs } from '../estimator/dime-estimator';
+import type { PageContext } from '../contextual/page-context';
 
 /** Maximum number of conversation turns to retain per session. */
 const MAX_TURNS = 20;
@@ -41,6 +42,13 @@ interface SessionData {
   consecutiveFailures: number;
   /** Collected DIME estimator inputs (educational sub-flow, Section 9.2). */
   dimeInputs: DimeInputs;
+  /**
+   * Validated page context (Contextual Content Bridge). Set on the first
+   * user message of a session and reused thereafter so the current article
+   * stays prioritized for the whole conversation (Section 3.2: page context
+   * is sent once with the first message).
+   */
+  pageContext: PageContext | null;
 }
 
 const sessions = new Map<string, SessionData>();
@@ -192,6 +200,27 @@ export function setDimeInputs(sessionId: string, inputs: DimeInputs): void {
 }
 
 /**
+ * Returns the session's stored page context, or null when the session has
+ * not supplied one (Contextual Content Bridge). Returns a reference to the
+ * stored validated object; it is read-only to callers.
+ */
+export function getPageContext(sessionId: string): PageContext | null {
+  const session = sessions.get(sessionId);
+  return session ? session.pageContext : null;
+}
+
+/**
+ * Stores validated page context on a session (Contextual Content Bridge).
+ * Called on the first user message so the article stays prioritized for the
+ * rest of the conversation. Passing null clears it.
+ */
+export function setPageContext(sessionId: string, pageContext: PageContext | null): void {
+  const session = getOrCreateSession(sessionId);
+  session.pageContext = pageContext;
+  session.lastActivity = Date.now();
+}
+
+/**
  * Increments consecutive failure count for loop control (Section 4.11).
  * Returns the new count.
  */
@@ -250,6 +279,7 @@ function getOrCreateSession(sessionId: string): SessionData {
       contactOffered: false,
       consecutiveFailures: 0,
       dimeInputs: { ...EMPTY_DIME_INPUTS },
+      pageContext: null,
     };
     sessions.set(sessionId, session);
   }

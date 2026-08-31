@@ -295,7 +295,41 @@ A: You can contact the Texas Department of Insurance at tdi.texas.gov or Richard
  * @param topK - Maximum number of passages to return (default 3 per Section 4.6)
  * @returns Retrieved passages ranked by score, with sufficient-evidence flag
  */
-export function retrieveFromCorpus(query: string, topK: number = 3): RetrievalResult {
+
+/**
+ * Retrieves a single corpus document by its id (used by the Contextual
+ * Content Bridge to fetch the article currently being read). Returns null
+ * when the id is unknown or the document is not currently valid/current.
+ */
+export function getArticleById(id: string): CorpusDocument | null {
+  const now = new Date();
+  const doc = pilotCorpus.find((d) => d.id === id);
+  if (doc && isDocumentValid(doc, now)) {
+    return doc;
+  }
+  return null;
+}
+
+/**
+ * Retrieves RAG passages, optionally prioritizing the article a user is
+ * currently reading (Contextual Content Bridge).
+ *
+ * When {@link contextualArticleId} is provided and present in the corpus, its
+ * passages are boosted (score × 1.2, the spec's +20%) so the on-page article
+ * surfaces first when it matches the query; other sources are still retrieved.
+ * When the article is absent or the query is unrelated to it, the boosted
+ * passages simply don't outrank the matches, preserving normal retrieval.
+ *
+ * @param query - The user's question
+ * @param topK - Maximum number of passages to return (default 3 per Section 4.6)
+ * @param options - Optional contextual article id for prioritization
+ * @returns Retrieved passages ranked by score, with sufficient-evidence flag
+ */
+export function retrieveFromCorpus(
+  query: string,
+  topK: number = 3,
+  options: { contextualArticleId?: string | null } = {},
+): RetrievalResult {
   const now = new Date();
   const queryTokens = tokenize(query.toLowerCase());
 
@@ -322,7 +356,13 @@ export function retrieveFromCorpus(query: string, topK: number = 3): RetrievalRe
       // Priority weight: priority 1 (Texas law) gets 3x, priority 5 (FAQ) gets 1x
       const priorityWeight = 6 - Math.min(doc.product_category === 'regulation' ? 1 : 5, 5);
 
-      const score = matchCount * priorityWeight;
+      let score = matchCount * priorityWeight;
+
+      // Contextual prioritization: boost the article the user is currently
+      // reading by 20% so it surfaces first when relevant (Section 3.6).
+      if (options.contextualArticleId && doc.id === options.contextualArticleId) {
+        score = score * 1.2;
+      }
 
       return {
         title: doc.title,

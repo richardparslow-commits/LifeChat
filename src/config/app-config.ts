@@ -54,6 +54,14 @@ export interface AppConfig {
    * assistant message containing those phrases.
    */
   freeOfferMarketingApproved: boolean;
+  /**
+   * Contextual Content Bridge — reads the page a user is viewing to make the
+   * opening message and RAG retrieval more relevant. Educational only: page
+   * context is treated as untrusted data, never as user characteristics, and
+   * no new personal data is collected. Kill switch: set
+   * CONTEXTUAL_BRIDGE_ENABLED=false to disable without a code change.
+   */
+  contextualBridgeEnabled: boolean;
 }
 
 /**
@@ -90,6 +98,9 @@ export const config: AppConfig = {
   // Marketing-review gate: flip to true only after the free-offer terms are
   // reviewed and approved. Until then the output guard blocks the phrasing.
   freeOfferMarketingApproved: process.env.FREE_OFFER_MARKETING_APPROVED === 'true',
+  // Contextual Content Bridge kill switch. Default enabled; set to 'false' to
+  // disable (rollback path).
+  contextualBridgeEnabled: process.env.CONTEXTUAL_BRIDGE_ENABLED !== 'false',
 };
 
 /**

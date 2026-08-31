@@ -163,6 +163,28 @@
   var currentState = 'disclosure';
   var sourceUrl = window.location.pathname; // sanitized — no query params
 
+  // ── Page context (Contextual Content Bridge). Reads the page once on load
+  //    and sends it with the FIRST chat message so the backend can prioritize
+  //    the article being read. Kept in memory; sent only on the first message. ──
+  var contextualPage = buildPageContext();
+  var pageContextSent = false;
+
+  function readMeta(selector) {
+    var el = document.querySelector(selector);
+    return el && el.content ? el.content : null;
+  }
+
+  function buildPageContext() {
+    var category = readMeta('meta[name="category"]') || readMeta('meta[property="article:section"]');
+    var articleId = readMeta('meta[name="article_id"]') || readMeta('meta[property="article:tag"]');
+    return {
+      url: window.location.href,
+      title: document.title || null,
+      category: category || null,
+      article_id: articleId || null
+    };
+  }
+
   // ── Helper: add a message to the chat ──
   function addMessage(text, sender) {
     var msg = document.createElement('div');
@@ -177,7 +199,13 @@
 
   // ── Fetch the initial disclosure message ──
   function loadDisclosure() {
-    fetch(serverUrl + '/api/disclosure')
+    // Ask the backend for a disclosure enriched with page context (optional),
+    // so the opening message can reference the article being read when it maps
+    // to a known topic (Section 16.3). Falls back to the standard message.
+    var disclosurePath = serverUrl + '/api/disclosure';
+    var ctx = contextualPage;
+    var q = '?' + ['url=' + encodeURIComponent(ctx.url), 'title=' + encodeURIComponent(ctx.title || '')].join('&');
+    fetch(disclosurePath + q)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         addMessage(data.firstMessage, 'assistant');
@@ -201,15 +229,23 @@
       addMessage('...', 'assistant');
     }, 500);
 
+    var payload = {
+      sessionId: sessionId,
+      message: text,
+      currentState: currentState,
+      sourceUrl: sourceUrl
+    };
+    // Send page context only with the first message (Section 3.2).
+    if (!pageContextSent) {
+      payload.page_context = contextualPage;
+      payload.topicCategory = contextualPage.category || undefined;
+      pageContextSent = true;
+    }
+
     fetch(serverUrl + '/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: sessionId,
-        message: text,
-        currentState: currentState,
-        sourceUrl: sourceUrl,
-      }),
+      body: JSON.stringify(payload),
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

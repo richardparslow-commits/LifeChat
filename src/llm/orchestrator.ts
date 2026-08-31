@@ -51,6 +51,16 @@ export interface OrchestratorInput {
    * question or invents dollar figures.
    */
   dimeContext?: string;
+  /**
+   * Contextual Content Bridge (Section 16): the validated article id of the
+   * page the user is reading, used to prioritize it in RAG retrieval.
+   */
+  contextualArticleId?: string | null;
+  /**
+   * Section 16 contextual instruction (treats page context as untrusted data
+   * and prohibits personal inference). Appended to the application context.
+   */
+  contextualInstruction?: string | null;
 }
 
 export interface OrchestratorResult {
@@ -80,8 +90,11 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     };
   }
 
-  // 2. Retrieve RAG context (Section 4.6)
-  const retrievalResult = retrieveFromCorpus(input.userMessage);
+  // 2. Retrieve RAG context (Section 4.6), prioritizing the article the user
+  //    is reading when contextual information is present (Section 3.6).
+  const retrievalResult = retrieveFromCorpus(input.userMessage, 3, {
+    contextualArticleId: input.contextualArticleId ?? null,
+  });
   const ragContext = formatRetrievedContext(retrievalResult.passages);
 
   // 3. If no sufficient evidence, return abstention immediately (Section 4.6)
@@ -111,7 +124,10 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     currentState: input.currentState,
     temperature: 0.3,
     maxTokens: 800,
-    applicationContext: input.dimeContext,
+    applicationContext:
+      [input.dimeContext, input.contextualInstruction]
+        .filter((s): s is string => Boolean(s))
+        .join('\n\n') || undefined,
   };
   const llmResult = await callLLM(llmOptions);
 
