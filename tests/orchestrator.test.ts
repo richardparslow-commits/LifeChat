@@ -48,6 +48,7 @@ function validJson(message = 'Term life insurance covers a set period.'): string
     },
     proposed_action: 'none',
     action_arguments: {},
+    visual_card: null,
     risk_flags: [],
     analytics: {
       event_name: 'ai_answer_shown',

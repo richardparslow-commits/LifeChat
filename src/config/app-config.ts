@@ -62,6 +62,15 @@ export interface AppConfig {
    * CONTEXTUAL_BRIDGE_ENABLED=false to disable without a code change.
    */
   contextualBridgeEnabled: boolean;
+  /**
+   * Visual Rich Cards — let the model attach a pre-approved, deterministic
+   * educational card (comparison table, definition, etc.) to a response.
+   * Compliance-neutral: cards are display-only, content comes entirely from the
+   * versioned card library (never LLM-generated), and every card carries a
+   * disclaimer. Kill switch: set VISUAL_CARDS_ENABLED=false to disable without
+   * a code change.
+   */
+  visualCardsEnabled: boolean;
 }
 
 /**
@@ -101,6 +110,9 @@ export const config: AppConfig = {
   // Contextual Content Bridge kill switch. Default enabled; set to 'false' to
   // disable (rollback path).
   contextualBridgeEnabled: process.env.CONTEXTUAL_BRIDGE_ENABLED !== 'false',
+  // Visual Rich Cards kill switch. Default enabled; set to 'false' to disable
+  // (rollback path). Cards are compliance-neutral and display-only.
+  visualCardsEnabled: process.env.VISUAL_CARDS_ENABLED !== 'false',
 };
 
 /**

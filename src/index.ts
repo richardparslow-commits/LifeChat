@@ -32,6 +32,7 @@ import {
 import { STATIC_SAFE_FALLBACK, type AssistantResponse } from './schema/response-schema';
 import { generateResponse } from './llm/orchestrator';
 import { retrieveFromCorpus } from './rag/retrieval';
+import { validateCard } from './cards/card-validation';
 import {
   getHistory,
   addUserMessage,
@@ -342,6 +343,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       },
       proposed_action: 'none',
       action_arguments: {},
+      visual_card: null,
       risk_flags: ['prompt_injection_suspected'],
       analytics: {
         event_name: 'ai_error',
@@ -407,6 +409,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           handoff_reason: 'health_data_disclosed',
           summary: 'User disclosed health information in public chat',
         },
+        visual_card: null,
         risk_flags: ['sensitive_data_disclosed'],
         analytics: {
           event_name: 'ai_handoff_request',
@@ -556,6 +559,34 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         analytics: isDimeEntry
           ? { ...response.analytics, event_name: 'ai_dime_offer' }
           : response.analytics,
+      };
+    }
+  }
+
+  // 10b. Visual Rich Cards (Section 17) — resolve the model's card_id
+  //     reference against the pre-approved library. The model never supplies
+  //     card content; on any failure (unknown id, injection attempt, disallowed
+  //     state, or cards disabled) no card is shown and the text stands alone.
+  if (config.visualCardsEnabled) {
+    const cardResult = validateCard(finalResponse.visual_card, nextState);
+    const riskFlags = finalResponse.risk_flags ?? [];
+    if (!cardResult.isValid && finalResponse.visual_card != null) {
+      finalResponse = {
+        ...finalResponse,
+        visual_card: null,
+        risk_flags: [...new Set([...riskFlags, 'card_validation_failed'])],
+        analytics: {
+          ...finalResponse.analytics,
+          error_code: 'card_validation_failed',
+        },
+      };
+    } else {
+      finalResponse = {
+        ...finalResponse,
+        // The wire payload carries the resolved full card; the static schema
+        // type only describes the model's reference, so the richer object is
+        // cast at the API boundary.
+        visual_card: cardResult.card as AssistantResponse['visual_card'],
       };
     }
   }
