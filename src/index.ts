@@ -695,10 +695,21 @@ app.post('/api/consent', (req: Request, res: Response) => {
     }
   }
 
+  // Prefer the sanitized canonical path already stored on the session by
+  // /api/chat (context bridge, Section 3.2): it is validated and has query
+  // params stripped. Fall back to re-sanitizing the request body when the
+  // consent form submits without a session id, or before any message in the
+  // session carried a sourceUrl. The stored path is never re-sanitized —
+  // sanitizeUrl expects a full URL and would degrade a bare pathname to
+  // '/unknown'.
+  const sessionId = typeof req.body.sessionId === 'string' ? req.body.sessionId : '';
+  const storedSourcePath = sessionId ? getSourceUrl(sessionId) : null;
+  const sourcePath = storedSourcePath ?? sanitizeUrl(req.body.sourceUrl || '');
+
   // Create lead record
   const lead = createLeadRecord(
     req.body.articleId || 'unknown',
-    sanitizeUrl(req.body.sourceUrl || ''),
+    sourcePath,
     req.body.topicCategory || 'general',
   );
 
