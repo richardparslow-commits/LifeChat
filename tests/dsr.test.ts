@@ -427,4 +427,30 @@ describe('DSR keyless-startup warning', () => {
       }
     }
   });
+
+  test('warns when encrypted records cannot be decoded with the configured key', async () => {
+    // Write with one key, then reload with a different key — the loader must
+    // warn that the records could not be decoded (key change / corruption),
+    // not silently drop them.
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.DSR_LOG_PATH = encLog;
+    jest.resetModules();
+    const withKey = await import('../src/privacy/dsr');
+    const created = withKey.submitDsr({
+      requestType: 'access',
+      contactEmail: 'wrongkey@example.com',
+    });
+    expect(created.ok).toBe(true);
+
+    process.env.RECORD_ENCRYPTION_KEY = 'a-different-key-456';
+    jest.resetModules();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const wrongKey = await import('../src/privacy/dsr');
+      expect(wrongKey.listDsrRecords()).toHaveLength(0);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('could not be decoded'));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
