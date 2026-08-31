@@ -139,12 +139,17 @@ export interface VerdictSampleScored {
   ok: boolean;
   /** Why the actual verdict was produced (retrieval score / policy id). */
   reason: string;
+  /** True when the sample is outside the education flow and not scored. */
+  skipped: boolean;
 }
 
 export interface VerdictGateResult {
+  /** Samples actually judged by this gate (skipped samples excluded). */
   total: number;
   passed: number;
   failed: number;
+  /** Samples handled by the state machine / system prompt, not scored here. */
+  skipped: number;
   byVerdict: Record<ExpectedVerdict, { total: number; passed: number; failed: number }>;
   scored: VerdictSampleScored[];
 }
@@ -203,6 +208,7 @@ export function scoreVerdictSample(sample: VerdictSample): VerdictSampleScored {
       actual: sample.expectedVerdict ?? VERDICT.ANSWERABLE,
       ok: true,
       reason: 'skipped:state-machine-flow',
+      skipped: true,
     };
   }
   const { verdict, reason } = classifyVerdict(sample.userMessage);
@@ -215,18 +221,28 @@ export function scoreVerdictSample(sample: VerdictSample): VerdictSampleScored {
     actual: verdict,
     ok: expected === verdict,
     reason,
+    skipped: false,
   };
 }
 
-/** Scores every sample and aggregates by verdict. */
+/**
+ * Scores every sample and aggregates by verdict.
+ *
+ * State-machine samples are tracked separately: they are counted in `scored`
+ * (so the raw sample list is preserved) but excluded from `total`, `passed`,
+ * and `failed`. The gate only claims coverage for what it actually judged —
+ * previously the headline counted every force-passed skip as a "pass", which
+ * overstated coverage by the skipped population.
+ */
 export function scoreVerdicts(samples: readonly VerdictSample[]): VerdictGateResult {
   const scored = samples.map(scoreVerdictSample);
+  const judged = scored.filter((s) => !s.skipped);
   const byVerdict: VerdictGateResult['byVerdict'] = {
     [VERDICT.ANSWERABLE]: { total: 0, passed: 0, failed: 0 },
     [VERDICT.ABSTAIN]: { total: 0, passed: 0, failed: 0 },
     [VERDICT.POLICY_BLOCKED]: { total: 0, passed: 0, failed: 0 },
   };
-  for (const s of scored) {
+  for (const s of judged) {
     const bucket = byVerdict[s.expected];
     bucket.total += 1;
     if (s.ok) {
@@ -236,9 +252,10 @@ export function scoreVerdicts(samples: readonly VerdictSample[]): VerdictGateRes
     }
   }
   return {
-    total: scored.length,
-    passed: scored.filter((s) => s.ok).length,
-    failed: scored.filter((s) => !s.ok).length,
+    total: judged.length,
+    passed: judged.filter((s) => s.ok).length,
+    failed: judged.filter((s) => !s.ok).length,
+    skipped: scored.length - judged.length,
     byVerdict,
     scored,
   };
@@ -246,14 +263,19 @@ export function scoreVerdicts(samples: readonly VerdictSample[]): VerdictGateRes
 
 /** Human-readable report; only failures are listed individually. */
 export function formatVerdictGateResult(result: VerdictGateResult): string {
+  const skipNote =
+    result.skipped > 0
+      ? ` (${result.skipped} skipped — state-machine flows, not scored by this gate)`
+      : '';
   const lines: string[] = [
-    `Verdict gate: ${result.passed}/${result.total} samples match expected behavior`,
+    `Verdict gate: ${result.passed}/${result.total} judged samples match expected behavior${skipNote}`,
     `  answerable:     ${result.byVerdict[VERDICT.ANSWERABLE].passed}/${result.byVerdict[VERDICT.ANSWERABLE].total} ok`,
     `  abstain:        ${result.byVerdict[VERDICT.ABSTAIN].passed}/${result.byVerdict[VERDICT.ABSTAIN].total} ok`,
     `  policy_blocked: ${result.byVerdict[VERDICT.POLICY_BLOCKED].passed}/${result.byVerdict[VERDICT.POLICY_BLOCKED].total} ok`,
+    `  skipped:        ${result.skipped} (state-machine flows, not scored by this gate)`,
   ];
   for (const s of result.scored) {
-    if (!s.ok) {
+    if (!s.skipped && !s.ok) {
       lines.push(
         `  FAIL ${s.id} (${s.category}): expected=${s.expected} actual=${s.actual} (${s.reason})`,
         `       "${s.userMessage}"`,

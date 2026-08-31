@@ -18,6 +18,7 @@
 // Load .env before any module reads process.env (must be the first import)
 import 'dotenv/config';
 
+import { timingSafeEqual } from 'crypto';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import {
@@ -107,12 +108,31 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
  * In production mode (PILOT_MODE=false) startup fails fast unless a key is
  * set, so this middleware is always enforced in production.
  */
+/**
+ * Constant-time string comparison for the admin key.
+ *
+ * A naive `===` on a secret leaks information through timing: an attacker can
+ * measure how many leading characters matched. timingSafeEqual runs in time
+ * proportional to the buffer length regardless of match position; on a length
+ * mismatch we still burn a comparable comparison before rejecting so the
+ * length of the configured key is not observable either.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) {
+    timingSafeEqual(aBuf, Buffer.alloc(aBuf.length));
+    return false;
+  }
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 function requireAdminAuth(req: Request, res: Response): boolean {
   if (!isAdminApiKeyConfigured()) {
     return true; // No key configured — allow (pilot/dev mode)
   }
   const provided = req.headers['x-admin-key'];
-  if (typeof provided === 'string' && provided === config.adminApiKey) {
+  if (typeof provided === 'string' && constantTimeEqual(provided, config.adminApiKey)) {
     return true;
   }
   res.status(401).json({

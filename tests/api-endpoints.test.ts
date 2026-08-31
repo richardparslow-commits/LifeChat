@@ -574,6 +574,18 @@ describe('Admin auth middleware', () => {
       expect(res.status).toBe(401);
     });
 
+    it('rejects a wrong key of the same length (401)', async () => {
+      // Same length as ADMIN_KEY with a matching prefix — a naive
+      // startsWith/prefix-optimized comparison would leak, and a buggy
+      // constant-time implementation could accept it. Must still be rejected.
+      const sameLengthWrong = 'test-admin-secret-999';
+      expect(sameLengthWrong.length).toBe(ADMIN_KEY.length);
+      const res = await request(loaded.app)
+        .get('/api/system-prompt')
+        .set('x-admin-key', sameLengthWrong);
+      expect(res.status).toBe(401);
+    });
+
     it('rejects GET /api/sessions without x-admin-key (401)', async () => {
       const res = await request(loaded.app).get('/api/sessions');
       expect(res.status).toBe(401);
