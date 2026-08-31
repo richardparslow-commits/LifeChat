@@ -12,7 +12,10 @@
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write src/ tests/",
     "format:check": "prettier --check src/ tests/",
-    "test": "jest"
+    "test": "jest",
+    "test:guardrails:golden": "ts-node src/evaluation/persona-guardrail-gate.ts",
+    "test:verdicts": "ts-node src/evaluation/verdict-gate.ts",
+    "test:persona": "npm run test:guardrails:golden && jest tests/persona-guardrails.test.ts tests/persona-guardrail-gate.test.ts"
   },
   "keywords": [
     "life-insurance",

@@ -116,10 +116,14 @@ describe('logAbstention', () => {
     const logPath = makeLogPath('off');
     await withLogPath(logPath, false, () => {
       logAbstention({ userMessage: 'whatever' });
+      // With logging disabled, the isolated (temp) log path must stay empty
+      // and the read/aggregate helpers must report nothing. These reads run
+      // while config.abstentionLogPath points at the temp path, not the shared
+      // default data/abstention-log.jsonl which the live server may write to.
+      expect(existsSync(logPath)).toBe(false);
+      expect(readAbstentionLog(10)).toEqual([]);
+      expect(abstentionCountsByCategory()).toEqual({});
     });
-    expect(existsSync(logPath)).toBe(false);
-    expect(readAbstentionLog(10)).toEqual([]);
-    expect(abstentionCountsByCategory()).toEqual({});
   });
 
   it('never throws even when the target path is unwritable', async () => {
