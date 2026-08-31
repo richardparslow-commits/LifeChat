@@ -49,6 +49,9 @@ function makeValidResponse(overrides: Partial<AssistantResponse> = {}): Assistan
       income_replacement_years: null,
       future_expenses: null,
       complete: false,
+      range_min: null,
+      range_max: null,
+      range_label: null,
     },
     proposed_action: 'none',
     action_arguments: {},
@@ -309,6 +312,9 @@ describe('Schema — cross-field rule validation', () => {
       income_replacement_years: null,
       future_expenses: null,
       complete: false,
+      range_min: null,
+      range_max: null,
+      range_label: null,
     };
     const parsed = AssistantResponseSchema.safeParse(response);
     expect(parsed.success).toBe(true);
@@ -349,6 +355,9 @@ describe('Schema — cross-field rule validation', () => {
       income_replacement_years: 10,
       future_expenses: null,
       complete: true,
+      range_min: null,
+      range_max: null,
+      range_label: null,
     };
     const errors = validateSchemaRules(response);
     expect(errors.some((e) => e.includes('requires all three inputs'))).toBe(true);
@@ -363,6 +372,9 @@ describe('Schema — cross-field rule validation', () => {
       income_replacement_years: null,
       future_expenses: null,
       complete: false,
+      range_min: null,
+      range_max: null,
+      range_label: null,
     };
     const errors = validateSchemaRules(response);
     expect(errors.some((e) => e.includes('inputs require active'))).toBe(true);
@@ -377,9 +389,68 @@ describe('Schema — cross-field rule validation', () => {
       income_replacement_years: 99,
       future_expenses: null,
       complete: false,
+      range_min: null,
+      range_max: null,
+      range_label: null,
     };
     const parsed = AssistantResponseSchema.safeParse(response);
     expect(parsed.success).toBe(false);
+  });
+
+  test('accepts a completed DIME block carrying the structured range', () => {
+    const response = makeValidResponse({ state: 'contact_offer' });
+    response.dime_estimator = {
+      active: true,
+      step: null,
+      has_mortgage_or_debt: true,
+      income_replacement_years: 10,
+      future_expenses: true,
+      complete: true,
+      range_min: 600000,
+      range_max: 1000000,
+      range_label: '$600,000 – $1,000,000',
+    };
+    const parsed = AssistantResponseSchema.safeParse(response);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(validateSchemaRules(parsed.data)).toEqual([]);
+      expect(parsed.data.dime_estimator.range_min).toBe(600000);
+      expect(parsed.data.dime_estimator.range_max).toBe(1000000);
+    }
+  });
+
+  test('rejects a range on a non-complete DIME block', () => {
+    const response = makeValidResponse({ state: 'dime_estimator' });
+    response.dime_estimator = {
+      active: true,
+      step: 1,
+      has_mortgage_or_debt: null,
+      income_replacement_years: null,
+      future_expenses: null,
+      complete: false,
+      range_min: 600000,
+      range_max: 1000000,
+      range_label: null,
+    };
+    const errors = validateSchemaRules(response);
+    expect(errors.some((e) => e.includes('range fields require complete=true'))).toBe(true);
+  });
+
+  test('rejects a complete DIME block without a populated range', () => {
+    const response = makeValidResponse({ state: 'contact_offer' });
+    response.dime_estimator = {
+      active: true,
+      step: null,
+      has_mortgage_or_debt: true,
+      income_replacement_years: 10,
+      future_expenses: true,
+      complete: true,
+      range_min: null,
+      range_max: null,
+      range_label: null,
+    };
+    const errors = validateSchemaRules(response);
+    expect(errors.some((e) => e.includes('requires a populated range'))).toBe(true);
   });
 
   test('affirmed medical consent without version fails', () => {
