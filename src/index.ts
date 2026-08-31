@@ -722,7 +722,14 @@ app.post('/api/consent', (req: Request, res: Response) => {
 
   // Persist the lead record (with its consent artifact) so the broker can
   // retrieve it and the record survives for the TDPSA retention window.
-  saveLeadRecord(lead);
+  // Fail closed: never acknowledge consent if the durable write failed —
+  // the lead is the consent proof, so a lost write must not be confirmed.
+  if (!saveLeadRecord(lead)) {
+    return res.status(500).json({
+      error: 'Lead storage failed',
+      message: 'We could not securely store your information right now. Please try again later.',
+    });
+  }
 
   return res.json({
     leadId: lead.lead_id,

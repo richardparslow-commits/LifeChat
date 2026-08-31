@@ -593,6 +593,34 @@ describe('POST /api/consent', () => {
   });
 });
 
+describe('POST /api/consent fails closed when the lead log is unwritable', () => {
+  let loaded: LoadedApp;
+
+  beforeAll(async () => {
+    loaded = await loadApp({
+      LIFECHAT_PORT: '0',
+      LLM_API_KEY: '',
+      LEAD_LOG_PATH: '/dev/null/leads.jsonl',
+    });
+  });
+
+  afterAll(async () => {
+    await loaded.cleanup();
+  });
+
+  it('returns 500 and does not acknowledge consent when persistence fails', async () => {
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'email',
+      email: 'failclosed@example.com',
+      firstName: 'Fail',
+    });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Lead storage failed');
+    expect(res.body.leadId).toBeUndefined();
+  });
+});
+
 /**
  * Admin auth middleware tests.
  *
