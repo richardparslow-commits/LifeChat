@@ -133,6 +133,14 @@ export const DimeEstimatorSchema = z.object({
   future_expenses: z.boolean().nullable().default(null),
   /** True when all three inputs are collected (application-derived). */
   complete: z.boolean().default(false),
+  /**
+   * Structured illustrative range on completion (application-derived; only
+   * populated when complete=true) so the handoff can carry the educational
+   * figure without the model inventing amounts.
+   */
+  range_min: z.number().int().nonnegative().nullable().default(null),
+  range_max: z.number().int().nonnegative().nullable().default(null),
+  range_label: z.string().nullable().default(null),
 });
 
 /**
@@ -147,6 +155,9 @@ export const EMPTY_DIME_ESTIMATOR: DimeEstimator = {
   income_replacement_years: null,
   future_expenses: null,
   complete: false,
+  range_min: null,
+  range_max: null,
+  range_label: null,
 };
 
 /**
@@ -337,6 +348,19 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
     dime.future_expenses !== null;
   if (dimeHasInput && !dime.active) {
     errors.push('dime_estimator inputs require active=true');
+  }
+  // The structured educational range is only carried on completion, and a
+  // complete estimator must carry it (application-derived; the model never
+  // invents these figures — it is how the handoff receives the estimate).
+  const rangePresent =
+    dime.range_min !== null || dime.range_max !== null || dime.range_label !== null;
+  if (!dime.complete && rangePresent) {
+    errors.push('dime_estimator range fields require complete=true');
+  }
+  if (dime.complete && !rangePresent) {
+    errors.push(
+      'dime_estimator.complete=true requires a populated range (range_min/range_max/range_label)',
+    );
   }
 
   return errors;

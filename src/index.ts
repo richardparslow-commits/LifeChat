@@ -270,6 +270,9 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         income_replacement_years: null,
         future_expenses: null,
         complete: false,
+        range_min: null,
+        range_max: null,
+        range_label: null,
       },
       proposed_action: 'none',
       action_arguments: {},
@@ -329,6 +332,9 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           income_replacement_years: null,
           future_expenses: null,
           complete: false,
+          range_min: null,
+          range_max: null,
+          range_label: null,
         },
         proposed_action: 'request_human_handoff',
         action_arguments: {
@@ -441,6 +447,11 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           step: null,
           ...merged,
           complete: true,
+          // Carry the app-computed educational range as structured data so the
+          // handoff can receive it; the model never produces these figures.
+          range_min: estimate.min,
+          range_max: estimate.max,
+          range_label: estimate.rangeLabel,
         },
         analytics: {
           ...response.analytics,
@@ -456,6 +467,9 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           step: nextDimeStep(merged),
           ...merged,
           complete: false,
+          range_min: null,
+          range_max: null,
+          range_label: null,
         },
         analytics: isDimeEntry
           ? { ...response.analytics, event_name: 'ai_dime_offer' }
