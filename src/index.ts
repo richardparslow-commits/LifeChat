@@ -25,6 +25,7 @@ import {
   PRODUCT_DEFINITION,
   isLicenseNumberConfigured,
   isAdminApiKeyConfigured,
+  isRecordEncryptionKeyConfigured,
 } from './config/app-config';
 import {
   SYSTEM_PROMPT,
@@ -840,6 +841,21 @@ if (!config.pilotMode && !isAdminApiKeyConfigured()) {
   console.error(
     'FATAL: production startup requires an ADMIN_API_KEY in the environment. ' +
       'Set it before disabling pilot mode; admin endpoints must not be public.',
+  );
+  process.exit(1);
+}
+
+/**
+ * Production gate: at-rest record encryption (RECORD_ENCRYPTION_KEY) is
+ * required before going live so DSR and lead records — which may contain PII
+ * and are legal/consent artifacts — are never written to disk in plaintext.
+ * In pilot mode records may fall back to plaintext for dev convenience.
+ */
+if (!config.pilotMode && !isRecordEncryptionKeyConfigured()) {
+  console.error(
+    'FATAL: production startup requires a RECORD_ENCRYPTION_KEY in the environment. ' +
+      'Set it before disabling pilot mode; DSR/lead records are encrypted at rest ' +
+      'with AES-256-GCM and must never be written in plaintext in production.',
   );
   process.exit(1);
 }

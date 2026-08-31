@@ -6,7 +6,10 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
+import { dirname } from 'path';
 import { config } from '../config/app-config';
+import { encryptRecordLine, decryptRecordLine } from '../privacy/record-encryption';
 
 /**
  * Permitted lead fields (Section 4.7).
@@ -166,11 +169,55 @@ export function createLeadRecord(
 
 /**
  * In-memory lead store for the pilot phase (mirrors the DSR pattern).
- * Persist to the operational CRM / lead database in production — lead
- * records and their consent artifacts are legal records that must survive
- * process restarts (TDPSA retention, consent proof).
+ * Backed by an append-only JSONL file (encrypted at rest when a
+ * RECORD_ENCRYPTION_KEY is set) so lead records and their consent artifacts
+ * survive process restarts. Lead records and consent proof are legal records
+ * under TDPSA retention / consent-proof requirements and must not be lost
+ * when the server restarts.
  */
 const leadRecords: LeadRecord[] = [];
+
+/** Loads existing lead records from the JSONL log at startup. */
+function loadLeadRecordsFromDisk(): void {
+  const logPath = config.leadLogPath;
+  if (!existsSync(logPath)) return;
+  try {
+    const lines = readFileSync(logPath, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim().length > 0);
+    for (const line of lines) {
+      try {
+        const plain = decryptRecordLine(line);
+        if (plain === null) continue; // cannot decode — skip
+        const parsed = JSON.parse(plain) as LeadRecord;
+        if (parsed && parsed.lead_id) {
+          leadRecords.push(parsed);
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+  } catch {
+    // Best-effort — don't block startup if the log can't be read
+  }
+}
+
+// Load persisted records on module init so they survive restarts
+loadLeadRecordsFromDisk();
+
+/** Appends a lead record to the JSONL log (best-effort, never throws). */
+function persistLeadRecord(lead: LeadRecord): void {
+  try {
+    const logPath = config.leadLogPath;
+    const dir = dirname(logPath);
+    if (dir && dir !== '.') {
+      mkdirSync(dir, { recursive: true });
+    }
+    appendFileSync(logPath, `${encryptRecordLine(JSON.stringify(lead))}\n`, 'utf8');
+  } catch {
+    // Best-effort only — persistence must never block consent submission
+  }
+}
 
 /**
  * Persists a lead record to the store. The record should already be fully
@@ -179,6 +226,7 @@ const leadRecords: LeadRecord[] = [];
  */
 export function saveLeadRecord(lead: LeadRecord): LeadRecord {
   leadRecords.push(lead);
+  persistLeadRecord(lead);
   return lead;
 }
 
@@ -197,10 +245,18 @@ export function listLeadRecords(): LeadRecord[] {
 }
 
 /**
- * Clears all lead records (testing).
+ * Clears all lead records (testing). Also removes the JSONL log file so
+ * tests start with a clean slate on disk as well as in memory.
  */
 export function clearAllLeadRecords(): void {
   leadRecords.length = 0;
+  try {
+    if (existsSync(config.leadLogPath)) {
+      unlinkSync(config.leadLogPath);
+    }
+  } catch {
+    // Best-effort — test cleanup must not throw
+  }
 }
 
 /**

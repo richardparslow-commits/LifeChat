@@ -91,6 +91,15 @@ export interface AppConfig {
   adminApiKey: string;
   /** Where the append-only JSONL DSR records log is written. */
   dsrLogPath: string;
+  /** Where the append-only JSONL lead/consent records log is written. */
+  leadLogPath: string;
+  /**
+   * Secret used to encrypt record logs (DSR + lead) at rest with AES-256-GCM.
+   * Required in production (PILOT_MODE=false); in pilot mode records fall back
+   * to plaintext for dev convenience. DSR/lead records may contain PII, so in
+   * production this must be set (see index.ts production gate).
+   */
+  recordEncryptionKey: string;
 }
 
 /**
@@ -140,6 +149,8 @@ export const config: AppConfig = {
   abstentionLogPath: process.env.ABSTENTION_LOG_PATH || 'data/abstention-log.jsonl',
   adminApiKey: process.env.ADMIN_API_KEY || '',
   dsrLogPath: process.env.DSR_LOG_PATH || 'data/dsr-records.jsonl',
+  leadLogPath: process.env.LEAD_LOG_PATH || 'data/lead-records.jsonl',
+  recordEncryptionKey: process.env.RECORD_ENCRYPTION_KEY || '',
 };
 
 /**
@@ -160,6 +171,15 @@ export function isLicenseNumberConfigured(): boolean {
  */
 export function isAdminApiKeyConfigured(): boolean {
   return config.adminApiKey.trim().length > 0;
+}
+
+/**
+ * True when at-rest record encryption is configured (RECORD_ENCRYPTION_KEY
+ * non-empty). In production mode startup fails fast until a key is supplied,
+ * so DSR and lead logs are never persisted in plaintext in production.
+ */
+export function isRecordEncryptionKeyConfigured(): boolean {
+  return config.recordEncryptionKey.trim().length > 0;
 }
 
 /**
