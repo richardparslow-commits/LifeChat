@@ -526,6 +526,71 @@ describe('POST /api/consent', () => {
     expect(res.body.status).toBe('created');
     expect(res.body.leadId).toBeTruthy();
   });
+
+  it('uses the stored session source URL over the body value', async () => {
+    // A prior chat message validated and stored the canonical path on the
+    // session. The consent form body carries a different (hostile) URL — the
+    // lead must carry the session's stored path, never the body value.
+    const chat = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'consent-stored-url',
+      currentState: 'education',
+      message: 'What is term life insurance?',
+      sourceUrl: 'https://lifepolicypilot.blog/term-vs-whole-life/?email=user@example.com',
+    });
+    expect(chat.status).toBe(200);
+
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'email',
+      email: 'test@example.com',
+      sessionId: 'consent-stored-url',
+      sourceUrl: 'https://evil.example.com/malicious-path?steal=1',
+    });
+    expect(res.status).toBe(200);
+
+    // Import AFTER loadApp so the module instance matches the app's.
+    const { getLeadRecord } = await import('../src/consent/consent-model');
+    const lead = getLeadRecord(res.body.leadId);
+    expect(lead).toBeTruthy();
+    expect(lead!.sanitized_canonical_path).toBe('/term-vs-whole-life/');
+    expect(lead!.sanitized_canonical_path).not.toContain('malicious');
+    expect(lead!.sanitized_canonical_path).not.toContain('steal');
+  });
+
+  it('falls back to the sanitized body URL when the session has no stored URL', async () => {
+    // A session id with no prior chat message (or no sourceUrl yet) must fall
+    // back to re-sanitizing the body value.
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'email',
+      email: 'fallback@example.com',
+      sessionId: 'consent-no-stored-url',
+      sourceUrl: 'https://lifepolicypilot.blog/faq/?utm_source=google',
+    });
+    expect(res.status).toBe(200);
+
+    const { getLeadRecord } = await import('../src/consent/consent-model');
+    const lead = getLeadRecord(res.body.leadId);
+    expect(lead).toBeTruthy();
+    expect(lead!.sanitized_canonical_path).toBe('/faq/');
+    expect(lead!.sanitized_canonical_path).not.toContain('utm_source');
+  });
+
+  it('sanitizes the body URL when no session id is provided', async () => {
+    const res = await request(loaded.app).post('/api/consent').send({
+      contactConsentAffirmed: true,
+      contactChannel: 'email',
+      email: 'nosession@example.com',
+      sourceUrl: 'https://lifepolicypilot.blog/contact/?email=user@example.com',
+    });
+    expect(res.status).toBe(200);
+
+    const { getLeadRecord } = await import('../src/consent/consent-model');
+    const lead = getLeadRecord(res.body.leadId);
+    expect(lead).toBeTruthy();
+    expect(lead!.sanitized_canonical_path).toBe('/contact/');
+    expect(lead!.sanitized_canonical_path).not.toContain('user@example.com');
+  });
 });
 
 /**
