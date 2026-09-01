@@ -15,19 +15,19 @@
 
 ## 2. Fields collected (only after consent)
 
-| Field | Type | Notes |
-|---|---|---|
-| Date of birth | string (YYYY-MM-DD) | Never full government identifier |
-| Gender | enum | male / female / other / prefer_not_to_say |
-| Height | number (inches) | |
-| Weight | number (lbs) | |
-| Tobacco/nicotine use | enum | none / cigarettes / vaping / other_nicotine / prefer_not_to_say (includes any vaping per the request) |
-| Current medical conditions | string[] | As diagnosed by a doctor, as stated by the user |
-| Current medications | string[] | As prescribed by a doctor, as stated by the user |
-| Policy type seeking | enum | term / whole_life / iul / unsure |
-| Coverage amount seeking | string | Preference only — never quoted |
-| Diabetes (conditional) | object | type (1/2/unsure), treatment (pills/insulin/other), last A1C |
-| Cancer history (conditional) | object | cancer type, years cancer-free |
+| Field                        | Type                | Notes                                                                                                 |
+| ---------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------- |
+| Date of birth                | string (YYYY-MM-DD) | Never full government identifier                                                                      |
+| Gender                       | enum                | male / female / other / prefer_not_to_say                                                             |
+| Height                       | number (inches)     |                                                                                                       |
+| Weight                       | number (lbs)        |                                                                                                       |
+| Tobacco/nicotine use         | enum                | none / cigarettes / vaping / other_nicotine / prefer_not_to_say (includes any vaping per the request) |
+| Current medical conditions   | string[]            | As diagnosed by a doctor, as stated by the user                                                       |
+| Current medications          | string[]            | As prescribed by a doctor, as stated by the user                                                      |
+| Policy type seeking          | enum                | term / whole_life / iul / unsure                                                                      |
+| Coverage amount seeking      | string              | Preference only — never quoted                                                                        |
+| Diabetes (conditional)       | object              | type (1/2/unsure), treatment (pills/insulin/other), last A1C                                          |
+| Cancer history (conditional) | object              | cancer type, years cancer-free                                                                        |
 
 ## 3. Consent flow (implemented)
 
@@ -55,14 +55,14 @@
 
 ## 6. Code touch points
 
-| Module | Change |
-|---|---|
-| `src/consent/consent-model.ts` | `MedicalProfile`, `RECOMMENDED_MEDICAL_CONSENT_COPY`, lead-record fields |
-| `src/schema/response-schema.ts` | `MedicalProfileSchema` + consent fields + validation rule |
-| `src/state-machine/state-machine.ts` | `medical_offer` / `medical_review` states, `APPROVED_MEDICAL_TOPICS` |
-| `src/prompts/system-prompt.ts` | §9.1 MEDICAL FACT-FINDING |
-| `src/evaluation/evaluation-plan.ts` | 4 medical guardrail scenarios |
-| `src/index.ts` | **Wired** — endpoint gating honors `HEALTH_DATA_COLLECTION_DISABLED` (default true). When disabled, medical context flags are forced off and health data in chat is blocked; when `HEALTH_DATA_COLLECTION_DISABLED=false`, the request-body medical flags flow into the state machine and health data is accepted only in the consented `medical_review` state |
+| Module                               | Change                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/consent/consent-model.ts`       | `MedicalProfile`, `RECOMMENDED_MEDICAL_CONSENT_COPY`, lead-record fields                                                                                                                                                                                                                                                                                       |
+| `src/schema/response-schema.ts`      | `MedicalProfileSchema` + consent fields + validation rule                                                                                                                                                                                                                                                                                                      |
+| `src/state-machine/state-machine.ts` | `medical_offer` / `medical_review` states, `APPROVED_MEDICAL_TOPICS`                                                                                                                                                                                                                                                                                           |
+| `src/prompts/system-prompt.ts`       | §9.1 MEDICAL FACT-FINDING                                                                                                                                                                                                                                                                                                                                      |
+| `src/evaluation/evaluation-plan.ts`  | 4 medical guardrail scenarios                                                                                                                                                                                                                                                                                                                                  |
+| `src/index.ts`                       | **Wired** — endpoint gating honors `HEALTH_DATA_COLLECTION_DISABLED` (default true). When disabled, medical context flags are forced off and health data in chat is blocked; when `HEALTH_DATA_COLLECTION_DISABLED=false`, the request-body medical flags flow into the state machine and health data is accepted only in the consented `medical_review` state |
 
 ## 7. Counsel checklist
 

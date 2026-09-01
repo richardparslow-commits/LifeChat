@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
+import globals from 'globals';
 
 export default tseslint.config(
   // Base JS recommended rules
@@ -48,9 +49,13 @@ export default tseslint.config(
     },
   },
 
-  // Config files
+  // Config files — declare Node globals so `module`, `require`, etc.
+  //   are not flagged as undefined by `no-undef`.
   {
     files: ['*.js', '*.cjs', '*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
     },
