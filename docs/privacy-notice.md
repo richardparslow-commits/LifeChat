@@ -46,12 +46,12 @@ email, phone, or other communications with us.
 
 ### A. Information You Provide Directly
 
-| Category | Examples | Purpose |
-|---|---|---|
-| **Contact information** | Name, email address, phone number | To respond to your inquiries, schedule appointments, and provide the information you request |
-| **Profile and preference information** | Optional qualification answers (your goal, your decision timeline, whether you currently have coverage), product interest, coverage-amount interest | To help Richard Parslow prepare for a conversation and, with your consent, match carriers to your profile |
-| **Health information (sensitive)** | Date of birth, gender, height/weight, tobacco or nicotine use, diagnosed conditions, prescribed medications | Collected **only** with your explicit, separate, versioned consent, to help match carriers to your profile. This notice does not offer quotes; a personalized review requires the licensed broker |
-| **Chat and usage information** | The text you send in the chat, session identifiers, the page you were viewing | To answer your questions and improve the assistant through de-identified analytics (no personal information in analytics) |
+| Category                               | Examples                                                                                                                                            | Purpose                                                                                                                                                                                           |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Contact information**                | Name, email address, phone number                                                                                                                   | To respond to your inquiries, schedule appointments, and provide the information you request                                                                                                      |
+| **Profile and preference information** | Optional qualification answers (your goal, your decision timeline, whether you currently have coverage), product interest, coverage-amount interest | To help Richard Parslow prepare for a conversation and, with your consent, match carriers to your profile                                                                                         |
+| **Health information (sensitive)**     | Date of birth, gender, height/weight, tobacco or nicotine use, diagnosed conditions, prescribed medications                                         | Collected **only** with your explicit, separate, versioned consent, to help match carriers to your profile. This notice does not offer quotes; a personalized review requires the licensed broker |
+| **Chat and usage information**         | The text you send in the chat, session identifiers, the page you were viewing                                                                       | To answer your questions and improve the assistant through de-identified analytics (no personal information in analytics)                                                                         |
 
 ### B. We do NOT collect
 
@@ -91,11 +91,11 @@ We do **not**:
 GLBA allows sharing needed to provide the insurance service you asked for and with companies that
 work for us. We share your personal information with the following **categories of third parties**:
 
-| Category | Examples | Purpose |
-|---|---|---|
-| **Insurance carriers** | Life insurance companies with whom Richard Parslow is appointed | To process an application or policy service request for the carrier you choose — **only with your explicit consent** |
-| **Service providers** | Companies we hire to run the site and the assistant (hosting, chat/AI infrastructure, analytics, and scheduling) | Bound by contract to protect your information, follow our instructions, and help us respond to your requests |
-| **Regulators & law enforcement** | Texas Department of Insurance, courts, law enforcement | As required by law when legally required |
+| Category                         | Examples                                                                                                         | Purpose                                                                                                              |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Insurance carriers**           | Life insurance companies with whom Richard Parslow is appointed                                                  | To process an application or policy service request for the carrier you choose — **only with your explicit consent** |
+| **Service providers**            | Companies we hire to run the site and the assistant (hosting, chat/AI infrastructure, analytics, and scheduling) | Bound by contract to protect your information, follow our instructions, and help us respond to your requests         |
+| **Regulators & law enforcement** | Texas Department of Insurance, courts, law enforcement                                                           | As required by law when legally required                                                                             |
 
 We do **not** share your personal information with:
 
