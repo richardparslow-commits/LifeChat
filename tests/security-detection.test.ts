@@ -260,10 +260,34 @@ describe('Security — detectSensitiveData', () => {
     expect(detectSensitiveData('Call (512) 555-1234')).toBe('pii');
   });
 
-  test('health data takes priority over PII (health checked first)', () => {
-    // If a message contains both health and PII patterns, health is detected first
+  test('health data takes priority over PII (health checked before PII)', () => {
+    // PII is checked last; if a message contains both health and PII, health wins
     const result = detectSensitiveData('I have diabetes and my email is test@example.com');
     expect(result).toBe('health_data');
+  });
+
+  test('financial-account data takes priority over health (financial checked first)', () => {
+    // Financial patterns are checked before health so that mixed messages
+    // (e.g. account number + diagnosis) always hit the financial block,
+    // even in medical_review where health_data would be allowed through.
+    const result = detectSensitiveData('My account number is 123456789 and I have diabetes');
+    expect(result).toBe('financial_account_data');
+  });
+
+  test('accepts separators (spaces/hyphens) in account and routing numbers', () => {
+    expect(detectSensitiveData('account 1234-5678-9012')).toBe('financial_account_data');
+    expect(detectSensitiveData('routing 123 456 789')).toBe('financial_account_data');
+    expect(detectSensitiveData('account 1234 5678 9012')).toBe('financial_account_data');
+    expect(detectSensitiveData('my acct 1234-5678')).toBe('financial_account_data');
+  });
+
+  test('requires whole-word keywords (no substring matches)', () => {
+    // "bankruptcy" contains "bank" but should not trigger
+    expect(detectSensitiveData('my bankruptcy case ID is 12345678')).toBeNull();
+    // "accountancy" contains "account" but should not trigger
+    expect(detectSensitiveData('the accountancy reference is 12345678')).toBeNull();
+    // "banking" is a different word from "bank"
+    expect(detectSensitiveData('my banking reference is 12345678')).toBeNull();
   });
 });
 

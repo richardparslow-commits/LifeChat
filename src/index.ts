@@ -160,6 +160,7 @@ function buildSensitiveDataRefusalResponse(
   handoffReason: string,
   summary: string,
   topicCategory: string | null | undefined,
+  originatingStage: string,
 ): AssistantResponse {
   return {
     assistant_message: assistantMessage,
@@ -208,7 +209,7 @@ function buildSensitiveDataRefusalResponse(
     analytics: {
       event_name: 'ai_handoff_request',
       topic_category: topicCategory ?? null,
-      conversation_stage: 'handoff',
+      conversation_stage: originatingStage,
       fallback_type: null,
       handoff_reason: handoffReason,
       error_code: null,
@@ -502,6 +503,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         'health_data_disclosed',
         'User disclosed health information in public chat',
         topicCategory,
+        currentState,
       );
       addAssistantMessage(sessionId, response.assistant_message);
       return res.json(response);
@@ -519,6 +521,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       'financial_account_data_disclosed',
       'User disclosed financial-account information in public chat',
       topicCategory,
+      currentState,
     );
     addAssistantMessage(sessionId, response.assistant_message);
     return res.json(response);
@@ -862,6 +865,7 @@ app.get('/api/analytics/example', (_req: Request, res: Response) => {
  * Query param: ?q=your+search+query
  */
 app.get('/api/rag/search', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   const query = (req.query.q as string) || '';
   if (!query.trim()) {
     return res.status(400).json({ error: 'Query parameter "q" is required' });
@@ -901,6 +905,7 @@ app.get('/api/session/:sessionId/history', (req: Request, res: Response) => {
  * Used for privacy withdrawal (Section 8: consent withdrawal / deletion route).
  */
 app.delete('/api/session/:sessionId', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   clearSession(req.params.sessionId);
   res.json({ sessionId: req.params.sessionId, status: 'cleared' });
 });

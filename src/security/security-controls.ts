@@ -157,6 +157,39 @@ export function detectPromptInjection(userInput: string): boolean {
 export function detectSensitiveData(
   userInput: string,
 ): (typeof INPUT_CLASSIFICATION_CATEGORIES)[number] | null {
+  // Financial-account patterns are checked BEFORE health data so that a
+  //   message containing both categories (e.g. "My account number is
+  //   123456789 and I have diabetes") always hits the financial block first.
+  //   In medical_review, health_data is allowed through — but financial
+  //   identifiers must never reach the LLM regardless of stage.
+  //   Banking identifiers, tuned like the phone rules: the number alone is
+  //   never enough, it must sit next to a whole-word account/routing/bank
+  //   keyword (or the common "acct" abbreviation). A bare 9- or 10-digit
+  //   sequence stays unclassified (it could be a case/reference id).
+  //   Routing number: 9 digits next to a banking keyword.
+  //   Account number: 8-17 digits next to a banking keyword.
+  //   Accepts spaces and hyphens within the digit group (e.g.
+  //   "1234-5678-9012" or "1234 5678 9012") since formatted account/routing
+  //   numbers are common. The keyword uses \b word boundaries so substrings
+  //   like "bankruptcy" or "accountancy" don't trigger.
+  // NOTE: must use regex literals, not `new RegExp` with template strings.
+  //   In a template literal \b becomes a backspace char and \d becomes literal
+  //   'd', so the pattern silently matches nothing.
+  const financialPatterns = [
+    // Keyword → 9-digit routing (with optional spaces/hyphens in the number)
+    /\b(?:routing|account|bank|acct)\b[^\n]{0,30}\b\d[\d\s-]{6}\d\b/i,
+    // 9-digit routing → keyword
+    /\b\d[\d\s-]{6}\d\b[^\n]{0,30}\b(?:routing|account|bank|acct)\b/i,
+    // Keyword → 8-17 digit account (with optional spaces/hyphens)
+    /\b(?:routing|account|bank|acct)\b[^\n]{0,30}\b\d[\d\s-]{6,15}\d\b/i,
+    // 8-17 digit account → keyword
+    /\b\d[\d\s-]{6,15}\d\b[^\n]{0,30}\b(?:routing|account|bank|acct)\b/i,
+  ];
+
+  if (financialPatterns.some((p) => p.test(userInput))) {
+    return 'financial_account_data';
+  }
+
   // Health data patterns
   const healthPatterns = [
     /(?:diagnos(?:ed|is)|medication|prescription|treatment|therapy|symptom|condition|disease|disorder)/i,
@@ -167,27 +200,6 @@ export function detectSensitiveData(
 
   if (healthPatterns.some((p) => p.test(userInput))) {
     return 'health_data';
-  }
-
-  // Financial-account patterns — banking identifiers, tuned like the phone
-  //   rules: the number alone is never enough, it must sit next to an
-  //   account/routing/bank keyword (or the common "acct" abbreviation).
-  //   A bare 9- or 10-digit sequence stays unclassified (it could be a
-  //   case/reference id).
-  //   Routing number: 9 digits next to a banking keyword.
-  //   Account number: 8-17 digits next to a banking keyword.
-  // NOTE: must use regex literals, not `new RegExp` with template strings.
-  //   In a template literal \b becomes a backspace char and \d becomes literal
-  //   'd', so the pattern silently matches nothing.
-  const financialPatterns = [
-    /(?:routing|account|bank|acct)[^\n]{0,30}\b\d{9}\b/i,
-    /\b\d{9}\b[^\n]{0,30}(?:routing|account|bank|acct)/i,
-    /(?:routing|account|bank|acct)[^\n]{0,30}\b\d{8,17}\b/i,
-    /\b\d{8,17}\b[^\n]{0,30}(?:routing|account|bank|acct)/i,
-  ];
-
-  if (financialPatterns.some((p) => p.test(userInput))) {
-    return 'financial_account_data';
   }
 
   // PII patterns — tuned to reduce false positives on benign numbers.

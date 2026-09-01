@@ -755,6 +755,31 @@ describe('Admin auth middleware', () => {
       expect(res.body.sessionId).toBe('test-admin-auth');
     });
 
+    it('rejects GET /api/rag/search without x-admin-key (401)', async () => {
+      const res = await request(loaded.app).get('/api/rag/search?q=term');
+      expect(res.status).toBe(401);
+    });
+
+    it('accepts GET /api/rag/search with correct x-admin-key (200)', async () => {
+      const res = await request(loaded.app)
+        .get('/api/rag/search?q=term')
+        .set('x-admin-key', ADMIN_KEY);
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects DELETE /api/session/:id without x-admin-key (401)', async () => {
+      const res = await request(loaded.app).delete('/api/session/test-admin-auth');
+      expect(res.status).toBe(401);
+    });
+
+    it('accepts DELETE /api/session/:id with correct x-admin-key (200)', async () => {
+      const res = await request(loaded.app)
+        .delete('/api/session/test-admin-auth')
+        .set('x-admin-key', ADMIN_KEY);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('cleared');
+    });
+
     it('rejects GET /api/dsr/:id without x-admin-key (401)', async () => {
       const res = await request(loaded.app).get('/api/dsr/00000000-0000-4000-8000-000000000000');
       expect(res.status).toBe(401);

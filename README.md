@@ -13,8 +13,8 @@ The assistant is **educational, not advisory**. It may explain approved content 
 - **Grounded RAG answers with citations** — retrieval over approved sources (broker-approved articles, controlled FAQ, NAIC/TDI/regulatory material) with claim-level source titles and canonical URLs. Grounding failures and off-topic questions produce an abstention sentence rather than a guess.
 - **Deterministic safety gates before any LLM call** — prompt-injection detection, health-data and financial-account-data blocking (with redacted session history and a licensed-broker handoff), and a kill switch.
 - **Persona & policy guardrails** — a hardened system prompt (identity, abstention rules, prohibited promotion/comparison copy, consent rules) enforced by a deterministic persona validator, an offline golden-set gate (`test:guardrails:golden`), and a verdict gate (`test:verdicts`) so approved personas can never drift from model behavior.
-- **Consented lead capture & data-subject rights** — `/api/consent` and `/api/dsr` both persist **fail-closed** (an acknowledgment is only issued after the record hits disk) and **encrypted at rest** (AES-256-GCM envelopes; loaders warn loudly when records are skipped for a missing or mismatched `RECORD_ENCRYPTION_KEY`).
-- **Admin-gated operations** — system prompt, session history, session listing/deletion, RAG search, and DSR status require an `x-admin-key` header compared in constant time.
+- **Consented lead capture & data-subject rights** — `/api/consent` and `/api/dsr` both persist **fail-closed** (an acknowledgment is only issued after the record hits disk) and **encrypted at rest** when `RECORD_ENCRYPTION_KEY` is set (AES-256-GCM envelopes; loaders warn loudly when records are skipped for a missing or mismatched key; in pilot mode without a key, records persist in plaintext so never deploy pilot mode without setting the key).
+- **Admin-gated operations** — system prompt, session history, session listing/deletion, RAG search, and DSR status require an `x-admin-key` header compared in constant time when `ADMIN_API_KEY` is configured.
 - **Per-window budgets that actually enforce** — 20 requests and 50,000 tokens per session per 60-second window (the token budget counts real LLM usage end-to-end; a locked-out session recovers on window rollover).
 - **Contextual content bridge** — the article being read enriches the opening message and prioritizes RAG retrieval; pre-approved visual cards can attach to responses.
 
@@ -187,44 +187,43 @@ LEAD_LOG_PATH="data/lead-records.jsonl"
 
 `🔒` = requires `x-admin-key` when `ADMIN_API_KEY` is configured.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Product info & available endpoints |
-| GET | `/health` | Health check (kill switch status + compliance matrix overview) |
-| GET | `/api/disclosure` | First-message disclosure & AI identity |
-| GET | `/api/consent-text` | Consent copy for counsel review |
-| GET | `/api/availability` | Staff availability & SLA message |
-| GET | `/api/system-prompt` 🔒 | Hardened system prompt |
-| POST | `/api/chat` | Main chat endpoint (kill switch → rate limit → injection → sensitive-data gates → RAG/LLM → validate/retry → fallback) |
-| POST | `/api/consent` | Submit consent for lead capture — **fail-closed** (500, no `leadId`, when the encrypted write fails) |
-| POST | `/api/dsr` | Submit a data subject request — **fail-closed** (503 "Storage unavailable" on write failure vs. 400 on validation) |
-| GET | `/api/dsr/:requestId` 🔒 | DSR request status |
-| GET | `/api/rag/search` 🔒 | RAG retrieval search |
-| GET | `/api/session/:sessionId/history` 🔒 | Conversation history (redacted placeholders for sensitive messages) |
-| DELETE | `/api/session/:sessionId` 🔒 | Delete a session |
-| GET | `/api/sessions` 🔒 | List sessions |
-| GET | `/api/analytics/example` | Example GTM dataLayer snippet |
+| Method | Path                                 | Description                                                                                                            |
+| ------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/`                                  | Product info & available endpoints                                                                                     |
+| GET    | `/health`                            | Health check (kill switch status + compliance matrix overview)                                                         |
+| GET    | `/api/disclosure`                    | First-message disclosure & AI identity                                                                                 |
+| GET    | `/api/consent-text`                  | Consent copy for counsel review                                                                                        |
+| GET    | `/api/availability`                  | Staff availability & SLA message                                                                                       |
+| GET    | `/api/system-prompt` 🔒              | Hardened system prompt                                                                                                 |
+| POST   | `/api/chat`                          | Main chat endpoint (kill switch → rate limit → injection → sensitive-data gates → RAG/LLM → validate/retry → fallback) |
+| POST   | `/api/consent`                       | Submit consent for lead capture — **fail-closed** (500, no `leadId`, when the encrypted write fails)                   |
+| POST   | `/api/dsr`                           | Submit a data subject request — **fail-closed** (503 "Storage unavailable" on write failure vs. 400 on validation)     |
+| GET    | `/api/dsr/:requestId` 🔒             | DSR request status                                                                                                     |
+| GET    | `/api/rag/search` 🔒                 | RAG retrieval search                                                                                                   |
+| GET    | `/api/session/:sessionId/history` 🔒 | Conversation history (redacted placeholders for sensitive messages)                                                    |
+| DELETE | `/api/session/:sessionId` 🔒         | Delete a session                                                                                                       |
+| GET    | `/api/sessions` 🔒                   | List sessions                                                                                                          |
+| GET    | `/api/analytics/example`             | Example GTM dataLayer snippet                                                                                          |
 
 ## Embedding the Widget
 
 Add this script to your WordPress/Elementor site (via HTML widget or theme footer):
 
 ```html
-<script src="https://your-server.com/widget.js"
-        data-server-url="https://your-server.com"></script>
+<script src="https://your-server.com/widget.js" data-server-url="https://your-server.com"></script>
 ```
 
 Or open `public/demo.html` served by the app (e.g. `http://localhost:3001/demo.html`) for a local preview — the widget in the bottom-right corner talks to the same-origin `/api/disclosure` and `/api/chat` endpoints.
 
 ## Phased Rollout (Section 6)
 
-| Phase | Description | Status |
-|-------|-------------|--------|
+| Phase   | Description                                                                                                      | Status                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------- |
 | Phase 0 | Compliance design — counsel classifies flows — [classification matrix](docs/compliance-classification-matrix.md) | Pending — draft for counsel |
-| Phase 1 | Educational pilot — RAG over approved sources only | **Structured** |
-| Phase 2 | Consented lead capture — minimal fields + CRM | Structured |
-| Phase 3 | Scheduling — read-only availability then booking | Structured |
-| Phase 4 | Controlled optimization — A/B test presentation only | Future |
+| Phase 1 | Educational pilot — RAG over approved sources only                                                               | **Structured**              |
+| Phase 2 | Consented lead capture — minimal fields + CRM                                                                    | Structured                  |
+| Phase 3 | Scheduling — read-only availability then booking                                                                 | Structured                  |
+| Phase 4 | Controlled optimization — A/B test presentation only                                                             | Future                      |
 
 ## Key Design Documents
 
