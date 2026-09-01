@@ -11,6 +11,7 @@ import {
   sanitizeRetrievedContent,
   checkRateLimit,
   incrementToolCallCount,
+  incrementTokenCount,
   isKillSwitchActive,
   activateKillSwitch,
   deactivateKillSwitch,
@@ -366,6 +367,26 @@ describe('Security — rate limiting', () => {
     const sessionId = `test_tool_count_${Date.now()}`;
     checkRateLimit(sessionId);
     expect(() => incrementToolCallCount(sessionId)).not.toThrow();
+  });
+
+  test('incrementTokenCount accumulates and trips the token budget', () => {
+    const sessionId = `test_token_budget_${Date.now()}`;
+    checkRateLimit(sessionId);
+    // Feed the full per-window budget from real LLM usage; the next request
+    // must be blocked with token_budget_exceeded.
+    incrementTokenCount(sessionId, RATE_LIMIT_CONFIG.MAX_TOKENS_PER_WINDOW);
+    const blocked = checkRateLimit(sessionId);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.reason).toBe('token_budget_exceeded');
+  });
+
+  test('incrementTokenCount ignores non-positive or non-finite values', () => {
+    const sessionId = `test_token_neg_${Date.now()}`;
+    checkRateLimit(sessionId);
+    incrementTokenCount(sessionId, -5);
+    incrementTokenCount(sessionId, NaN);
+    incrementTokenCount(sessionId, Infinity);
+    expect(checkRateLimit(sessionId).allowed).toBe(true);
   });
 });
 

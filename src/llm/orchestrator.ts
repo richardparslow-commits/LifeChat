@@ -77,6 +77,13 @@ export interface OrchestratorResult {
   response: AssistantResponse;
   ragPassages: RetrievedPassage[];
   latencyMs: number;
+  /**
+   * Real LLM token usage across all attempts (initial call + validation
+   * retry), when the API reports it. Null when no LLM call succeeded — e.g.
+   * kill switch, abstention, or fallback paths. The caller feeds this into
+   * the per-window token budget (incrementTokenCount).
+   */
+  tokenUsage: { inputTokens: number; outputTokens: number } | null;
 }
 
 /**
@@ -97,6 +104,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       },
       ragPassages: [],
       latencyMs: Date.now() - startTime,
+      tokenUsage: null,
     };
   }
 
@@ -131,6 +139,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       response: buildAbstentionResponse(input, retrievalResult.passages),
       ragPassages: retrievalResult.passages,
       latencyMs: Date.now() - startTime,
+      tokenUsage: null,
     };
   }
 
@@ -150,6 +159,10 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   };
   const llmResult = await callLLM(llmOptions);
 
+  // Real token usage accumulates across the initial call and the validation
+  // retry (both consume budget) so the per-window token cap can enforce.
+  let tokenUsage = llmResult.usage ?? null;
+
   // 5. If LLM call failed, return a fallback response (Section 4.11)
   if (!llmResult.success || !llmResult.content) {
     console.error('LLM call failed:', llmResult.error);
@@ -157,6 +170,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       response: buildFallbackResponse(input, 'llm_call_failed', llmResult.error),
       ragPassages: retrievalResult.passages,
       latencyMs: Date.now() - startTime,
+      tokenUsage,
     };
   }
 
@@ -275,6 +289,12 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       ...llmOptions,
       validationFeedback: `Your previous response was rejected by the application validator.\n${firstAttempt.detail}\nReturn ONE complete JSON object matching the schema in the system prompt, with every required top-level key: assistant_message, state, citations, lead_data, consent, proposed_action, action_arguments, risk_flags, analytics.`,
     });
+    if (retryResult.usage) {
+      tokenUsage = {
+        inputTokens: (tokenUsage?.inputTokens ?? 0) + retryResult.usage.inputTokens,
+        outputTokens: (tokenUsage?.outputTokens ?? 0) + retryResult.usage.outputTokens,
+      };
+    }
     if (retryResult.success && retryResult.content) {
       const secondAttempt = attemptValidation(retryResult.content);
       if (secondAttempt.ok) {
@@ -294,6 +314,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       response: buildFallbackResponse(input, failureKind ?? 'schema_validation_failed', null),
       ragPassages: retrievalResult.passages,
       latencyMs: Date.now() - startTime,
+      tokenUsage,
     };
   }
 
@@ -328,6 +349,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     response: finalResponse,
     ragPassages: retrievalResult.passages,
     latencyMs: Date.now() - startTime,
+    tokenUsage,
   };
 }
 
