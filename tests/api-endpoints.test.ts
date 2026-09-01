@@ -96,6 +96,29 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
   });
 
+  it('blocks financial-account data with a licensed-broker handoff and redacts it from history', async () => {
+    const res = await request(loaded.app).post('/api/chat').send({
+      sessionId: 'off-edu-financial',
+      currentState: 'education',
+      message: 'My routing number is 111000025 and my account number is 409877123456',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('handoff');
+    expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
+    expect(res.body.proposed_action).toBe('request_human_handoff');
+    expect(res.body.action_arguments.handoff_reason).toBe('financial_account_data_disclosed');
+    expect(res.body.assistant_message).toContain('financial-account');
+    // The raw numbers must never appear in the reply
+    expect(res.body.assistant_message).not.toContain('111000025');
+    expect(res.body.assistant_message).not.toContain('409877123456');
+
+    // Session history stores the redacted placeholder, never the numbers
+    const history = await request(loaded.app).get('/api/session/off-edu-financial/history');
+    expect(JSON.stringify(history.body)).toContain('REDACTED');
+    expect(JSON.stringify(history.body)).not.toContain('111000025');
+    expect(JSON.stringify(history.body)).not.toContain('409877123456');
+  });
+
   it('does not honor medical consent when the flag is off (state stays medical_offer)', async () => {
     const res = await request(loaded.app).post('/api/chat').send({
       sessionId: 'off-medoffer-consent',
