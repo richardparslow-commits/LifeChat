@@ -53,6 +53,8 @@ export interface LLMCallResult {
   content: string | null;
   error?: string;
   latencyMs: number;
+  /** Token usage from the API response, when reported (null otherwise). */
+  usage?: { inputTokens: number; outputTokens: number } | null;
 }
 
 /**
@@ -216,6 +218,7 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
 
       const data = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
       const content = data.choices?.[0]?.message?.content;
 
@@ -234,6 +237,12 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
       return {
         success: true,
         content,
+        usage: data.usage
+          ? {
+              inputTokens: data.usage.prompt_tokens ?? 0,
+              outputTokens: data.usage.completion_tokens ?? 0,
+            }
+          : null,
         latencyMs: Date.now() - startTime,
       };
     } catch (err) {

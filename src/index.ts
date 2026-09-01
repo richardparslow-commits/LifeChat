@@ -77,6 +77,7 @@ import {
   detectPromptInjection,
   detectSensitiveData,
   checkRateLimit,
+  incrementTokenCount,
   isKillSwitchActive,
   startRateLimitCleanup,
 } from './security/security-controls';
@@ -562,7 +563,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     contextualInstruction = contextual.contextualInstruction;
   }
 
-  const { response, latencyMs } = await generateResponse({
+  const { response, latencyMs, tokenUsage } = await generateResponse({
     userMessage: message,
     currentState: nextState,
     conversationHistory,
@@ -572,6 +573,14 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     contextualInstruction,
     contextualArticleTopic,
   });
+
+  // Feed real LLM token usage into the session's per-window budget so the
+  // token cap actually enforces (previously tokenCount was never incremented
+  // and the budget could never trip). Null on abstention/fallback paths that
+  // made no successful LLM call.
+  if (tokenUsage) {
+    incrementTokenCount(sessionId, tokenUsage.inputTokens + tokenUsage.outputTokens);
+  }
 
   // 10. DIME estimator — merge collected inputs into the session, derive
   //     step/completion deterministically, and on completion override the

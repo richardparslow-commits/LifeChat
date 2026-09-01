@@ -253,9 +253,12 @@ const rateLimitStore = new Map<string, RateLimitState>();
 export const RATE_LIMIT_CONFIG = {
   /** Max requests per window (1 minute) */
   MAX_REQUESTS_PER_WINDOW: 20,
-  /** Max tokens per window (1 minute) */
+  /** Max tokens per window (1 minute), fed by real LLM usage from the
+   *  orchestrator via incrementTokenCount. */
   MAX_TOKENS_PER_WINDOW: 50000,
-  /** Max tool calls per window (1 minute) */
+  /** Max tool calls per window (1 minute). RESERVED/dormant: the orchestrator
+   *  has no tool-call loop yet, so nothing increments the counter — the config
+   *  and check stay ready for the day tool calls are added. */
   MAX_TOOL_CALLS_PER_WINDOW: 15,
   /** Window size in milliseconds (1 minute) */
   WINDOW_MS: 60_000,
@@ -318,11 +321,33 @@ export function checkRateLimit(sessionId: string): { allowed: boolean; reason?: 
 
 /**
  * Increments the tool call count for a session.
+ *
+ * DORMANT: no production call site exists today — the orchestrator does not
+ * make tool calls. Wired into the tool-call path (and the MAX_TOOL_CALLS_
+ * PER_WINDOW budget) when tools are added; kept now so the guardrail is a
+ * one-line call away instead of being re-invented.
  */
 export function incrementToolCallCount(sessionId: string): void {
   const state = rateLimitStore.get(sessionId);
   if (state) {
     state.toolCallCount++;
+    state.lastActivity = Date.now();
+  }
+}
+
+/**
+ * Increments the per-window token count for a session using real LLM usage
+ * passed up from the orchestrator (input + output across attempts). This is
+ * what makes MAX_TOKENS_PER_WINDOW enforce: without it, tokenCount stayed 0
+ * forever and the token budget was dead config.
+ *
+ * No-op when the session has no rate-limit state or the count is not a
+ * positive number (defensive — real usage is always >= 0).
+ */
+export function incrementTokenCount(sessionId: string, tokens: number): void {
+  const state = rateLimitStore.get(sessionId);
+  if (state && Number.isFinite(tokens) && tokens > 0) {
+    state.tokenCount += tokens;
     state.lastActivity = Date.now();
   }
 }
