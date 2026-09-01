@@ -111,9 +111,11 @@ export function sanitizeRetrievedContent(content: string): string {
   sanitized = sanitized.replace(/<[^>]*hidden[^>]*>[\s\S]*?<\/[^>]+>/gi, '');
 
   // Remove instruction-like patterns that could be prompt injection
-  // e.g., "Ignore previous instructions", "You are now", "System:"
+  // e.g., "Ignore previous instructions", "Ignore all previous instructions",
+  // "You are now", "System:" — allow 1-3 qualifier words (the canonical
+  // "ignore all previous instructions" has two).
   sanitized = sanitized.replace(
-    /(?:ignore|disregard)\s+(?:previous|all|above)\s+instructions?/gi,
+    /(?:ignore|disregard)\s+(?:(?:previous|all|above|your)\s+){1,3}instructions?/gi,
     '',
   );
   sanitized = sanitized.replace(/(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be)\s/gi, '');
@@ -135,10 +137,15 @@ export function sanitizeRetrievedContent(content: string): string {
  */
 export function detectPromptInjection(userInput: string): boolean {
   const injectionPatterns = [
-    /(?:ignore|disregard|forget)\s+(?:previous|all|above|your)\s+instructions?/i,
+    // 1-3 qualifier words between the verb and "instructions" so the canonical
+    // "ignore all previous instructions" (two qualifiers) is caught, not just
+    // the single-qualifier "ignore previous instructions".
+    /(?:ignore|disregard|forget)\s+(?:(?:previous|all|above|your)\s+){1,3}instructions?/i,
     /(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|role[\s-]?play\s+as)/i,
     /^(?:system|admin|developer)\s*:/i,
-    /(?:reveal|show|print|output)\s+(?:your|the|system)\s+(?:prompt|instructions?|rules?|policy)/i,
+    // 1-3 qualifier words between the verb and the target so "reveal your
+    // system prompt" (two qualifiers) is caught alongside "reveal your prompt".
+    /(?:reveal|show|print|output)\s+(?:(?:your|the|system)\s+){1,3}(?:prompt|instructions?|rules?|policy)/i,
     /(?:override|disable|bypass)\s+(?:safety|content|system|filter)/i,
     /(?:translate|encode|base64|rot13|hex)\s+(?:this|the|your)\s+(?:prompt|instructions?|rules?)/i,
     /<\/?(?:script|iframe|object|embed|svg)/i,
