@@ -10,7 +10,6 @@ import {
   detectSensitiveData,
   sanitizeRetrievedContent,
   checkRateLimit,
-  incrementToolCallCount,
   incrementTokenCount,
   isKillSwitchActive,
   activateKillSwitch,
@@ -207,11 +206,51 @@ describe('Security — detectSensitiveData', () => {
     expect(detectSensitiveData('Order tracking 1234567890')).toBeNull();
   });
 
-  test('does not flag a bare 9-digit number that is not a canonical SSN (L4 false-positive fix)', () => {
+  test('does not flag a bare 9-digit number without an account context (L4 false-positive fix)', () => {
     // The old bare 9-digit pattern matched any number sequence; only the
-    // canonical XXX-XX-XXXX / XXX.XX.XXXX / XXX XX XXXX form counts now.
-    expect(detectSensitiveData('account 123456789')).toBeNull();
+    // canonical XXX-XX-XXXX / XXX.XX.XXXX / XXX XX XXXX SSN form and a
+    // 9-digit number with an account/routing context are sensitive now.
     expect(detectSensitiveData('The record id 999887766')).toBeNull();
+    expect(detectSensitiveData('Order no 123456789')).toBeNull();
+  });
+
+  // Financial-account data detection
+  test('detects a 9-digit routing number with the routing keyword', () => {
+    expect(detectSensitiveData('My routing number is 111000025')).toBe('financial_account_data');
+  });
+
+  test('detects account numbers next to account/routing keywords', () => {
+    expect(detectSensitiveData('My account number is 4098771234567890')).toBe(
+      'financial_account_data',
+    );
+  });
+
+  test('detects an account number when the number precedes the keyword', () => {
+    expect(detectSensitiveData('For the account ending 40987712, please')).toBe(
+      'financial_account_data',
+    );
+  });
+
+  test('detects bank account mentions with a shared keyword', () => {
+    expect(detectSensitiveData('Direct deposit account 123456789 is for payroll')).toBe(
+      'financial_account_data',
+    );
+  });
+
+  test('detects routing number before the keyword', () => {
+    expect(detectSensitiveData('111000025 is my bank routing number')).toBe(
+      'financial_account_data',
+    );
+  });
+
+  test('does not flag a 9-digit number next to non-account words', () => {
+    expect(detectSensitiveData('Policy 123456789 covers the premium')).toBeNull();
+    expect(detectSensitiveData('My case id is 555123456')).toBeNull();
+  });
+
+  test('does not flag short numbers near account (not account identifiers)', () => {
+    expect(detectSensitiveData('I need an account balance check')).toBeNull();
+    expect(detectSensitiveData('The account is past due')).toBeNull();
   });
 
   test('still flags phones in canonical/contextual formats (L4)', () => {
@@ -221,10 +260,34 @@ describe('Security — detectSensitiveData', () => {
     expect(detectSensitiveData('Call (512) 555-1234')).toBe('pii');
   });
 
-  test('health data takes priority over PII (health checked first)', () => {
-    // If a message contains both health and PII patterns, health is detected first
+  test('health data takes priority over PII (health checked before PII)', () => {
+    // PII is checked last; if a message contains both health and PII, health wins
     const result = detectSensitiveData('I have diabetes and my email is test@example.com');
     expect(result).toBe('health_data');
+  });
+
+  test('financial-account data takes priority over health (financial checked first)', () => {
+    // Financial patterns are checked before health so that mixed messages
+    // (e.g. account number + diagnosis) always hit the financial block,
+    // even in medical_review where health_data would be allowed through.
+    const result = detectSensitiveData('My account number is 123456789 and I have diabetes');
+    expect(result).toBe('financial_account_data');
+  });
+
+  test('accepts separators (spaces/hyphens) in account and routing numbers', () => {
+    expect(detectSensitiveData('account 1234-5678-9012')).toBe('financial_account_data');
+    expect(detectSensitiveData('routing 123 456 789')).toBe('financial_account_data');
+    expect(detectSensitiveData('account 1234 5678 9012')).toBe('financial_account_data');
+    expect(detectSensitiveData('my acct 1234-5678')).toBe('financial_account_data');
+  });
+
+  test('requires whole-word keywords (no substring matches)', () => {
+    // "bankruptcy" contains "bank" but should not trigger
+    expect(detectSensitiveData('my bankruptcy case ID is 12345678')).toBeNull();
+    // "accountancy" contains "account" but should not trigger
+    expect(detectSensitiveData('the accountancy reference is 12345678')).toBeNull();
+    // "banking" is a different word from "bank"
+    expect(detectSensitiveData('my banking reference is 12345678')).toBeNull();
   });
 });
 
@@ -361,12 +424,6 @@ describe('Security — rate limiting', () => {
     // Session2 should still be allowed
     const allowed2 = checkRateLimit(session2);
     expect(allowed2.allowed).toBe(true);
-  });
-
-  test('incrementToolCallCount increments without error', () => {
-    const sessionId = `test_tool_count_${Date.now()}`;
-    checkRateLimit(sessionId);
-    expect(() => incrementToolCallCount(sessionId)).not.toThrow();
   });
 
   test('incrementTokenCount accumulates and trips the token budget', () => {

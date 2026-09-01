@@ -144,6 +144,80 @@ function requireAdminAuth(req: Request, res: Response): boolean {
 }
 
 /**
+ * Builds the deterministic refusal+handoff response for sensitive data that
+ * is blocked before it ever reaches the LLM (health and financial-account
+ * data). The user's raw message is replaced by a redacted placeholder in
+ * session history (Section 8: no PII in routine logs) and the reply routes to
+ * the licensed-broker handoff with the sensitive_data_disclosed risk flag.
+ *
+ * @param assistantMessage - the refusal copy for this category
+ * @param handoffReason - the machine-readable reason (e.g. health_data_disclosed)
+ * @param summary - the PII-minimized handoff summary
+ * @param topicCategory - optional topic category for the analytics event
+ */
+function buildSensitiveDataRefusalResponse(
+  assistantMessage: string,
+  handoffReason: string,
+  summary: string,
+  topicCategory: string | null | undefined,
+  originatingStage: string,
+): AssistantResponse {
+  return {
+    assistant_message: assistantMessage,
+    state: 'handoff',
+    citations: [],
+    lead_data: {
+      first_name: null,
+      email: null,
+      phone: null,
+      goal_category: null,
+      timeline_category: null,
+      current_coverage_category: null,
+      policy_type_seeking: null,
+      coverage_amount_seeking: null,
+      contact_channel: null,
+      time_zone: null,
+      preferred_contact_window: null,
+      medical_profile: null,
+    },
+    consent: {
+      privacy_notice_version: config.privacyNoticeVersion,
+      contact_consent_version: null,
+      contact_consent_affirmed: false,
+      medical_consent_version: null,
+      medical_consent_affirmed: false,
+      do_not_contact: false,
+    },
+    dime_estimator: {
+      active: false,
+      step: null,
+      has_mortgage_or_debt: null,
+      income_replacement_years: null,
+      future_expenses: null,
+      complete: false,
+      range_min: null,
+      range_max: null,
+      range_label: null,
+    },
+    proposed_action: 'request_human_handoff',
+    action_arguments: {
+      handoff_reason: handoffReason,
+      summary,
+    },
+    visual_card: null,
+    risk_flags: ['sensitive_data_disclosed'],
+    analytics: {
+      event_name: 'ai_handoff_request',
+      topic_category: topicCategory ?? null,
+      conversation_stage: originatingStage,
+      fallback_type: null,
+      handoff_reason: handoffReason,
+      error_code: null,
+    },
+  };
+}
+
+/**
  * GET / — Health check and product info
  */
 app.get('/', (_req: Request, res: Response) => {
@@ -424,62 +498,33 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     if (!medicalCaptureEnabled || currentState !== 'medical_review') {
       // Record a redacted user message and the assistant's handoff response
       addUserMessage(sessionId, '[USER MESSAGE REDACTED — contained health data]', true);
-      const response: AssistantResponse = {
-        assistant_message: `This chat isn't the right place for medical or health information. Please don't share diagnoses, medications, or health details here. If you need individualized guidance, Richard Parslow, a licensed Texas broker, can help through a secure process. ${ABSTENTION_SENTENCE}`,
-        state: 'handoff',
-        citations: [],
-        lead_data: {
-          first_name: null,
-          email: null,
-          phone: null,
-          goal_category: null,
-          timeline_category: null,
-          current_coverage_category: null,
-          policy_type_seeking: null,
-          coverage_amount_seeking: null,
-          contact_channel: null,
-          time_zone: null,
-          preferred_contact_window: null,
-          medical_profile: null,
-        },
-        consent: {
-          privacy_notice_version: config.privacyNoticeVersion,
-          contact_consent_version: null,
-          contact_consent_affirmed: false,
-          medical_consent_version: null,
-          medical_consent_affirmed: false,
-          do_not_contact: false,
-        },
-        dime_estimator: {
-          active: false,
-          step: null,
-          has_mortgage_or_debt: null,
-          income_replacement_years: null,
-          future_expenses: null,
-          complete: false,
-          range_min: null,
-          range_max: null,
-          range_label: null,
-        },
-        proposed_action: 'request_human_handoff',
-        action_arguments: {
-          handoff_reason: 'health_data_disclosed',
-          summary: 'User disclosed health information in public chat',
-        },
-        visual_card: null,
-        risk_flags: ['sensitive_data_disclosed'],
-        analytics: {
-          event_name: 'ai_handoff_request',
-          topic_category: topicCategory || null,
-          conversation_stage: currentState,
-          fallback_type: null,
-          handoff_reason: 'health_data_disclosed',
-          error_code: null,
-        },
-      };
+      const response = buildSensitiveDataRefusalResponse(
+        `This chat isn't the right place for medical or health information. Please don't share diagnoses, medications, or health details here. If you need individualized guidance, Richard Parslow, a licensed Texas broker, can help through a secure process. ${ABSTENTION_SENTENCE}`,
+        'health_data_disclosed',
+        'User disclosed health information in public chat',
+        topicCategory,
+        currentState,
+      );
       addAssistantMessage(sessionId, response.assistant_message);
       return res.json(response);
     }
+  }
+
+  // Financial-account data (bank routing/account numbers) is never needed for
+  // general life-insurance education, so it is blocked the same way as health
+  // data: redacted from history, deterministic licensed-broker handoff, no LLM
+  // call, no storage of the number.
+  if (sensitiveDataCategory === 'financial_account_data') {
+    addUserMessage(sessionId, '[USER MESSAGE REDACTED — contained financial-account data]', true);
+    const response = buildSensitiveDataRefusalResponse(
+      `This chat isn't the right place for financial-account or banking details. Please don't share account or routing numbers here. If you need to provide financial information, Richard Parslow, a licensed Texas broker, can help through a secure process. ${ABSTENTION_SENTENCE}`,
+      'financial_account_data_disclosed',
+      'User disclosed financial-account information in public chat',
+      topicCategory,
+      currentState,
+    );
+    addAssistantMessage(sessionId, response.assistant_message);
+    return res.json(response);
   }
 
   // 5. Sanitize the source URL (never send raw window.location.href with
@@ -820,6 +865,7 @@ app.get('/api/analytics/example', (_req: Request, res: Response) => {
  * Query param: ?q=your+search+query
  */
 app.get('/api/rag/search', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   const query = (req.query.q as string) || '';
   if (!query.trim()) {
     return res.status(400).json({ error: 'Query parameter "q" is required' });
@@ -859,6 +905,7 @@ app.get('/api/session/:sessionId/history', (req: Request, res: Response) => {
  * Used for privacy withdrawal (Section 8: consent withdrawal / deletion route).
  */
 app.delete('/api/session/:sessionId', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
   clearSession(req.params.sessionId);
   res.json({ sessionId: req.params.sessionId, status: 'cleared' });
 });

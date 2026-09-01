@@ -46,10 +46,9 @@ export const SECURITY_CONTROLS = {
   // Add input/output classifiers
   INPUT_OUTPUT_CLASSIFIERS: true,
 
-  // Rate-limit by session/IP risk signals; cap token/tool budgets
+  // Rate-limit by session/IP risk signals; cap token budgets
   RATE_LIMITING: true,
   TOKEN_BUDGET_CAP: true,
-  TOOL_BUDGET_CAP: true,
 
   // Perform adversarial tests
   ADVERSARIAL_TESTING: true,
@@ -70,6 +69,7 @@ export const INPUT_CLASSIFICATION_CATEGORIES = [
   'prompt_exfiltration',
   'pii',
   'health_data',
+  'financial_account_data',
   'unsafe_advice',
   'prohibited_recommendations',
 ] as const;
@@ -157,6 +157,39 @@ export function detectPromptInjection(userInput: string): boolean {
 export function detectSensitiveData(
   userInput: string,
 ): (typeof INPUT_CLASSIFICATION_CATEGORIES)[number] | null {
+  // Financial-account patterns are checked BEFORE health data so that a
+  //   message containing both categories (e.g. "My account number is
+  //   123456789 and I have diabetes") always hits the financial block first.
+  //   In medical_review, health_data is allowed through — but financial
+  //   identifiers must never reach the LLM regardless of stage.
+  //   Banking identifiers, tuned like the phone rules: the number alone is
+  //   never enough, it must sit next to a whole-word account/routing/bank
+  //   keyword (or the common "acct" abbreviation). A bare 9- or 10-digit
+  //   sequence stays unclassified (it could be a case/reference id).
+  //   Routing number: 9 digits next to a banking keyword.
+  //   Account number: 8-17 digits next to a banking keyword.
+  //   Accepts spaces and hyphens within the digit group (e.g.
+  //   "1234-5678-9012" or "1234 5678 9012") since formatted account/routing
+  //   numbers are common. The keyword uses \b word boundaries so substrings
+  //   like "bankruptcy" or "accountancy" don't trigger.
+  // NOTE: must use regex literals, not `new RegExp` with template strings.
+  //   In a template literal \b becomes a backspace char and \d becomes literal
+  //   'd', so the pattern silently matches nothing.
+  const financialPatterns = [
+    // Keyword → 9-digit routing (with optional spaces/hyphens in the number)
+    /\b(?:routing|account|bank|acct)\b[^\n]{0,30}\b\d[\d\s-]{6}\d\b/i,
+    // 9-digit routing → keyword
+    /\b\d[\d\s-]{6}\d\b[^\n]{0,30}\b(?:routing|account|bank|acct)\b/i,
+    // Keyword → 8-17 digit account (with optional spaces/hyphens)
+    /\b(?:routing|account|bank|acct)\b[^\n]{0,30}\b\d[\d\s-]{6,15}\d\b/i,
+    // 8-17 digit account → keyword
+    /\b\d[\d\s-]{6,15}\d\b[^\n]{0,30}\b(?:routing|account|bank|acct)\b/i,
+  ];
+
+  if (financialPatterns.some((p) => p.test(userInput))) {
+    return 'financial_account_data';
+  }
+
   // Health data patterns
   const healthPatterns = [
     /(?:diagnos(?:ed|is)|medication|prescription|treatment|therapy|symptom|condition|disease|disorder)/i,
@@ -233,7 +266,6 @@ interface RateLimitState {
   requestCount: number;
   windowStart: number;
   tokenCount: number;
-  toolCallCount: number;
   /** Last activity timestamp, used by the cleanup timer to prune stale entries. */
   lastActivity: number;
 }
@@ -256,10 +288,6 @@ export const RATE_LIMIT_CONFIG = {
   /** Max tokens per window (1 minute), fed by real LLM usage from the
    *  orchestrator via incrementTokenCount. */
   MAX_TOKENS_PER_WINDOW: 50000,
-  /** Max tool calls per window (1 minute). RESERVED/dormant: the orchestrator
-   *  has no tool-call loop yet, so nothing increments the counter — the config
-   *  and check stay ready for the day tool calls are added. */
-  MAX_TOOL_CALLS_PER_WINDOW: 15,
   /** Window size in milliseconds (1 minute) */
   WINDOW_MS: 60_000,
   /** How long to keep a rate-limit entry after its last activity before
@@ -284,20 +312,18 @@ export function checkRateLimit(sessionId: string): { allowed: boolean; reason?: 
       requestCount: 0,
       windowStart: now,
       tokenCount: 0,
-      toolCallCount: 0,
       lastActivity: now,
     };
     rateLimitStore.set(sessionId, state);
   }
 
   // Reset the per-window counters when the window expires. Previously only
-  // requestCount was reset, which left tokenCount and toolCallCount
-  // permanently elevated — a session that hit the tool-call budget stayed
-  // locked out for the lifetime of the process.
+  // requestCount was reset, which left tokenCount permanently elevated — a
+  // session that hit the token budget stayed locked out for the lifetime of
+  // the process.
   if (now - state.windowStart > RATE_LIMIT_CONFIG.WINDOW_MS) {
     state.requestCount = 0;
     state.tokenCount = 0;
-    state.toolCallCount = 0;
     state.windowStart = now;
   }
 
@@ -311,28 +337,8 @@ export function checkRateLimit(sessionId: string): { allowed: boolean; reason?: 
     return { allowed: false, reason: 'token_budget_exceeded' };
   }
 
-  if (state.toolCallCount >= RATE_LIMIT_CONFIG.MAX_TOOL_CALLS_PER_WINDOW) {
-    return { allowed: false, reason: 'tool_budget_exceeded' };
-  }
-
   state.requestCount++;
   return { allowed: true };
-}
-
-/**
- * Increments the tool call count for a session.
- *
- * DORMANT: no production call site exists today — the orchestrator does not
- * make tool calls. Wired into the tool-call path (and the MAX_TOOL_CALLS_
- * PER_WINDOW budget) when tools are added; kept now so the guardrail is a
- * one-line call away instead of being re-invented.
- */
-export function incrementToolCallCount(sessionId: string): void {
-  const state = rateLimitStore.get(sessionId);
-  if (state) {
-    state.toolCallCount++;
-    state.lastActivity = Date.now();
-  }
 }
 
 /**
