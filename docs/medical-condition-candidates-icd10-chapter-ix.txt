@@ -1,0 +1,115 @@
+# Condition-coverage candidate phrases — ICD-10 Chapter IX (Diseases of the circulatory system)
+#
+# Source: the three-character category titles of the WHO ICD-10 tabular list,
+# Chapter IX [I00-I99], retrieved 2026-09-19 (the enumeration published in the
+# ICD-10 Coding reference at en.wikiversity.org, which reproduces the WHO
+# tabular list for this chapter; Statcan's ICD-10 classification structure was
+# used to confirm the subchapter groupings).
+#
+# This is the third independent candidate source and the first *codebook*
+# enumeration: the rows were written by the World Health Organization as a
+# classification structure, not by a carrier and not by a visitor. That is
+# exactly why it is worth measuring — a category title is not a phrase anyone
+# says, so the sweep is asking a harder question than the earlier corpora did:
+# when a person states the thing the code book names, does the gate see it?
+# Two holes it found were spelling holes (a British visitor's "subarachnoid
+# haemorrhage" and "haemorrhoids"), one was a synonym hole ("cerebral
+# infarction"), and three were conditions the vocabulary simply did not carry
+# (phlebitis, nonspecific lymphadenitis, atrioventricular block).
+#
+# Transcription rules, so the list is reproducible:
+#   - the category *titles* only (I00–I99, three-character level), lowercased;
+#   - no four-character subcodes, because the sweep measures the vocabulary's
+#     ability to see a condition a person states, not its coding depth;
+#   - the article and "not elsewhere classified" tails are kept as published,
+#     because they are part of the row and they are what makes the row a
+#     codebook construct rather than a diagnosis;
+#   - ICD-10-CM-only categories that WHO Chapter IX does not contain (I75, I76,
+#     I96) are therefore absent.
+#
+# Measure it with:
+#
+#   npm run conditions:sweep -- docs/medical-condition-candidates-icd10-chapter-ix.txt
+#
+# Expected shape: the named diagnoses map and gate; the category constructs
+# ("other diseases of pericardium", "other disorders of veins", "other and
+# unspecified disorders of circulatory system") land in the gated-but-uncoded
+# bucket, each closed by a narrow clinical term rather than by an invented code.
+
+rheumatic fever without mention of heart involvement
+rheumatic fever with heart involvement
+rheumatic chorea
+rheumatic mitral valve diseases
+rheumatic aortic valve diseases
+rheumatic tricuspid valve diseases
+multiple valve diseases
+other rheumatic heart diseases
+essential (primary) hypertension
+hypertensive heart disease
+hypertensive renal disease
+hypertensive heart and renal disease
+secondary hypertension
+angina pectoris
+acute myocardial infarction
+subsequent myocardial infarction
+certain current complications following acute myocardial infarction
+other acute ischaemic heart diseases
+chronic ischaemic heart disease
+pulmonary embolism
+other pulmonary heart diseases
+other diseases of pulmonary vessels
+acute pericarditis
+other diseases of pericardium
+pericarditis in diseases classified elsewhere
+acute and subacute endocarditis
+nonrheumatic mitral valve disorders
+nonrheumatic aortic valve disorders
+nonrheumatic tricuspid valve disorders
+pulmonary valve disorders
+endocarditis, valve unspecified
+endocarditis and heart valve disorders in diseases classified elsewhere
+acute myocarditis
+myocarditis in diseases classified elsewhere
+cardiomyopathy
+cardiomyopathy in diseases classified elsewhere
+atrioventricular and left bundle-branch block
+other conduction disorders
+cardiac arrest
+paroxysmal tachycardia
+atrial fibrillation and flutter
+other cardiac arrhythmias
+heart failure
+complications and ill-defined descriptions of heart disease
+other heart disorders in diseases classified elsewhere
+subarachnoid haemorrhage
+intracerebral haemorrhage
+other nontraumatic intracranial haemorrhage
+cerebral infarction
+stroke, not specified as haemorrhage or infarction
+occlusion and stenosis of precerebral arteries, not resulting in cerebral infarction
+occlusion and stenosis of cerebral arteries, not resulting in cerebral infarction
+other cerebrovascular diseases
+cerebrovascular disorders in diseases classified elsewhere
+sequelae of cerebrovascular disease
+atherosclerosis
+aortic aneurysm and dissection
+other aneurysm
+other peripheral vascular diseases
+arterial embolism and thrombosis
+other disorders of arteries and arterioles
+diseases of capillaries
+disorders of arteries, arterioles and capillaries in diseases classified elsewhere
+phlebitis and thrombophlebitis
+portal vein thrombosis
+other venous embolism and venous thrombosis
+varicose veins of lower extremities
+haemorrhoids
+oesophageal varices
+varicose veins of other sites
+other disorders of veins
+nonspecific lymphadenitis
+other noninfective disorders of lymphatic vessels and lymph nodes
+hypotension
+postprocedural disorders of circulatory system, not elsewhere classified
+other disorders of circulatory system in diseases classified elsewhere
+other and unspecified disorders of circulatory system

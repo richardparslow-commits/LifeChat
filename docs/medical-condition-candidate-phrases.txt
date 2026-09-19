@@ -1,0 +1,286 @@
+# Condition-coverage candidate phrases
+#
+# The corpus the 2026-09-19 questionnaire sweep was measured against: 237
+# phrases a carrier medical-history questionnaire enumerates, written down
+# before any of them were mapped, so the measurement could not be fitted to the
+# answer. It is now the standing regression corpus for the sweep tool:
+#
+#   npm run conditions:sweep
+#
+# Every row must be either mapped to a canonical condition or classified as
+# health data by the gate. Rows that are neither are the work queue; rows that
+# are gated but uncoded are a policy decision and are listed for inspection.
+#
+# The closure ledger for the *boundary probes* (including the rows this sweep
+# surfaced and the descriptive reasons for the uncoded ones) lives in
+# tests/medical-condition-gate.test.ts — this file is the input corpus, not the
+# authority on scope.
+#
+# Format: one phrase per line, `#` comments and blank lines ignored, or a JSON
+# array of strings. Replace or extend the file to measure a new source, then run
+# the sweep; the same measurement is what turns findings into batches.
+
+# Cardiovascular / cerebrovascular
+high cholesterol
+high blood pressure
+heart attack
+heart failure
+irregular heartbeat
+atrial fibrillation
+mitral valve prolapse
+aortic stenosis
+cardiomyopathy
+myocarditis
+pericarditis
+deep vein thrombosis
+pulmonary embolism
+peripheral artery disease
+carotid artery disease
+stent
+pacemaker
+heart bypass
+angioplasty
+high triglycerides
+enlarged heart
+heart murmur
+
+# Metabolic / endocrine
+prediabetes
+gestational diabetes
+metabolic syndrome
+hypothyroidism
+hyperthyroidism
+hashimotos thyroiditis
+graves disease
+polycystic ovary syndrome
+osteoporosis
+osteopenia
+gout
+vitamin d deficiency
+iron deficiency anemia
+low testosterone
+adrenal insufficiency
+addisons disease
+cushings syndrome
+pituitary tumor
+hyperparathyroidism
+hypoparathyroidism
+high calcium
+obesity
+underweight
+high potassium
+low sodium
+high uric acid
+
+# Respiratory
+emphysema
+chronic bronchitis
+chronic obstructive pulmonary disease
+pneumonia
+bronchitis
+allergic rhinitis
+hay fever
+nasal polyps
+chronic sinusitis
+sleep apnoea
+snoring
+shortness of breath
+pleurisy
+collapsed lung
+
+# Gastrointestinal / hepatic
+acid reflux
+gastroesophageal reflux disease
+stomach ulcer
+gastritis
+irritable bowel syndrome
+inflammatory bowel disease
+crohns disease
+ulcerative colitis
+celiac disease
+coeliac disease
+diverticulitis
+diverticulosis
+colon polyps
+hemorrhoids
+piles
+fatty liver
+cirrhosis
+hepatitis b
+hepatitis c
+gallstones
+pancreatitis
+hiatal hernia
+gastroparesis
+liver disease
+
+# Renal / urologic
+chronic kidney disease
+kidney failure
+kidney stones
+polycystic kidney disease
+glomerulonephritis
+nephrotic syndrome
+urine infection
+urinary incontinence
+overactive bladder
+prostate enlargement
+prostate cancer
+erectile dysfunction
+varicocele
+testicular cancer
+bladder cancer
+dialysis
+kidney transplant
+
+# Neurological
+multiple sclerosis
+parkinsons disease
+alzheimers disease
+dementia
+epilepsy
+seizures
+peripheral neuropathy
+migraine with aura
+tension headache
+restless legs syndrome
+narcolepsy
+tourette syndrome
+brain tumor
+meningitis
+cerebral palsy
+spina bifida
+hydrocephalus
+concussion
+memory loss
+vertigo
+dizziness
+
+# Musculoskeletal / autoimmune
+osteoarthritis
+rheumatoid arthritis
+psoriatic arthritis
+ankylosing spondylitis
+fibromyalgia
+chronic fatigue syndrome
+lupus
+sjogrens syndrome
+scleroderma
+polymyalgia rheumatica
+back pain
+degenerative disc disease
+spinal stenosis
+scoliosis
+rotator cuff injury
+plantar fasciitis
+tendonitis
+gouty arthritis
+hip replacement
+knee replacement
+muscular dystrophy
+bone fracture
+pagets disease
+
+# Mental health / sleep
+depression
+anxiety
+panic attacks
+ptsd
+bipolar disorder
+schizophrenia
+obsessive compulsive disorder
+adhd
+insomnia
+sleep disorder
+alcoholism
+drug addiction
+postnatal depression
+seasonal affective disorder
+
+# Skin
+psoriasis
+acne
+rosacea
+hives
+urticaria
+vitiligo
+alopecia
+basal cell carcinoma
+squamous cell carcinoma
+melanoma
+shingles
+fungal nail infection
+keloid
+skin cancer
+
+# Eye / ENT
+retinal detachment
+macular degeneration
+cataracts
+glaucoma
+conjunctivitis
+sinus infection
+tonsillitis
+laryngitis
+ear infection
+
+# Hematologic / oncologic
+anemia
+iron deficiency
+sickle cell disease
+thalassemia
+hemophilia
+von willebrand disease
+low platelets
+polycythemia
+leukemia
+lymphoma
+breast cancer
+colon cancer
+lung cancer
+thyroid cancer
+ovarian cancer
+cervical cancer
+uterine cancer
+pancreatic cancer
+kidney cancer
+liver cancer
+stomach cancer
+esophageal cancer
+brain cancer
+multiple myeloma
+hodgkins lymphoma
+chemotherapy
+radiation therapy
+
+# Infectious
+tuberculosis
+lyme disease
+mononucleosis
+long covid
+herpes
+hpv
+syphilis
+gonorrhea
+chlamydia
+malaria
+hepatitis
+hiv positive
+
+# Congenital / developmental
+down syndrome
+congenital heart defect
+cleft palate
+club foot
+turner syndrome
+fragile x syndrome
+
+# Other history rows
+lymphedema
+chronic pain
+blood transfusion
+organ transplant
+hysterectomy
+tonsillectomy
+appendectomy
+gallbladder removed
