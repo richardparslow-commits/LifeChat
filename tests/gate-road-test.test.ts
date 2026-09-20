@@ -29,8 +29,11 @@
  * than asserted.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { findCanonicalCondition } from '../src/medical/condition-crosswalk';
 import { CONTEXT_QUALIFIED_TERMS } from '../src/security/context-qualified-terms';
-import { detectSensitiveData } from '../src/security/security-controls';
+import { detectContractQuestion, detectSensitiveData } from '../src/security/security-controls';
 
 /** A case with a clear expected outcome. */
 interface GateCase {
@@ -313,11 +316,7 @@ const CONTRACTUAL_COLLISIONS: GateCase[] = [
     expected: 'not_health_data',
     why: '"carrier" with no token',
   },
-  {
-    message: 'I have low energy and fatigue',
-    expected: 'not_health_data',
-    why: '"fatigue" with no token',
-  },
+
   {
     message: 'I suffer from high deductibles',
     expected: 'not_health_data',
@@ -472,6 +471,410 @@ const TRADEOFFS: GateCase[] = [
     message: 'I have 2 TB of photos',
     expected: 'health_data',
     why: 'terabyte, but the same sentence shape as "I have TB"; accepted false positive — the storage frames the tb entry carries ("the drive holds 2 TB", "we store 5 TB") are the collisions that stay silent',
+  },
+  // ICD-10 Chapter XVIII (1.11.0) — the four symptom words whose medical sense
+  // had to win over a real ordinary one, each recorded rather than traded for a
+  // narrowing rule that would have cost a disclosure.
+  {
+    message: 'I am on pins and needles waiting for the decision',
+    expected: 'health_data',
+    why: 'the anxious-waiting idiom; accepted false positive — "pins and needles in my hands" is the same noun phrase, and the idiom is rare here',
+  },
+  {
+    message: 'this whole application is a headache',
+    expected: 'health_data',
+    why: 'predicate metaphor; accepted false positive — a guard for "is a headache" would also swallow "my headache is a problem"',
+  },
+  {
+    message: 'donor fatigue is real',
+    expected: 'health_data',
+    why: 'the "X fatigue" metaphor; accepted — the compounds are open-ended (compassion, voter, application) and `fatigue` is a genuine symptom word',
+  },
+  {
+    message: 'the fever for whole life policies has cooled',
+    expected: 'health_data',
+    why: 'the craze sense; accepted false positive — gating `fever` protects "I have a fever" and "fever of unknown origin"',
+  },
+  {
+    message: 'breathing room in the budget',
+    expected: 'health_data',
+    why: 'the idiom; accepted false positive — `breathing` is what "difficulty breathing" and "my breathing" are stated with',
+  },
+  {
+    message: 'I need some breathing space',
+    expected: 'health_data',
+    why: 'the same idiom, second frame; accepted false positive',
+  },
+  {
+    message: 'throat clearing at the meeting',
+    expected: 'health_data',
+    why: 'the only ordinary sentence measurable for `throat`; accepted false positive — the word is medical everywhere else ("sore throat", "my throat hurts")',
+  },
+  {
+    message: 'I have low energy and fatigue',
+    expected: 'health_data',
+    why: 'tiredness stated with a symptom word the chapter gated; accepted — this row was the `tb` corpus\'s "fatigue" collision and moved here when `fatigue` itself became a gate term, since the sentence is a health complaint either way',
+  },
+  {
+    // The trade the Chapter XXI sweep accepted rather than traded away: gating
+    // the pregnancy state protects "I am pregnant", and the cost is that the
+    // product's own copy about it — "pregnancy is not covered" — is gated too.
+    // The alternative would be a rule that only recognises first-person
+    // pregnancy, which is the shape the measurement said not to narrow (the
+    // symptom words keep their broad rules for the same reason).
+    message: 'pregnancy is not covered',
+    expected: 'health_data',
+    why: 'product copy about the pregnancy state; accepted false positive — "I am pregnant" was silent before the term existed',
+  },
+  // The Chapter XXI vocabulary's measurable ordinary senses, each one accepted
+  // rather than guarded: the words are rare in this product's subject matter and
+  // every guard that removed them would also remove a real disclosure.
+  {
+    message: 'the building has asbestos in the ceiling',
+    expected: 'health_data',
+    why: 'exposure to a hazardous substance; accepted — the visitor is stating an exposure fact, which is what a life application asks about',
+  },
+  {
+    message: 'asbestos removal costs',
+    expected: 'health_data',
+    why: 'a maintenance topic with the exposure word in it; accepted false positive (the safe direction), since "I was exposed to asbestos" is the same two words',
+  },
+  {
+    message: 'the gestation period of the new regulations',
+    expected: 'health_data',
+    why: 'the business metaphor for how long something takes to develop; accepted false positive — guarding it would cost "weeks of gestation"',
+  },
+  {
+    message: 'the ventilator in the office is broken',
+    expected: 'health_data',
+    why: 'a ventilation system, not the medical device; accepted false positive — "I am on a ventilator" is the disclosure the word carries',
+  },
+  {
+    message: 'coral polyp',
+    expected: 'health_data',
+    why: 'the marine organism; accepted false positive — "polyps" is how the colon finding is stated, and the family-history row depends on it',
+  },
+  {
+    message: 'the stoma of a leaf',
+    expected: 'health_data',
+    why: 'the botanical pore; accepted false positive — "I have a stoma" is the surgical state',
+  },
+  {
+    message: 'the bill was abused by lobbyists',
+    expected: 'health_data',
+    why: 'the passive of the bare noun; accepted false positive — "I was abused" is the disclosure, and a guard that separated them would have to parse who the object was',
+  },
+  // The Chapter XXI closure (1.13.0). Each row is the ordinary sense of a word
+  // the ten new rows are reached by, and each is measured rather than assumed.
+  // (The provision sense of the suicide words — "the suicide clause in the
+  // policy" — was pinned here as a trade in 1.13.0 and is *guarded* now; see
+  // the provision corpus below. The question form of the same wording remains a
+  // health topic question, the documented decision for an impersonal condition
+  // question.) The rest of the window was taken deliberately — the alternative
+  // is a guard per phrase, and every guard that separated these from the
+  // disclosure also silenced a sentence a visitor really writes.
+  {
+    message: 'I would kill myself if I had to fill that in again',
+    expected: 'health_data',
+    why: 'hyperbole; accepted false positive — the phrase is watched as a statement in its own right',
+  },
+  {
+    message: 'an overdose of caffeine',
+    expected: 'health_data',
+    why: 'a figure of speech; accepted false positive — "I overdosed" is the medical event',
+  },
+  {
+    message: 'the company has a history of cutting corners',
+    expected: 'health_data',
+    why: 'a business sense; accepted false positive — "I have a history of cutting" is the self-harm row',
+  },
+  {
+    message: 'the noise assaulted my ears',
+    expected: 'health_data',
+    why: 'a metaphor; accepted false positive — "I was assaulted" is the disclosure',
+  },
+  {
+    message: 'she was molested by the crowds at the sale',
+    expected: 'health_data',
+    why: 'a metaphor; accepted false positive — the word is otherwise always the abuse sense',
+  },
+];
+
+/**
+ * The product/topic compound sense of the maltreatment words, both directions.
+ *
+ * "child abuse policy for our staff" was 1.13.0's accepted false positive. It is
+ * the same class the suicide-clause fix separated: the word is *modifying* a
+ * thing rather than naming what happened to a person, and the shape says so — a
+ * maltreatment term directly in front of a document or programme noun (policy,
+ * procedure, guidance, training, awareness, prevention, campaign, strategy,
+ * framework, hotline, law, statistics, course, charter, workshop) is a topic.
+ * Only that compound is removed, so the terms themselves are untouched, and the
+ * measured guard — a first-person singular after the compound makes it personal
+ * — keeps "the domestic abuse policy did not help me" and "the child abuse
+ * awareness training I attended after my own abuse" gated.
+ *
+ * What the shapes do not separate stays a recorded trade at the endpoint: a
+ * charity's name, a document named by a word the list deliberately does not
+ * carry ("report", "hotline", "form" — a person files those rather than reads
+ * them), and two boundary sentences whose only watched wording was the topic
+ * compound, with the person named in words the gate has never watched ("my own
+ * abuse").
+ */
+const MALTREATMENT_TOPIC_COMPOUNDS: GateCase[] = [
+  {
+    message: 'child abuse policy for our staff',
+    expected: 'not_health_data',
+    why: 'the pinned trade this closes — a policy topic, not a disclosure',
+  },
+  { message: 'our child abuse policy', expected: 'not_health_data', why: 'the same compound' },
+  { message: 'the child abuse policy', expected: 'not_health_data', why: 'the same compound' },
+  {
+    message: 'child abuse training for staff',
+    expected: 'not_health_data',
+    why: 'a training course, not a history',
+  },
+  {
+    message: 'child abuse awareness training',
+    expected: 'not_health_data',
+    why: 'a programme',
+  },
+  {
+    message: 'child abuse prevention policy',
+    expected: 'not_health_data',
+    why: 'a document',
+  },
+  {
+    message: 'child abuse guidance for schools',
+    expected: 'not_health_data',
+    why: 'guidance',
+  },
+  {
+    message: 'child abuse statistics',
+    expected: 'not_health_data',
+    why: 'figures, not a person',
+  },
+  { message: 'domestic abuse policy', expected: 'not_health_data', why: 'the same shape' },
+  { message: 'elder abuse training', expected: 'not_health_data', why: 'the same shape' },
+  {
+    message: 'sexual abuse awareness campaign',
+    expected: 'not_health_data',
+    why: 'the same shape',
+  },
+  {
+    message: 'self harm awareness training',
+    expected: 'not_health_data',
+    why: 'the self-harm words take the same reading',
+  },
+  {
+    message: 'child neglect policy',
+    expected: 'not_health_data',
+    why: 'neglect takes the same reading',
+  },
+  {
+    message: 'child abuse law reform',
+    expected: 'not_health_data',
+    why: 'legislation',
+  },
+  {
+    message: 'child abuse prevention charity',
+    expected: 'not_health_data',
+    why: 'a programme noun, even when a charity runs it',
+  },
+  {
+    message: 'I work for a child abuse prevention charity',
+    expected: 'not_health_data',
+    why: 'employment in the field, with no first-person claim about the person',
+  },
+  {
+    message: 'the policy on child abuse',
+    expected: 'not_health_data',
+    why: 'the 1.14.0 mention frame, now reaching the maltreatment words',
+  },
+  {
+    message: 'a study of child abuse',
+    expected: 'not_health_data',
+    why: 'the same mention frame',
+  },
+  {
+    message: 'a report on elder abuse',
+    expected: 'not_health_data',
+    why: 'the same mention frame',
+  },
+  {
+    message: 'the charity fights child abuse',
+    expected: 'not_health_data',
+    why: 'the same mention frame',
+  },
+  {
+    message: 'the awareness campaign about child abuse',
+    expected: 'not_health_data',
+    why: 'the campaign is the subject',
+  },
+  {
+    message: 'the child abuse hotline',
+    expected: 'not_health_data',
+    why: 'a published resource — the reach-guard keeps the caller’s sentence gated',
+  },
+  {
+    message: 'the domestic abuse hotline',
+    expected: 'not_health_data',
+    why: 'the same resource shape, family vocabulary',
+  },
+  {
+    message: 'child abuse report form',
+    expected: 'not_health_data',
+    why: 'the blank form is a document, not a disclosure',
+  },
+];
+
+const MALTREATMENT_DISCLOSURES_KEPT: GateCase[] = [
+  {
+    message: 'I was abused as a child',
+    expected: 'health_data',
+    why: 'the Z62.819 wording the compound must not touch',
+  },
+  { message: 'history of child abuse', expected: 'health_data', why: 'the Z62.819 row' },
+  {
+    message: 'I have a history of child abuse',
+    expected: 'health_data',
+    why: 'the same row, stated personally',
+  },
+  { message: 'child abuse happened to me', expected: 'health_data', why: 'personal frame' },
+  { message: 'I suffered child abuse', expected: 'health_data', why: 'personal frame' },
+  {
+    message: 'I was a victim of child abuse',
+    expected: 'health_data',
+    why: 'personal frame',
+  },
+  {
+    message: 'the child abuse I experienced',
+    expected: 'health_data',
+    why: 'first person after the term blocks any strip',
+  },
+  {
+    message: 'the child abuse I went through',
+    expected: 'health_data',
+    why: 'the same guard',
+  },
+  {
+    message: 'child abuse by my father',
+    expected: 'health_data',
+    why: 'the term is not modifying an artefact noun',
+  },
+  {
+    message: 'my child abuse history',
+    expected: 'health_data',
+    why: '"history" is deliberately not an artefact noun',
+  },
+  {
+    message: 'I witnessed child abuse',
+    expected: 'health_data',
+    why: 'a personal claim',
+  },
+  {
+    message: 'I have a history of domestic abuse',
+    expected: 'health_data',
+    why: 'the family row’s wording',
+  },
+  {
+    message: 'I have a history of childhood neglect',
+    expected: 'health_data',
+    why: 'the neglect row’s wording',
+  },
+  {
+    message: 'I am a survivor of elder abuse',
+    expected: 'health_data',
+    why: 'personal frame',
+  },
+  {
+    message: 'I was sexually abused as a child',
+    expected: 'health_data',
+    why: 'the Z62.810 wording',
+  },
+  {
+    message: 'the report mentions that I was abused as a child',
+    expected: 'health_data',
+    why: 'a personal clause inside a mention — the 1.14.0 property, restated',
+  },
+  {
+    message: 'I was abused as a child and now I run child abuse awareness training',
+    expected: 'health_data',
+    why: 'only the compound is removed, so the disclosure survives',
+  },
+  {
+    message: 'the study of child abuse I took part in',
+    expected: 'health_data',
+    why: 'first person after the term',
+  },
+  {
+    message: 'the training about child abuse I went to as a survivor',
+    expected: 'health_data',
+    why: 'first person after the term',
+  },
+  {
+    message: 'the domestic abuse policy did not help me',
+    expected: 'health_data',
+    why: 'the measured guard — a first-person singular after the compound',
+  },
+  {
+    message: 'the child abuse awareness training I attended after my own abuse',
+    expected: 'health_data',
+    why: 'the same guard, and the reason it was added',
+  },
+  {
+    message: 'the child abuse report form I filed',
+    expected: 'health_data',
+    why: '"report"/"form" are what a person files, not what they read',
+  },
+  {
+    message: 'the child abuse charity helped my family',
+    expected: 'health_data',
+    why: 'a charity the person turned to, with a possessive clause',
+  },
+  {
+    message: 'I called the child abuse hotline',
+    expected: 'health_data',
+    why: 'a person reaching for help — the reach-guard’s fail-safe direction',
+  },
+  {
+    message: 'I filled out the domestic abuse report form',
+    expected: 'health_data',
+    why: 'the filer’s first-person reach before the compound',
+  },
+];
+
+/**
+ * The sense no declared shape separates — recorded at the endpoint too. The
+ * hotline and report-form artefacts used to sit here; the reach-guard closure
+ * (a reach-verb parse before the compound, a first-person clause after)
+ * separated the bare artefacts from the caller, so the artefacts moved into
+ * MALTREATMENT_TOPIC_COMPOUNDS and the caller sentences into DISCLOSURES_KEPT.
+ */
+const MALTREATMENT_TOPIC_TRADES: GateCase[] = [
+  {
+    message: 'the child abuse charity',
+    expected: 'health_data',
+    why: 'a charity’s name reads exactly like a person’s disclosure',
+  },
+];
+
+/**
+ * Two boundaries the measurement recorded rather than closed, asserted so they
+ * stay decisions: each sentence's only *watched* wording was the topic compound,
+ * and the personal clause names the bare noun the gate has never watched (the
+ * 1.13.0 decision that bare "abuse" collides with the product's own vocabulary).
+ */
+const MALTREATMENT_RECORDED_BOUNDARY: GateCase[] = [
+  {
+    message: 'the article about the abuse I suffered',
+    expected: 'not_health_data',
+    why: 'bare "abuse" is unwatched by design; naming it "child abuse" gates',
+  },
+  {
+    message: 'I attended training after my own abuse',
+    expected: 'not_health_data',
+    why: 'the same boundary, without any topic compound involved',
   },
 ];
 
@@ -1646,6 +2049,653 @@ const LUMP_COLLISIONS: GateCase[] = [
   },
 ];
 
+/**
+ * The three entries the Chapter XVIII closure added, each measured in both
+ * directions before it shipped.
+ *
+ *   rash  → "a rash decision" (the adjectival sense always takes a noun of
+ *            judgment, which the guard lists)
+ *   pain  → "the pain points of the process" and "a pain in the neck"
+ *            (the product's own vocabulary and the idiom, both stripped)
+ *   psa   → "our PSA campaign", "PSA: update your beneficiaries" (an
+ *            announcement, not a marker)
+ */
+const RASH_DISCLOSURES: GateCase[] = [
+  { message: 'I have a rash', expected: 'health_data', why: 'explicit disclosure' },
+  { message: 'I have had a rash for a week', expected: 'health_data', why: 'duration' },
+  { message: 'my rash is spreading', expected: 'health_data', why: 'possessive' },
+  { message: 'an itchy rash', expected: 'health_data', why: 'declared qualifier' },
+  { message: 'a skin rash', expected: 'health_data', why: 'declared qualifier' },
+  { message: 'a rash on my arm', expected: 'health_data', why: 'body-site anchor' },
+  { message: 'the doctor said it was an allergic rash', expected: 'health_data', why: 'qualifier' },
+];
+
+const RASH_COLLISIONS: GateCase[] = [
+  {
+    message: 'that would be a rash decision',
+    expected: 'not_health_data',
+    why: 'the adjectival sense with a noun of judgment',
+  },
+  {
+    message: 'I do not want to make a rash choice',
+    expected: 'not_health_data',
+    why: 'same frame, the adjective before a different noun',
+  },
+  {
+    message: 'a rash promise to the client',
+    expected: 'not_health_data',
+    why: 'same frame, third noun',
+  },
+  {
+    message: 'his advice was rash',
+    expected: 'not_health_data',
+    why: 'predicative adjective of judgment, in a sentence about someone else',
+  },
+  {
+    // "do not do anything rash" used to land here as an accepted false
+    // positive: the imperative opener read as interrogative on the topic path.
+    // The Chapter XXI sweep closed it with a measured guard — a negated
+    // auxiliary ("do not", "does not", "did not") is never a question opener,
+    // which is what the codebook title "Do not resuscitate" proved — so the
+    // sentence is a collision now and is asserted as one above.
+    message: 'do not do anything rash',
+    expected: 'not_health_data',
+    why: 'the negated-auxiliary guard, pinned in TRADEOFFS until the guard landed',
+  },
+];
+
+const PAIN_DISCLOSURES: GateCase[] = [
+  { message: 'I have pain in my knee', expected: 'health_data', why: 'disclosure plus site' },
+  { message: 'my pain is getting worse', expected: 'health_data', why: 'possessive' },
+  { message: 'I have chronic pain', expected: 'health_data', why: 'declared qualifier' },
+  { message: 'pains in my legs at night', expected: 'health_data', why: 'site anchor, plural' },
+  {
+    message: 'the pain is in my lower back',
+    expected: 'health_data',
+    why: 'site anchor with the copula between token and location',
+  },
+  { message: 'I have been having pains in my chest', expected: 'health_data', why: 'disclosure' },
+];
+
+const PAIN_COLLISIONS: GateCase[] = [
+  {
+    message: 'the pain points in the process',
+    expected: 'not_health_data',
+    why: "the product's own business vocabulary",
+  },
+  { message: 'a pain in the neck', expected: 'not_health_data', why: 'the idiom' },
+  {
+    message: 'growing pains for a new business',
+    expected: 'not_health_data',
+    why: 'the business sense, with no context the entry accepts',
+  },
+  { message: 'the pain of paperwork', expected: 'not_health_data', why: 'figurative, no site' },
+];
+
+const PSA_DISCLOSURES: GateCase[] = [
+  { message: 'my PSA came back high', expected: 'health_data', why: 'possessive plus result' },
+  { message: 'my PSA is elevated', expected: 'health_data', why: 'possessive' },
+  { message: 'PSA test results', expected: 'health_data', why: 'clinical noun after the token' },
+  { message: 'elevated PSA', expected: 'health_data', why: 'declared qualifier' },
+  { message: 'my PSA level was 6', expected: 'health_data', why: 'possessive plus level' },
+  { message: 'the doctor checked my PSA', expected: 'health_data', why: 'possessive' },
+];
+
+const PSA_COLLISIONS: GateCase[] = [
+  {
+    message: 'our PSA campaign this quarter',
+    expected: 'not_health_data',
+    why: 'the announcement sense, stripped by frame',
+  },
+  {
+    message: 'a public service announcement about cover',
+    expected: 'not_health_data',
+    why: 'the announcement spelled out',
+  },
+  {
+    message: 'PSA: update your beneficiaries',
+    expected: 'not_health_data',
+    why: 'the colon heading shape',
+  },
+  {
+    message: 'send a PSA to the mailing list',
+    expected: 'not_health_data',
+    why: 'announcement, no context the entry accepts',
+  },
+];
+
+describe('Gate road test — the symptom words "rash" and "pain"', () => {
+  test.each(
+    [...RASH_DISCLOSURES, ...PAIN_DISCLOSURES].map((c) => [c.message, c.expected, c.why] as const),
+  )('disclosure "%s" classifies as %s (%s)', (message, expected) => {
+    expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+  });
+
+  test.each(
+    [...RASH_COLLISIONS, ...PAIN_COLLISIONS].map((c) => [c.message, c.expected, c.why] as const),
+  )('collision "%s" stays unclassified (%s)', (message, expected) => {
+    expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+  });
+});
+
+describe('Gate road test — the tumour marker "PSA"', () => {
+  test.each(PSA_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test.each(PSA_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" stays unclassified (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test('the announcement frames the entry strips are all present in the corpus', () => {
+    const shapes = PSA_COLLISIONS.map((c) => c.message.toLowerCase());
+    for (const phrase of ['campaign', 'public service announcement', 'psa:']) {
+      expect({ phrase, present: shapes.some((m) => m.includes(phrase)) }).toEqual({
+        phrase,
+        present: true,
+      });
+    }
+  });
+});
+
+/**
+ * The Chapter XXI (1.12.0) status vocabulary, measured in both directions.
+ *
+ * The disclosures are the sentences the sweep found were travelling to the
+ * model unclassified — thirteen of them, one per hole — and the collisions are
+ * the ordinary senses the same words carry, including the three the
+ * negated-auxiliary guard exists for (an instruction is not a question, which is
+ * also what made the codebook title "Do not resuscitate" a disclosure again
+ * instead of a health *topic question*).
+ */
+const CHAPTER_XXI_DISCLOSURES: GateCase[] = [
+  { message: 'I am pregnant', expected: 'health_data', why: 'pregnancy state' },
+  { message: 'I am 12 weeks pregnant', expected: 'health_data', why: 'with a duration' },
+  { message: 'I had COVID last year', expected: 'health_data', why: 'Z86.16 history' },
+  { message: 'I have MRSA', expected: 'health_data', why: 'Z86.14 history' },
+  { message: 'I have a DNR order', expected: 'health_data', why: 'the Z66 status' },
+  { message: 'I have the BRCA1 mutation', expected: 'health_data', why: 'Z15.01 susceptibility' },
+  { message: 'my blood type is O positive', expected: 'health_data', why: 'the Z67 status' },
+  { message: 'I have a history of blood clots', expected: 'health_data', why: 'Z86.718 history' },
+  { message: 'I was exposed to asbestos', expected: 'health_data', why: 'the Z77 exposure row' },
+  { message: 'I have a history of self-harm', expected: 'health_data', why: 'the Z91.5 deferral' },
+  { message: 'I was abused as a child', expected: 'health_data', why: 'the Z62/Z91.49 history' },
+  { message: 'I have a stoma', expected: 'health_data', why: 'the Z93 state' },
+  { message: 'I am an amputee', expected: 'health_data', why: 'the Z89 state' },
+  { message: 'I am on a ventilator', expected: 'health_data', why: 'the Z99 state' },
+  {
+    message: 'I am a cystic fibrosis carrier',
+    expected: 'health_data',
+    why: 'the Z14.1 carrier row',
+  },
+  { message: 'history of tuberculosis', expected: 'health_data', why: 'Z86.11 history' },
+  { message: 'penicillin allergy', expected: 'health_data', why: 'the Z88.0 allergy status' },
+];
+
+const CHAPTER_XXI_COLLISIONS: GateCase[] = [
+  {
+    message: 'do not worry about the deadline',
+    expected: 'not_health_data',
+    why: 'a negated auxiliary is an instruction, not a question opener',
+  },
+  {
+    message: 'do not hesitate to ask',
+    expected: 'not_health_data',
+    why: 'same shape, no health word at all',
+  },
+  {
+    message: 'we do not offer that rider',
+    expected: 'not_health_data',
+    why: "the product's own copy, which the topic path used to read as a question",
+  },
+  {
+    message: 'the family section of the application',
+    expected: 'not_health_data',
+    why: 'family without a health word is not a family history',
+  },
+];
+
+describe('Gate road test — the Chapter XXI status vocabulary', () => {
+  test.each(CHAPTER_XXI_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test.each(CHAPTER_XXI_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" stays unclassified (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test('a history row and its disease are two different statements', () => {
+    // The release's central claim, asserted rather than described: the history
+    // phrasing must resolve to the history code and the disease wording to the
+    // disease, so a broker reading either gets the right one.
+    expect(classify('I had a heart attack in 2019')).toBe('health_data');
+    for (const [statement, code] of [
+      ['history of breast cancer', 'Z85.3'],
+      ['history of tuberculosis', 'Z86.11'],
+      ['history of blood clots', 'Z86.718'],
+      ['family history of diabetes', 'Z83.3'],
+      ['do not resuscitate', 'Z66'],
+    ] as const) {
+      const resolved = findCanonicalCondition(statement)?.icd10_cm;
+      expect({ statement, resolved }).toEqual({ statement, resolved: code });
+    }
+  });
+});
+
+/**
+ * The completed abuse family (1.14.0), both directions — re-measured after the
+ * topic-mention strip.
+ *
+ * The disclosures are the sentences the six new rows are reached by, including
+ * the two the first probe measured as gaps ("I was forced into labor", "I was
+ * forced to work as a child") — each is gated now, which is what makes the row
+ * reachable at all — plus the adversarial rows: a mention frame wrapped around
+ * a personal fact must keep the disclosure, which is what the strip's
+ * object-position and personal-context guards are for.
+ *
+ * The topic-mention table is the second measurement of the same sentences:
+ * 1.14.0 pinned eight of them as accepted trades on the finding that every
+ * guard which separated them would also silence a real disclosure. Re-measured
+ * against a wider corpus, the finding held only for the personal clause *inside*
+ * a mention — a document that mentions forced labour is about the document — so
+ * those eight pass now and are asserted here in the direction they measure.
+ *
+ * The trade table is what no declared shape separates: ordinary senses of the
+ * same words (a campaign, a training, a drama, a subject the frame list does not
+ * carry) stay gated, recorded rather than hidden, and narrowing any of them
+ * later means updating this record.
+ */
+const ABUSE_FAMILY_DISCLOSURES: GateCase[] = [
+  { message: 'I was trafficked as a child', expected: 'health_data', why: 'Z62.813' },
+  {
+    message: 'I was a victim of trafficking',
+    expected: 'health_data',
+    why: '`trafficked` does not match it; `trafficking` does',
+  },
+  {
+    message: 'I was sexually exploited as a child',
+    expected: 'health_data',
+    why: 'Z62.813',
+  },
+  {
+    message: 'I was forced into labor',
+    expected: 'health_data',
+    why: 'a measured gap the first probe left — now gated',
+  },
+  {
+    message: 'I was forced to work as a child',
+    expected: 'health_data',
+    why: 'the same gap, for the childhood row',
+  },
+  {
+    message: 'I have a history of financial abuse',
+    expected: 'health_data',
+    why: 'the Z62.814/Z91.413 pair’s shared wording',
+  },
+  {
+    message: 'there was financial abuse in my home growing up',
+    expected: 'health_data',
+    why: 'the Z62.814 marker is in the words',
+  },
+  { message: 'I was in sex trafficking', expected: 'health_data', why: 'Z91.42' },
+  // Adversarial: the mention frame is present, the personal fact is inside it,
+  // so the strip must not fire — otherwise the frame would be a way to hide a
+  // disclosure.
+  {
+    message: 'the report mentions that I was trafficked as a child',
+    expected: 'health_data',
+    why: 'the term is not the mention’s direct object',
+  },
+  {
+    message: 'the documentary is about my trafficking experience',
+    expected: 'health_data',
+    why: 'a possessive intervenes',
+  },
+  {
+    message: 'the report mentions my forced labor',
+    expected: 'health_data',
+    why: 'a possessive intervenes',
+  },
+  {
+    message: 'the report mentions forced labor in my family',
+    expected: 'health_data',
+    why: 'a personal context follows the term',
+  },
+  {
+    message: 'the trafficking I experienced',
+    expected: 'health_data',
+    why: 'a first-person singular follows the term',
+  },
+  {
+    message: 'I was forced to work overtime as a child',
+    expected: 'health_data',
+    why: 'the overtime collocation is not stripped in childhood',
+  },
+];
+
+const ABUSE_FAMILY_TOPIC_MENTIONS: GateCase[] = [
+  {
+    message: 'the supply chain report mentions forced labor',
+    expected: 'not_health_data',
+    why: 'a document mentions the term; the term is its object',
+  },
+  {
+    message: 'the report describes forced labour in the supply chain',
+    expected: 'not_health_data',
+    why: 'the same sentence, British spelling',
+  },
+  {
+    message: 'the documentary is about trafficking',
+    expected: 'not_health_data',
+    why: 'a documentary is the subject',
+  },
+  {
+    message: 'the charity fights human trafficking',
+    expected: 'not_health_data',
+    why: 'the charity is the subject',
+  },
+  {
+    message: 'the film examines sexual exploitation',
+    expected: 'not_health_data',
+    why: 'the film is the subject',
+  },
+  {
+    message: 'trafficking of illegal goods',
+    expected: 'not_health_data',
+    why: 'the declared illegal-goods collocation',
+  },
+  {
+    message: 'financial abuse of the system',
+    expected: 'not_health_data',
+    why: 'the declared system/process/trust collocation',
+  },
+  {
+    message: 'we were forced to work overtime during the audit',
+    expected: 'not_health_data',
+    why: 'the declared overtime collocation',
+  },
+  {
+    message: 'a study of forced labor in the garment industry',
+    expected: 'not_health_data',
+    why: 'the subject-of-connection shape',
+  },
+  {
+    message: 'our supplier was accused of forced labour',
+    expected: 'not_health_data',
+    why: 'a reporting act by a supplier',
+  },
+  {
+    message: 'the audit found no forced labour at the supplier',
+    expected: 'not_health_data',
+    why: 'the found-no shape',
+  },
+  {
+    message: 'the report mentions forced labour in our supply chain',
+    expected: 'not_health_data',
+    why: 'business possession, not a personal fact',
+  },
+];
+
+/**
+ * Two of the 1.14.0 trades are no longer trades: the compound shape (a term
+ * directly in front of a programme noun) separates them, and the measurement
+ * said so rather than the shape being stretched to fit. They are asserted silent
+ * here so a later narrowing of the compound list has to update the record.
+ */
+const ABUSE_FAMILY_TRADES_CLOSED: GateCase[] = [
+  {
+    message: "the charity's anti-trafficking campaign",
+    expected: 'not_health_data',
+    why: 'a campaign is a programme noun — separated by the compound shape',
+  },
+  {
+    message: 'sex trafficking awareness training',
+    expected: 'not_health_data',
+    why: 'an awareness programme, the same shape',
+  },
+];
+
+const ABUSE_FAMILY_TRADES: GateCase[] = [
+  {
+    message: 'the film is a trafficking drama',
+    expected: 'health_data',
+    why: 'accepted: a noun compound, not a mention shape',
+  },
+  {
+    message: 'the blog post mentions forced labor',
+    expected: 'health_data',
+    why: 'accepted: the subject list does not carry “blog post”',
+  },
+  {
+    message: 'trafficking of stolen goods',
+    expected: 'health_data',
+    why: 'accepted: only the illegal-goods compound is declared',
+  },
+  {
+    message: 'we discussed forced labour at the board meeting',
+    expected: 'health_data',
+    why: 'accepted: no declared artefact subject precedes it',
+  },
+  {
+    message: 'the company published a forced labor report',
+    expected: 'health_data',
+    why: 'accepted: the term is not the object of a mention verb',
+  },
+  {
+    message: 'the agency announced new anti-trafficking measures',
+    expected: 'health_data',
+    why: 'accepted: the token is the term',
+  },
+];
+
+const ABUSE_FAMILY_BOUNDARY: GateCase[] = [
+  {
+    message: 'the exploitation of loopholes in the policy',
+    expected: 'not_health_data',
+    why: 'bare “exploitation” is deliberately not gated',
+  },
+  {
+    message: 'the traffic on the drive home was bad',
+    expected: 'not_health_data',
+    why: '“trafficking” is not “traffic”',
+  },
+];
+
+describe('Gate road test — the completed abuse family (1.14.0)', () => {
+  test.each(ABUSE_FAMILY_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(ABUSE_FAMILY_TOPIC_MENTIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'topic mention "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(ABUSE_FAMILY_TRADES.map((c) => [c.message, c.expected, c.why] as const))(
+    'accepted trade "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(ABUSE_FAMILY_BOUNDARY.map((c) => [c.message, c.expected, c.why] as const))(
+    'boundary "%s" stays unclassified (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(ABUSE_FAMILY_TRADES_CLOSED.map((c) => [c.message, c.expected, c.why] as const))(
+    'closed trade "%s" is now unclassified (%s)',
+    (message, expected, why) => {
+      // Two of the trades 1.14.0 recorded are closed by the compound shape the
+      // next measurement declared; the closure is asserted here so a later
+      // narrowing of the artefact list has to update this record too.
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+});
+
+/**
+ * The product-provision sense of the suicide words, both directions.
+ *
+ * The word a disclosure is carried by is the same word a policy's own terms use
+ * ("the suicide clause", "suicide exclusion", "suicide rider"), and 1.13.0
+ * accepted that collision as a measured false positive rather than write a
+ * guard per phrase. It is separated by shape instead: a provision noun directly
+ * after the word is the product's reading and is stripped before the condition
+ * vocabulary is matched, while every disclosure form names no provision and is
+ * untouched — including a sentence that states the disclosure *and* asks about
+ * the provision, where only the provision shape is removed.
+ *
+ * The question form is decided elsewhere and the other way: a *contract*
+ * question about the same wording ("does the suicide exclusion apply after two
+ * years?") is answered as a product question — the contract-question section at
+ * the end of this file owns that corpus, including the personally-framed and
+ * reflexive-act forms that keep the handoff.
+ */
+const SUICIDE_PROVISIONS: GateCase[] = [
+  {
+    message: 'the suicide clause in the policy',
+    expected: 'not_health_data',
+    why: 'a contract term, guarded — it was a pinned trade in 1.13.0',
+  },
+  {
+    message: 'suicide exclusion',
+    expected: 'not_health_data',
+    why: 'the policy exclusion, not a history',
+  },
+  { message: 'the suicide rider', expected: 'not_health_data', why: 'the policy rider' },
+  { message: 'suicide provision', expected: 'not_health_data', why: 'same shape, same word' },
+  {
+    message: 'the policy pays out after the suicide exclusion period',
+    expected: 'not_health_data',
+    why: 'the provision sense inside a longer sentence',
+  },
+  {
+    message: 'the suicide clause waiting period',
+    expected: 'not_health_data',
+    why: 'the clause named by its own term',
+  },
+];
+
+const SUICIDE_DISCLOSURES: GateCase[] = [
+  {
+    message: 'I have thought about suicide',
+    expected: 'health_data',
+    why: 'the disclosure the strip must not touch',
+  },
+  { message: 'I have been feeling suicidal', expected: 'health_data', why: 'adjectival form' },
+  { message: 'my suicide attempt', expected: 'health_data', why: 'possessive' },
+  {
+    message: 'history of suicidal behavior',
+    expected: 'health_data',
+    why: 'the Z91.51 row’s wording',
+  },
+  {
+    message: 'I have a history of suicide attempts',
+    expected: 'health_data',
+    why: 'plural, and it names no provision',
+  },
+  {
+    message: 'I have thought about suicide and the suicide clause in the policy',
+    expected: 'health_data',
+    why: 'a sentence naming both keeps the disclosure — only the provision shape is stripped',
+  },
+];
+
+describe('Gate road test — the product-provision sense of the suicide words', () => {
+  test.each(SUICIDE_PROVISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'provision "%s" stays unclassified (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(SUICIDE_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test('the question form is decided by the contract rule, not by this strip', () => {
+    // 1.13.0 left the question form on the health-topic path; that was
+    // re-measured and reversed, so an impersonal provision question is now
+    // answered as a product question. What this test guards is the interaction:
+    // the statement strip must not be what makes a question silent, and a
+    // personally-framed question must still gate.
+    expect(classify('does the suicide exclusion apply after two years')).toBe('not_health_data');
+    expect(classify('does the suicide exclusion apply to me?')).toBe('health_data');
+  });
+});
+
+describe('Gate road test — the product/topic compound sense of the maltreatment words', () => {
+  test.each(MALTREATMENT_TOPIC_COMPOUNDS.map((c) => [c.message, c.expected, c.why] as const))(
+    'topic "%s" stays unclassified (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(MALTREATMENT_DISCLOSURES_KEPT.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test('the senses no declared shape separates are asserted as trades', () => {
+    for (const { message, expected, why } of [
+      ...MALTREATMENT_TOPIC_TRADES,
+      ...MALTREATMENT_RECORDED_BOUNDARY,
+    ]) {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    }
+  });
+
+  test('the closure keeps every disclosure row gated, and the tables are the measured ones', () => {
+    // The measurement, pinned: 24 topical sentences silent (the pinned trade is
+    // the first row; the hotline and report-form artefacts joined when the
+    // reach-guard separated the bare artefact from the caller), 25 disclosure
+    // sentences gated, one recorded trade and two recorded boundaries. A later
+    // change that widens the strip turns rows of the second list red, which is
+    // the direction that matters.
+    expect(MALTREATMENT_TOPIC_COMPOUNDS.length).toBe(24);
+    expect(MALTREATMENT_DISCLOSURES_KEPT.length).toBe(25);
+    expect(MALTREATMENT_DISCLOSURES_KEPT.filter((c) => c.expected !== 'health_data')).toEqual([]);
+    expect(MALTREATMENT_TOPIC_TRADES.length).toBe(1);
+    expect(MALTREATMENT_RECORDED_BOUNDARY.length).toBe(2);
+  });
+});
+
 describe('Gate road test — the lay word "lump"', () => {
   test.each(LUMP_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
     'disclosure "%s" classifies as %s (%s)',
@@ -1976,6 +3026,123 @@ describe('Gate road test — the syntactic-collision class', () => {
  * `CONTEXT_QUALIFIED_TERMS` without a collision case fails the build, so a new
  * lay synonym cannot ship with its guard unmeasured.
  */
+const BUG_DISCLOSURES: GateCase[] = [
+  {
+    message: 'I have a stomach bug',
+    expected: 'health_data',
+    why: 'the compound noun the illness is named with',
+  },
+  {
+    message: 'my whole family caught a bug',
+    expected: 'health_data',
+    why: 'the illness verb the ledger said was missing',
+  },
+  {
+    message: 'there is a nasty bug going around',
+    expected: 'health_data',
+    why: 'the epidemic frame',
+  },
+  {
+    message: 'my bug turned into a fever',
+    expected: 'health_data',
+    why: 'token-first with a clinical word after',
+  },
+  {
+    message: 'I caught the bug that is going around',
+    expected: 'health_data',
+    why: 'the epidemic frame, reversed',
+  },
+  { message: 'I am shaking off a bug', expected: 'health_data', why: 'recovery verb' },
+  {
+    message: 'the kids picked up a bug at school',
+    expected: 'health_data',
+    why: 'the acquisition verb',
+  },
+  {
+    message: 'I had a vomiting bug all weekend',
+    expected: 'health_data',
+    why: 'the qualifier compound',
+  },
+  {
+    message: 'my stomach bug is finally gone',
+    expected: 'health_data',
+    why: 'possessive compound',
+  },
+  {
+    message: 'a flu bug is doing the rounds at work',
+    expected: 'health_data',
+    why: 'the qualifier compound',
+  },
+];
+
+const BUG_COLLISIONS: GateCase[] = [
+  {
+    message: 'there is a bug in the app',
+    expected: 'not_health_data',
+    why: 'the software sense: the product\u2019s own vocabulary',
+  },
+  {
+    message: 'we fixed the login bug',
+    expected: 'not_health_data',
+    why: 'the software sense, in a fix frame',
+  },
+  {
+    message: 'the bug report was filed yesterday',
+    expected: 'not_health_data',
+    why: 'the report compound',
+  },
+  { message: 'a bug in the payment flow', expected: 'not_health_data', why: 'the `in` frame' },
+  {
+    message: 'debugging the login bug now',
+    expected: 'not_health_data',
+    why: 'the debug compound hides the word',
+  },
+  {
+    message: 'the tracker shows the bug was squashed',
+    expected: 'not_health_data',
+    why: 'the tracker frame',
+  },
+  { message: 'a bug bounty program', expected: 'not_health_data', why: 'the bounty compound' },
+  {
+    message: 'use bug spray in the summer',
+    expected: 'not_health_data',
+    why: 'the pest-control frame',
+  },
+  {
+    message: 'a bug zapper on the porch',
+    expected: 'not_health_data',
+    why: 'the pest-control frame',
+  },
+  {
+    message: 'a bed bug problem in the hotel',
+    expected: 'not_health_data',
+    why: 'the bed-bug compound hides the word',
+  },
+  {
+    message: 'the bug net kept mosquitoes out',
+    expected: 'not_health_data',
+    why: 'the pest-control frame',
+  },
+  {
+    message: 'the farmer planted bug-resistant corn',
+    expected: 'not_health_data',
+    why: 'the pest-resistance compound',
+  },
+  {
+    // The adversarial rows: the ordinary frame carrying one of the entry's own
+    // illness words. These are what the guard is load-bearing for — without the
+    // lookahead, "caught" and "picked up" would gate the software sense.
+    message: 'the developer caught a bug in the checkout flow',
+    expected: 'not_health_data',
+    why: 'an illness verb inside the software frame — the guard\u2019s job',
+  },
+  {
+    message: 'QA caught a bug in the release build',
+    expected: 'not_health_data',
+    why: 'an illness verb inside the software frame, `in`-guarded',
+  },
+];
+
 const REGISTRY_COLLISION_CORPUS: Readonly<Record<string, readonly string[]>> = {
   ms: MS_COLLISIONS.map((c) => c.message),
   sle: SLE_COLLISIONS.map((c) => c.message),
@@ -1984,6 +3151,23 @@ const REGISTRY_COLLISION_CORPUS: Readonly<Record<string, readonly string[]>> = {
   piles: PILES_COLLISIONS.map((c) => c.message),
   stones: STONES_COLLISIONS,
   lump: LUMP_COLLISIONS.map((c) => c.message),
+  rash: RASH_COLLISIONS.map((c) => c.message),
+  pain: PAIN_COLLISIONS.map((c) => c.message),
+  psa: PSA_COLLISIONS.map((c) => c.message),
+  bug: BUG_COLLISIONS.map((c) => c.message),
+  manic: [
+    'a manic week at work',
+    'manic Monday',
+    'the manic pace of the city',
+    'manic laughter filled the room',
+    'a manic pixie dream girl trope',
+    'Manic Panic is the dye brand',
+    'the manic energy of the crowd',
+    'a manic episode of my favorite sitcom',
+    'he got manic at the party',
+    'the crowd went completely manic',
+    'my manic Monday',
+  ],
 };
 
 /**
@@ -2046,7 +3230,12 @@ describe('Gate road test — the registry collision contract', () => {
       ...COLLISIONS.map((c) => c.message),
       ...PILES_COLLISIONS.map((c) => c.message),
       ...LUMP_COLLISIONS.map((c) => c.message),
+      ...RASH_COLLISIONS.map((c) => c.message),
+      ...PAIN_COLLISIONS.map((c) => c.message),
+      ...PSA_COLLISIONS.map((c) => c.message),
+      ...BUG_COLLISIONS.map((c) => c.message),
       ...SYNTACTIC_COLLISION_CASES.flatMap((entry) => entry.benign),
+      ...MANIC_COLLISIONS.map((c) => c.message),
     ]);
     const unasserted = Object.keys(REGISTRY_COLLISION_CORPUS).flatMap((id) =>
       collisionMessages(id)
@@ -2071,4 +3260,1032 @@ describe('Gate road test — the registry collision contract', () => {
       CONTEXT_QUALIFIED_TERMS.filter((term) => collisionMessages(term.id).length > 0).length,
     ).toBe(CONTEXT_QUALIFIED_TERMS.length);
   });
+});
+
+/**
+ * Contract questions — the question form of the product-provision collision.
+ *
+ * "Is TB curable?" is a health topic (1.13.0), and "the suicide clause" is the
+ * product's own wording (the statement strip). This is the third combination,
+ * and the one the gate handled worst: an impersonal question about the policy's
+ * wording **that names a condition** — "does the suicide exclusion apply after
+ * two years?", "does the policy have a cancer exclusion?". Those were handed
+ * off as `health_topic_question`, telling a visitor "that's a health topic" and
+ * raising a health-topic risk flag on a record where they disclosed nothing
+ * about their health and asked about their contract.
+ *
+ * Re-measured and decided: the condition named is the *provision's* subject, so
+ * the message is answered as a product question. The rule requires a question
+ * (the same interrogative opener the topic path requires), a frame that makes it
+ * a product question — a provision noun ("cancer exclusion") or a contract noun
+ * with a coverage verb ("does the policy cover depression?") — and an absence of
+ * personal health framing once the contract's own possessives are set aside.
+ *
+ * The tables below are the measurement, in all four directions:
+ *
+ *   CONTRACT_QUESTIONS          32 rows that must be silent. 31 of them were
+ *                               misclassified before the rule — 25 as topic
+ *                               questions and 6 as health data — and the one
+ *                               that was already silent ("does the policy ask
+ *                               for a medical exam?") is pinned so it stays
+ *                               that way. Between them they exercise all four
+ *                               health branches the flag has to reach: the
+ *                               `namesCondition` topic branch, the broad
+ *                               context-family patterns, the condition-term
+ *                               list, and the context-qualified registry.
+ *   DISCLOSURES                 23 rows that must keep gating — the disclosure
+ *                               path is what the rule must not touch.
+ *   GUARD                       4 rows on the reflexivity guard: an act of
+ *                               self-harm described in any person is not a
+ *                               contract question, while a manner of death
+ *                               named in a contract is.
+ *   TRADES                      10 rows the rule deliberately does not claim,
+ *                               recorded with their status so narrowing one
+ *                               later has to update this record.
+ */
+const CONTRACT_QUESTIONS: GateCase[] = [
+  // The two rows the decision was taken on.
+  {
+    message: 'does the suicide exclusion apply after two years?',
+    expected: 'not_health_data',
+    why: 'the named row: provision noun framing; the condition is the clause\u2019s subject',
+  },
+  {
+    message: 'does the policy have a cancer exclusion?',
+    expected: 'not_health_data',
+    why: 'the named row: contract noun + provision noun; caught by the condition-term list before',
+  },
+  // Provision-noun framing — the condition term travels with the contract's
+  // own noun, so the restriction is the subject.
+  {
+    message: 'what is the suicide clause in this policy?',
+    expected: 'not_health_data',
+    why: 'suicide clause + policy; was a topic question',
+  },
+  {
+    message: 'how long is the cancer waiting period?',
+    expected: 'not_health_data',
+    why: 'waiting period is a provision noun; was a topic question',
+  },
+  {
+    message: 'what does the self harm rider cover?',
+    expected: 'not_health_data',
+    why: 'rider framing; was a topic question',
+  },
+  {
+    message: 'is there a depression exclusion on this plan?',
+    expected: 'not_health_data',
+    why: 'exclusion + plan; was a topic question',
+  },
+  {
+    message: 'are pre-existing conditions excluded?',
+    expected: 'not_health_data',
+    why: 'the product\u2019s own wording, and it names no diagnosis; was health data',
+  },
+  {
+    message: 'is there an exclusion period for pregnancy?',
+    expected: 'not_health_data',
+    why: 'exclusion period is a provision noun; was a topic question',
+  },
+  {
+    message: 'does the policy have a diabetes limitation?',
+    expected: 'not_health_data',
+    why: 'limitation is a provision noun; was a topic question',
+  },
+  {
+    message: 'what are the exclusions for mental health treatment?',
+    expected: 'not_health_data',
+    why: 'exclusions + the treatment family word; was health data',
+  },
+  // Contract noun + coverage verb.
+  {
+    message: 'does the policy cover HIV?',
+    expected: 'not_health_data',
+    why: 'the plainest coverage question; was a topic question',
+  },
+  {
+    message: 'does the policy cover treatment for cancer?',
+    expected: 'not_health_data',
+    why: 'exercises the context-family patterns; was a topic question',
+  },
+  {
+    message: 'is cancer covered by the policy?',
+    expected: 'not_health_data',
+    why: 'passive coverage question; was a topic question',
+  },
+  {
+    message: 'how does the underwriting treat diabetes?',
+    expected: 'not_health_data',
+    why: 'underwriting framing; was a topic question',
+  },
+  {
+    message: 'does the policy cover therapy for depression?',
+    expected: 'not_health_data',
+    why: 'therapy is a registry word; was a topic question',
+  },
+  {
+    message: 'will the plan cover a heart condition?',
+    expected: 'not_health_data',
+    why: 'the heart family word; was health data',
+  },
+  {
+    message: 'does the coverage include asthma?',
+    expected: 'not_health_data',
+    why: '`coverage` is the product noun; was a topic question',
+  },
+  {
+    message: 'does your coverage cover treatment?',
+    expected: 'not_health_data',
+    why: 'the product noun is what makes it a contract question — see the boundary row below, where the bare verb form does not',
+  },
+  {
+    message: 'how are pre-existing conditions treated under this policy?',
+    expected: 'not_health_data',
+    why: 'treated as coverage wording, not a treatment disclosure; was health data',
+  },
+  {
+    message: 'can the policy be voided for a cancer diagnosis?',
+    expected: 'not_health_data',
+    why: 'voiding is a coverage verb; was a topic question',
+  },
+  // The application form — a question about the paperwork, not about a person.
+  {
+    message: 'does the application ask about mental illness?',
+    expected: 'not_health_data',
+    why: 'application + ask-about; was a topic question',
+  },
+  {
+    message: 'does the policy ask for a medical exam?',
+    expected: 'not_health_data',
+    why: 'the one row that was already silent — recorded so it stays that way',
+  },
+  {
+    message: 'does the policy require declaring cancer?',
+    expected: 'not_health_data',
+    why: 'declaring is a form verb; was a topic question',
+  },
+  {
+    message: 'does the policy consider a stroke?',
+    expected: 'not_health_data',
+    why: 'considering is a coverage verb; was a topic question',
+  },
+  {
+    message: 'what does the application ask about depression?',
+    expected: 'not_health_data',
+    why: 'form question, condition as its subject; was a topic question',
+  },
+  {
+    message: 'does the policy mention mental illness?',
+    expected: 'not_health_data',
+    why: 'mentioning is a wording verb; was a topic question',
+  },
+  {
+    message: 'what does the policy say about self-harm?',
+    expected: 'not_health_data',
+    why: 'say is a wording verb; was a topic question',
+  },
+  {
+    message: 'what does the policy state about mental illness?',
+    expected: 'not_health_data',
+    why: 'state is a wording verb',
+  },
+  // The rest of the coverage verbs.
+  {
+    message: 'how does the carrier assess sleep apnea?',
+    expected: 'not_health_data',
+    why: 'carrier + assess; was a topic question',
+  },
+  {
+    message: 'does the policy pay out for a heart attack?',
+    expected: 'not_health_data',
+    why: 'payout framing; was health data',
+  },
+  {
+    message: 'what is the exclusion for self-harm in the policy?',
+    expected: 'not_health_data',
+    why: 'the registry word inside provision framing; was a topic question',
+  },
+  {
+    message: 'does this plan cover strokes?',
+    expected: 'not_health_data',
+    why: 'plural coverage question; was a topic question',
+  },
+];
+
+/**
+ * What the rule must not touch — the disclosure path, unchanged.
+ *
+ * Each row is a first-person or family-framed version of a row above: the same
+ * condition, the same policy vocabulary, one personal word. That is the entire
+ * difference the rule turns on, so this table is the safety property of the
+ * change rather than an afterthought.
+ */
+const CONTRACT_QUESTION_DISCLOSURES: GateCase[] = [
+  {
+    message: 'does the policy cover my cancer?',
+    expected: 'health_data',
+    why: 'personal possessive',
+  },
+  {
+    message: 'will the policy pay out if I die by suicide?',
+    expected: 'health_data',
+    why: 'first person inside a coverage question',
+  },
+  {
+    message: 'does the suicide exclusion apply to me?',
+    expected: 'health_data',
+    why: '`to me` makes it personal',
+  },
+  { message: 'am I covered for my diabetes?', expected: 'health_data', why: 'first person twice' },
+  {
+    message: 'does the policy cover my husband\u2019s cancer?',
+    expected: 'health_data',
+    why: 'family framing is personal',
+  },
+  {
+    message: 'does my policy cover my depression?',
+    expected: 'health_data',
+    why: 'the contract possessive is excused, the health one is not',
+  },
+  {
+    message: 'how does the policy treat my epilepsy?',
+    expected: 'health_data',
+    why: 'coverage verb + personal condition',
+  },
+  {
+    message: 'does the plan cover my therapy?',
+    expected: 'health_data',
+    why: 'registry word inside a personal coverage question',
+  },
+  {
+    message: 'does the policy cover my suicide attempt?',
+    expected: 'health_data',
+    why: 'the personal form of the trade below',
+  },
+  {
+    message: 'does the policy cover my asthma inhaler prescription?',
+    expected: 'health_data',
+    why: 'prescription is a registry word, framed personally',
+  },
+  {
+    message: 'I have cancer and want to know about the exclusion',
+    expected: 'health_data',
+    why: 'a disclosure with a policy question attached',
+  },
+  {
+    message: 'my mother has heart disease and I want cover for her',
+    expected: 'health_data',
+    why: 'third-party health, family framing',
+  },
+  {
+    message: 'I was diagnosed with cancer last year, is there an exclusion?',
+    expected: 'health_data',
+    why: 'disclosure first, question second',
+  },
+  {
+    message: 'do I need to declare my cancer?',
+    expected: 'health_data',
+    why: 'personal declaration question',
+  },
+  {
+    message: 'I declare that I have cancer',
+    expected: 'health_data',
+    why: 'the statement form of the same verb',
+  },
+  {
+    message: 'I have depression, will the underwriter decline me?',
+    expected: 'health_data',
+    why: 'disclosure + underwriting question',
+  },
+  {
+    message: 'my doctor said I have sleep apnea \u2014 does that matter?',
+    expected: 'health_data',
+    why: 'the interrogative is mid-sentence, and `my` is personal',
+  },
+  {
+    message: 'I take medication for a heart condition, does that affect the policy?',
+    expected: 'health_data',
+    why: 'medication is a broad family word',
+  },
+  {
+    message: 'our family has a history of cancer, do we need to declare it?',
+    expected: 'health_data',
+    why: 'family framing survives the contract-possessive carve-out',
+  },
+  {
+    message: 'I am diabetic, is there a waiting period?',
+    expected: 'health_data',
+    why: 'disclosure + provision question: the disclosure wins',
+  },
+  { message: 'I have cancer', expected: 'health_data', why: 'the bare disclosure' },
+  {
+    message: 'this policy has a cancer exclusion and I have cancer',
+    expected: 'health_data',
+    why: 'a sentence naming both keeps the disclosure',
+  },
+  {
+    message: 'I have thought about suicide',
+    expected: 'health_data',
+    why: 'the self-harm disclosure the guard protects',
+  },
+];
+
+/**
+ * The reflexivity guard, and the one direction it deliberately keeps.
+ *
+ * A sentence describing an act of self-harm in any person is not a contract
+ * question, even when it also asks about a clause — it keeps the health-topic
+ * handoff. A *manner of death named in a contract* is the clause's subject and
+ * stays a product question, which is what the last row pins.
+ */
+const CONTRACT_QUESTION_GUARD: GateCase[] = [
+  {
+    message: 'does the suicide exclusion apply if someone takes their own life?',
+    expected: 'health_topic_question',
+    why: 'a reflexive act, third person \u2014 not a contract question',
+  },
+  {
+    message: 'does the suicide clause apply if he harms himself?',
+    expected: 'health_topic_question',
+    why: 'reflexive act, masculine pronoun',
+  },
+  {
+    message: 'does the suicide clause apply if someone kills themselves?',
+    expected: 'health_topic_question',
+    why: 'reflexive act with a generic person',
+  },
+  {
+    message: 'does the suicide exclusion apply if I kill myself?',
+    expected: 'health_data',
+    why: 'first person: the disclosure path, not the guard',
+  },
+  {
+    message: 'does the suicide exclusion apply if a policyholder dies by suicide?',
+    expected: 'not_health_data',
+    why: 'a manner of death the clause names is the clause\u2019s subject \u2014 no reflexive',
+  },
+];
+
+/**
+ * What the rule deliberately does not claim, recorded with its status.
+ *
+ * Four of these are sentences the rule *could* have been widened to swallow and
+ * was not: a coverage question about an act noun ("a suicide attempt"), a
+ * generic act with no reflexive, an organisation's question about its staff, and
+ * a bare fragment. Two are pre-existing decisions this change does not touch: the
+ * 1.13.0 statement strip, and the app's long-standing choice to keep a bare
+ * coverage question ("is cancer covered?") on the topic path — the frame now
+ * requires the product to be named or a provision noun to be used, which is why
+ * the rule is narrow enough to be safe.
+ */
+const CONTRACT_QUESTION_TRADES: GateCase[] = [
+  {
+    message: 'does the policy cover a suicide attempt?',
+    expected: 'not_health_data',
+    why: 'accepted: an act noun as a coverage subject; the reflexive form is refused instead',
+  },
+  {
+    message: 'does the suicide clause apply if someone overdoses?',
+    expected: 'not_health_data',
+    why: 'accepted: a generic act with no reflexive; the reflexive form is refused',
+  },
+  {
+    message: 'does the policy cover our staff for cancer?',
+    expected: 'health_data',
+    why: 'conservative: `our` is personal framing, so an organisation\u2019s question still gates',
+  },
+  {
+    message: 'cancer, is there an exclusion?',
+    expected: 'health_data',
+    why: 'conservative: a fragment with no interrogative opener',
+  },
+  {
+    message: 'is a suicide attempt covered?',
+    expected: 'health_topic_question',
+    why: 'the frame boundary: no product named and no provision noun',
+  },
+  {
+    message: 'is cancer covered?',
+    expected: 'health_topic_question',
+    why: 'the frame boundary, and the pre-existing decision for bare coverage questions',
+  },
+  {
+    message: 'is illness covered?',
+    expected: 'health_topic_question',
+    why: 'a pinned 1.13.0 expectation this change must not disturb',
+  },
+  {
+    message: 'do you cover treatment?',
+    expected: 'health_data',
+    why: 'pinned by the treatment corpus: the bare coverage verb is the medical sense',
+  },
+  {
+    message: 'do you cover prescriptions?',
+    expected: 'health_data',
+    why: 'pinned by the prescription corpus, same shape',
+  },
+  {
+    message: 'the suicide clause says nothing',
+    expected: 'not_health_data',
+    why: 'the 1.13.0 statement strip, unchanged by the question rule',
+  },
+];
+
+describe('Gate road test — contract questions about the policy\u2019s own wording', () => {
+  test.each(CONTRACT_QUESTIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'contract question "%s" is answered as a product question (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(CONTRACT_QUESTION_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" still classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(CONTRACT_QUESTION_GUARD.map((c) => [c.message, c.expected, c.why] as const))(
+    'guard "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(CONTRACT_QUESTION_TRADES.map((c) => [c.message, c.expected, c.why] as const))(
+    'recorded trade "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test('the predicate needs all three of opener, frame and no personal framing', () => {
+    // Directly on the exported rule, so a relaxation of one requirement shows up
+    // here rather than only as a table row changing sides.
+    expect(detectContractQuestion('does the policy cover HIV?')).toBe(true);
+    // No interrogative opener: a statement about the same wording.
+    expect(detectContractQuestion('the policy covers HIV')).toBe(false);
+    // No frame: a topic question that is not about the product.
+    expect(detectContractQuestion('is HIV curable?')).toBe(false);
+    // Frame, but personal.
+    expect(detectContractQuestion('does the policy cover my HIV?')).toBe(false);
+    // The contract's own possessive does not make a question personal.
+    expect(detectContractQuestion('does my policy have a cancer exclusion?')).toBe(true);
+    expect(detectContractQuestion("does the policy's cancer exclusion apply?")).toBe(true);
+  });
+
+  test('the tables are the measured ones, and the flag reaches every health branch', () => {
+    // Pinned counts: the measurement in the header comment. A later change that
+    // moves a row without recording the decision fails here.
+    expect(CONTRACT_QUESTIONS.length).toBe(32);
+    expect(CONTRACT_QUESTION_DISCLOSURES.length).toBe(23);
+    expect(CONTRACT_QUESTION_GUARD.length).toBe(5);
+    expect(CONTRACT_QUESTION_TRADES.length).toBe(10);
+    expect(CONTRACT_QUESTION_DISCLOSURES.filter((c) => c.expected !== 'health_data')).toEqual([]);
+    // The four branches the flag bypasses, one row each: the `namesCondition`
+    // topic branch, the broad context-family patterns, the condition-term list
+    // and the context-qualified registry. Each row is silent only because the
+    // flag is applied to that branch.
+    for (const message of [
+      'does the policy cover HIV?',
+      'does the policy cover treatment for cancer?',
+      'does the policy have a cancer exclusion?',
+      'what is the exclusion for self-harm in the policy?',
+    ]) {
+      expect({ message, silent: detectSensitiveData(message) }).toEqual({ message, silent: null });
+    }
+  });
+
+  test('the flag does not open a path past the financial or PII gates', () => {
+    // It is applied to the health branches only. A contract question carrying
+    // an account number or an SSN still records the sensitive category, and the
+    // same sentence with a personal pronoun does too (through the health gate).
+    expect(
+      detectSensitiveData('does the policy cover cancer? my account number is 123456789'),
+    ).toBe('financial_account_data');
+    expect(detectSensitiveData('does the policy cover cancer? SSN 123-45-6789')).toBe('pii');
+    expect(detectSensitiveData('does the policy cover cancer? my SSN is 123-45-6789')).toBe(
+      'health_data',
+    );
+  });
+});
+
+/**
+ * The lay word "bug" — the deferral the registry machinery later closed.
+ *
+ * The 2026-09-19 lay-word measurement graded six candidates and deferred four;
+ * `bug`'s recorded reason had two halves: half its medical phrasings ("I caught
+ * a bug") need verbs the shared disclosure lists do not carry, and its ordinary
+ * sense ("a bug in the app") is the product's own vocabulary. The registry has
+ * since grown per-entry `disclosureWords` / `clinicalWords` and the two-sided
+ * guard, so the row was re-measured and this time the measurement separated
+ * completely — 10 of 10 medical phrasings matched, 0 of 12 ordinary sentences
+ * leaked — and the entry shipped. The ledger row is retired; this corpus is
+ * what keeps the closure honest, in the same two-directional shape as `piles`,
+ * `lump`, `stones`, `rash` and `pain`.
+ *
+ * The shapes, and the ledger reason each one answers:
+ *
+ *   illness verbs       caught / picked up / shaking off / getting over /
+ *                       coming down with — declared per entry, because adding
+ *                       them to the shared list would let "I found stones for
+ *                       the patio" gate; this is the half of the reason the
+ *                       shared lists could not solve
+ *   going around        the epidemic frame, in both directions
+ *   qualifiers          stomach / tummy / flu / vomiting / diarrhea — the
+ *                       compound nouns the illness is named with
+ *   clinical words      sick / fever / contagious / vomiting / symptoms
+ *   the guard           the software frame ("a bug in the app", "bug
+ *                       report/fix/tracker", "bug bounty") and the pest frame
+ *                       ("bug spray", "bug zapper", "bug net",
+ *                       "bug-resistant") excluded by shape rather than by a
+ *                       list of noun senses; the lookbehind excludes the
+ *                       compounds that hide the word ("debugging", "bed bug")
+ *
+ * The three rows the ledger still carries — `fit`, `mole`, `cold` — were
+ * re-measured with the same machinery and still fail it: `fit` gates "I want
+ * to get fit", `mole` gates "we have moles in the garden", and `cold` gates
+ * "the case has gone cold" while missing "I have a cold". Their ledger reasons
+ * stand, now with the re-measurement behind them.
+ */
+describe('Gate road test — the lay word "bug"', () => {
+  test.each(BUG_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test('the source-frame collision is a recorded trade, not a separated sense', () => {
+    // The one shape the measurement could NOT separate: the illness and the
+    // software readings share "<verb> a bug from X" — "I caught a bug from my
+    // kids" is a disclosure, "we picked up a bug from the third-party library"
+    // is not — and telling them apart would mean classifying X, which is the
+    // open-list shape the ledger deferred. The trade fails safe: an extra
+    // handoff of a software sentence, never a silent pass-through of an
+    // illness. Asserted so that narrowing it later means updating the record.
+    expect({
+      message: 'we picked up a bug from the third-party library',
+      actual: classify('we picked up a bug from the third-party library'),
+    }).toEqual({
+      message: 'we picked up a bug from the third-party library',
+      actual: 'health_data',
+    });
+    // The medical reading of the same frame must gate — that is the direction
+    // the trade protects.
+    expect({
+      message: 'I caught a bug from my kids',
+      actual: classify('I caught a bug from my kids'),
+    }).toEqual({ message: 'I caught a bug from my kids', actual: 'health_data' });
+  });
+
+  test.each(BUG_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" stays unclassified (%s)',
+    (message, expected, why) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test('the question path treats the word the same way in both directions', () => {
+    // A question naming the illness compound reaches the topic path — the same
+    // classification "Is piles curable?" gets, an impersonal question about a
+    // condition — while the software question stays silent, because the guard
+    // is part of the named token too.
+    expect(classify('Is the stomach bug contagious?')).toBe('health_topic_question');
+    expect(classify('Is there a bug in the app?')).toBe('not_health_data');
+  });
+
+  test('the corpus covers every frame family the guard excludes', () => {
+    // The guard has two frame families and a compound lookbehind; each must be
+    // represented, or a removed alternative would fail nothing here.
+    const shapes = BUG_COLLISIONS.map((c) => c.message.toLowerCase());
+    for (const phrase of ['bug in the app', 'bug report', 'bug spray', 'bed bug', 'debugging']) {
+      expect({ phrase, present: shapes.some((m) => m.includes(phrase)) }).toEqual({
+        phrase,
+        present: true,
+      });
+    }
+  });
+
+  test('the ledger row is retired: the sweep re-asks three rows, and bug is not one of them', () => {
+    // The closure, asserted where the ledger is read: `bug` no longer sits on
+    // the deferral ledger, and the file no longer declares it.
+    const ledger = readFileSync(
+      resolve(__dirname, '../docs/medical-condition-deferred-candidates.txt'),
+      'utf8',
+    );
+    expect(ledger.includes('? bug ::')).toBe(false);
+    expect(ledger.includes('? fit ::')).toBe(true);
+    expect(ledger.includes('? mole ::')).toBe(true);
+    expect(ledger.includes('? cold ::')).toBe(true);
+  });
+});
+
+const MANIC_COLLISIONS: GateCase[] = [
+  {
+    message: 'a manic week at work',
+    expected: 'not_health_data',
+    why: 'the hyperbole compound the 1.16.0 boundary pinned',
+  },
+  { message: 'manic Monday', expected: 'not_health_data', why: 'the idiom' },
+  { message: 'the manic pace of the city', expected: 'not_health_data', why: 'the hyperbole noun' },
+  {
+    message: 'a manic schedule before launch',
+    expected: 'not_health_data',
+    why: 'the hyperbole noun',
+  },
+  {
+    message: 'manic laughter filled the room',
+    expected: 'not_health_data',
+    why: 'the pinned boundary row',
+  },
+  { message: 'a manic pixie dream girl trope', expected: 'not_health_data', why: 'the trope name' },
+  { message: 'Manic Panic is the dye brand', expected: 'not_health_data', why: 'the brand name' },
+  {
+    message: 'the manic energy of the crowd',
+    expected: 'not_health_data',
+    why: 'the hyperbole noun',
+  },
+  {
+    message: 'a manic episode of my favorite sitcom',
+    expected: 'not_health_data',
+    why: 'the television sense — the strip that forced the plain term out of the gate list',
+  },
+  {
+    message: 'he got manic at the party',
+    expected: 'not_health_data',
+    why: 'the hyperbolic verb, excluded by the preceding guard',
+  },
+  {
+    message: 'the crowd went completely manic',
+    expected: 'not_health_data',
+    why: 'the same verb family, with an adverb between',
+  },
+  {
+    message: 'my manic Monday',
+    expected: 'not_health_data',
+    why: 'a possessive must not resurrect a stripped compound',
+  },
+];
+
+const MANIC_DISCLOSURES: GateCase[] = [
+  { message: 'I am manic', expected: 'health_data', why: 'the pinned hole this entry closes' },
+  { message: "I'm manic", expected: 'health_data', why: 'the contracted copula' },
+  { message: 'I feel manic lately', expected: 'health_data', why: 'the feeling frame' },
+  { message: "I've been feeling manic", expected: 'health_data', why: 'the progressive form' },
+  {
+    message: 'I am manic before deadlines',
+    expected: 'health_data',
+    why: 'the first-person state with a trigger',
+  },
+  {
+    message: 'I am not manic',
+    expected: 'health_data',
+    why: 'the registry-wide negation shape, same as the piles corpus',
+  },
+  {
+    message: 'my manic episodes are back',
+    expected: 'health_data',
+    why: 'possessive plus clinical noun',
+  },
+  {
+    message: 'I have a history of manic episodes',
+    expected: 'health_data',
+    why: 'history framing',
+  },
+  {
+    message: 'diagnosed with manic depression',
+    expected: 'health_data',
+    why: 'the codebook wording',
+  },
+  { message: 'treated for manic depression', expected: 'health_data', why: 'treatment framing' },
+  { message: 'suffering from manic episodes', expected: 'health_data', why: 'suffer framing' },
+  {
+    message: 'a manic episode last month',
+    expected: 'health_data',
+    why: 'clinical noun after the token',
+  },
+  {
+    message: 'her manic episodes run in the family',
+    expected: 'health_data',
+    why: 'family framing',
+  },
+];
+
+describe('Gate road test — the lay adjective "manic"', () => {
+  test.each(MANIC_DISCLOSURES.map((c) => [c.message, c.why] as const))(
+    'disclosure "%s" classifies as health_data (%s)',
+    (message, why) => {
+      expect({ message, actual: classify(message) }).toEqual({
+        message,
+        actual: 'health_data',
+      });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(MANIC_COLLISIONS.map((c) => [c.message, c.why] as const))(
+    'collision "%s" stays unclassified (%s)',
+    (message, why) => {
+      expect({ message, actual: classify(message) }).toEqual({
+        message,
+        actual: 'not_health_data',
+      });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test('the question path answers the compound and stays silent on the bare adjective', () => {
+    // "Is manic depression treatable?" is a question about a condition and
+    // reaches the topic path; "Is he manic?" is a third-person question about a
+    // person's state and takes the same answer path — the entry names the
+    // spelling for the question path with the TV strip protecting it there.
+    expect(classify('Is manic depression treatable?')).toBe('health_topic_question');
+    expect(classify('Is a manic episode dangerous?')).toBe('health_topic_question');
+  });
+
+  test('the 1.16.0 boundary is retired: the pinned hole gates and the compound stays clear', () => {
+    // The retirement, asserted where the old record was: the same sentence the
+    // boundary test pinned silent now gates, while its hyperbole counterparts
+    // stay exactly where they were.
+    expect(classify('I am manic')).toBe('health_data');
+    expect(classify('a manic week at work')).toBe('not_health_data');
+    expect(classify('manic laughter filled the room')).toBe('not_health_data');
+  });
+});
+
+describe('Gate road test — the topic-mention sense of the self-harm vocabulary', () => {
+  // The measurement this closure pins: `self[-\\s]?harm` was already declared as
+  // a topic term by 1.14.0 and separates both directions on its own, but the
+  // suicide and overdose words sat outside TOPIC_MENTION_TERMS — a documentary
+  // about suicide gated 10 of 11 topical forms. The stems join the same list,
+  // and the personal guards are what keep every disclosure row below gating.
+  const TOPIC = [
+    { message: 'the documentary is about suicide', why: 'the subject shape, suicide stem' },
+    { message: 'a documentary about suicide', why: 'article + subject shape' },
+    { message: 'the film examines self-harm', why: 'already separated by the 1.14.0 term' },
+    { message: 'the film examines self harm', why: 'the spaced spelling, same term' },
+    {
+      message: 'the podcast discusses suicide prevention',
+      why: 'the compound named inside the frame',
+    },
+    { message: 'the book covers suicide bereavement', why: 'the compound inside the frame' },
+    { message: 'the study examines suicide among teenagers', why: 'modified topic noun' },
+    { message: 'the documentary about self-harm won an award', why: 'already separated' },
+    {
+      message: 'a film about suicide and its impact on families',
+      why: 'topic noun before a modifier',
+    },
+    { message: 'the news covers suicide prevention programs', why: 'subject + verb + compound' },
+    {
+      message: 'the suicide prevention campaign launches next week',
+      why: 'the artefact compound, unpossessed',
+    },
+    {
+      message: 'our self-harm awareness training is next month',
+      why: 'already separated; our is an organisation',
+    },
+    {
+      message: 'the overdose awareness campaign starts Monday',
+      why: 'the overdose stem joins the same shapes',
+    },
+    {
+      message: 'the news covers overdose prevention programs',
+      why: 'overdose inside the subject frame',
+    },
+    { message: 'a study about self-poisoning trends', why: 'the self-poison stem, hyphenated' },
+    { message: 'the documentary examines self-mutilation cases', why: 'the self-mutilation stem' },
+    {
+      message: 'a podcast about parasuicide research',
+      why: 'the suicid stem reaching parasuicide',
+    },
+    {
+      message: 'the documentary is about the overdose crisis',
+      why: 'overdose inside the subject shape',
+    },
+    {
+      message: 'suicide statistics were published today',
+      why: 'the compound shape, as child abuse statistics already is',
+    },
+    {
+      message: 'the suicide prevention hotline is 24/7',
+      why: 'the artefact strip — the reach-guard keeps “I called …” gated',
+    },
+  ];
+
+  const DISCLOSURES = [
+    { message: 'I have thought about suicide', why: 'first-person statement, unstripped' },
+    { message: 'my suicide attempt was three years ago', why: 'possessive history' },
+    { message: 'I have a history of self-harm', why: 'the row wording, both spellings' },
+    {
+      message: 'I have a history of self-mutilation',
+      why: 'the hyphenated row wording, now declared',
+    },
+    { message: 'history of self-injury', why: 'the hyphenated row wording, now declared' },
+    { message: 'I was hospitalized after an overdose', why: 'first-person event' },
+    { message: 'my overdose was a wake-up call', why: 'possessive event' },
+    { message: 'I survived an overdose last year', why: 'first-person event' },
+    { message: 'I have a history of parasuicide', why: 'the row wording' },
+    { message: 'the suicide attempt I survived changed me', why: 'relative clause, first person' },
+    { message: 'my self-harm scars are old', why: 'possessive body' },
+    { message: 'I struggled with self-harm for years', why: 'first-person disclosure' },
+    { message: 'after my suicide attempt I got help', why: 'possessive history' },
+    { message: 'I was treated after self-poisoning', why: 'first-person event' },
+    {
+      message: 'a book about my suicide attempt helped me heal',
+      why: 'possessive inside a topic frame',
+    },
+    {
+      message: 'my suicide prevention plan is working',
+      why: 'personal compound — the lookbehind keeps it',
+    },
+    { message: 'my overdose prevention plan', why: 'personal compound, overdose stem' },
+    {
+      message: 'the suicide prevention plan I built with my doctor',
+      why: 'relative clause, first person',
+    },
+    {
+      message: 'I called the suicide prevention hotline',
+      why: 'a person reaching for help — the reach-guard’s fail-safe direction',
+    },
+  ];
+
+  test.each(TOPIC.map((c) => [c.message, c.why] as const))(
+    'topic "%s" stays unclassified (%s)',
+    (message, why) => {
+      expect({ message, actual: classify(message) }).toEqual({
+        message,
+        actual: 'not_health_data',
+      });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test.each(DISCLOSURES.map((c) => [c.message, c.why] as const))(
+    'disclosure "%s" classifies as health_data (%s)',
+    (message, why) => {
+      expect({ message, actual: classify(message) }).toEqual({
+        message,
+        actual: 'health_data',
+      });
+      expect(why.length).toBeGreaterThan(0);
+    },
+  );
+
+  test('the corpus is the measured one', () => {
+    expect(TOPIC.length).toBe(20);
+    expect(DISCLOSURES.length).toBe(19);
+  });
+
+  test('the shapes no rule separates are asserted, not implied', () => {
+    // The statistics boundary stays outside the artefact list, and the
+    // product-provision possessive ("my suicide exclusion") stays silent by
+    // the recorded provision-strip decision. Pinning them keeps the next
+    // widening from silently re-deciding them.
+    expect(classify('the suicide exclusion in my policy')).toBe('not_health_data');
+    expect(classify('my suicide exclusion')).toBe('not_health_data');
+  });
+
+  test('the question path treats the stems the same way in both directions', () => {
+    // An impersonal question naming the compound takes the health-topic path,
+    // the way "Is TB curable?" does; the personally-framed form gates.
+    expect(classify('Is suicide preventable?')).toBe('health_topic_question');
+    expect(classify('have you thought about suicide?')).toBe('health_data');
+  });
+});
+
+/**
+ * The ICD-10 Chapter VI sweep (1.17.0) — G00–G99, diseases of the nervous
+ * system. The chapter is the vocabulary's oldest strength (MS, migraine,
+ * epilepsy, ALS arrived from carrier sources) and its largest blind spot of
+ * the same kind: the peripheral-nerve and muscle rows never appeared on a
+ * questionnaire, so seventeen of the fifty candidates were silent. The named
+ * diagnoses are canonical rows now; the organ and residual constructs gate
+ * descriptively.
+ *
+ * The boundary corpus pins both directions of the two new wordings whose
+ * ordinary life is bigger than the diagnosis:
+ *
+ * - `muscle disorder` / `disorders of muscle` gate the G71 category and its
+ *   person's wording, but every ordinary "muscle" sentence — the gym, the
+ *   boxes, the stretch — stays silent, because none of them carries the word
+ *   "disorder".
+ * - `demyelinat` watches the demyelinating family without watching
+ *   `sclerosis`, which sits inside "atherosclerosis" (watched on its own stem)
+ *   and "multiple sclerosis" (mapped on its own row).
+ */
+const CHAPTER_VI_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
+  { message: 'I have dystonia', expected: 'health_data', why: 'G24.9, mapped' },
+  {
+    message: 'I was diagnosed with hemiplegia after my stroke',
+    expected: 'health_data',
+    why: 'G81.90, mapped',
+  },
+  {
+    message: 'my hemiparesis has been improving',
+    expected: 'health_data',
+    why: 'the weakness family beside hemiplegia',
+  },
+  {
+    message: 'I have a muscle disorder',
+    expected: 'health_data',
+    why: 'the person wording of G71.9',
+  },
+  {
+    message: 'primary disorders of muscles run in my family',
+    expected: 'health_data',
+    why: 'the G71 category title',
+  },
+  { message: 'I have myopathy', expected: 'health_data', why: 'G72.9, mapped' },
+  { message: 'I have trigeminal neuralgia', expected: 'health_data', why: 'G50.0, mapped' },
+  { message: 'I have tic douloureux', expected: 'health_data', why: 'the French alias of G50.0' },
+  {
+    message: 'I was treated for toxic encephalopathy',
+    expected: 'health_data',
+    why: 'G92.9, mapped',
+  },
+  {
+    message: 'I have a brain disorder',
+    expected: 'health_data',
+    why: 'the person wording of G93.9',
+  },
+  { message: 'I have a spinal cord disease', expected: 'health_data', why: 'G95.9, mapped' },
+  { message: 'I have a nervous system disorder', expected: 'health_data', why: 'G98, mapped' },
+  { message: 'I have spinal muscular atrophy', expected: 'health_data', why: 'G12.9, mapped' },
+  {
+    message: 'a demyelinating disease was ruled out',
+    expected: 'health_data',
+    why: 'the G35–G37 family, watched without sclerosis',
+  },
+  {
+    message: 'the movement disorder started last year',
+    expected: 'health_data',
+    why: 'the G20–G26 category',
+  },
+];
+
+const CHAPTER_VI_COLLISIONS: readonly { message: string; expected: string; why: string }[] = [
+  {
+    message: 'he pulled a muscle at the gym',
+    expected: 'not_health_data',
+    why: 'no disorder word — the G71 stems must not catch the gym',
+  },
+  {
+    message: 'I pulled a muscle moving boxes',
+    expected: 'not_health_data',
+    why: 'same, first person',
+  },
+  {
+    message: 'the muscle soreness after leg day',
+    expected: 'not_health_data',
+    why: 'soreness is not a muscle disorder',
+  },
+  {
+    message: 'stretch every muscle before you run',
+    expected: 'not_health_data',
+    why: 'the anatomy, not the category',
+  },
+  {
+    message: 'their muscles ached after the hike',
+    expected: 'not_health_data',
+    why: 'plural anatomy, still no disorder',
+  },
+  {
+    message: 'atherosclerosis runs in my family',
+    expected: 'health_data',
+    why: 'gated by the atheroscler stem, not by sclerosis',
+  },
+  {
+    message: 'I have multiple sclerosis',
+    expected: 'health_data',
+    why: 'the G35 row, reached by its own alias',
+  },
+  {
+    message: 'the central nervous system controls movement',
+    expected: 'health_data',
+    why: 'the pre-existing trade: the CNS/ANS compounds were watched before this sweep',
+  },
+];
+
+describe('Gate road test — the ICD-10 Chapter VI sweep', () => {
+  test.each(CHAPTER_VI_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test.each(CHAPTER_VI_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
 });
