@@ -103,7 +103,7 @@
 export const CONDITION_VOCABULARY_ID = 'lifechat-condition-v1';
 
 /** Bump on any change to codes, names, systems, or aliases. */
-export const CONDITION_VOCABULARY_VERSION = '1.15.0';
+export const CONDITION_VOCABULARY_VERSION = '1.16.0';
 
 /** One released revision of the vocabulary. */
 export interface ConditionVocabularyRevision {
@@ -138,6 +138,25 @@ export interface ConditionVocabularyRevision {
  * or removing a condition without a matching entry fails the build.
  */
 export const CONDITION_VOCABULARY_CHANGELOG: ConditionVocabularyRevision[] = [
+  {
+    version: '1.16.0',
+    date: '2026-09-20',
+    summary:
+      'Closed the ICD-10 Chapter V sweep — the seventh candidate source, the fifth codebook enumeration, and the first chapter whose rows are mostly **stateable**: a mental and behavioural disorder is something a person says about themselves, so a bare category title is close to what a visitor types. The vocabulary, grown from physical-condition sources, was looking straight through the mind: the three-character titles of F00–F99 (72 titles, 62 candidates, ten declared in the corpus with reasons because they are coder-routing constructs) surfaced nine silent rows, and seven of them are named diagnoses now. Two batches of five: manic episode (F30.9), paraphilia (F65.9) and the first three severity rows of the intellectual-disability block (mild F70, moderate F71, severe F72); then profound (F73) and unspecified (F79). The block’s shape decided the wording rather than the corpus’s row order: the generic "intellectual disability" belongs to the *unspecified* member (F79), because F70–F73 assert a severity the person did not state, and **F78 is not mapped at all** — the codebook makes "other intellectual disabilities" a non-billable header whose only members are genetic-related (F78.A1, F78.A9), so that corpus row closes as a gated, deliberately uncoded construct, the same treatment the non-billable headers of Chapters IX, XIV, XVIII and XXI received. "Depressive episode" — the F32 category title the sweep surfaced — is an **alias** on the existing F32.9 row rather than a new code, since the unspecified single-episode member already carries "depression". The gate gained the wordings the rows are reached by ("manic episode", "depressive episode", "paraphili", "intellectual disabilit" as a stem covering singular, plural and every severity, and "mania" word-matched because the substring sits inside "Romania"). One measured edge is recorded rather than implied covered: bare "manic" is deliberately unwatched, because its ordinary senses ("a manic week", "manic before launch", "manic laughter") use the frames a guard would have to separate, and no declared shape separates them from "I am manic", which therefore still reaches the model — the honest limit of a word whose adjective sense is as common as its diagnosis. No existing row changed meaning and no alias moved.',
+    condition_count: 395,
+    added: [
+      // Batch 1 — mania, paraphilia, and the first three severity rows.
+      'F30.9',
+      'F65.9',
+      'F70',
+      'F71',
+      'F72',
+      // Batch 2 — the rest of the severity block the chapter exposes.
+      'F73',
+      'F79',
+    ],
+    aliases_moved: [],
+  },
   {
     version: '1.15.0',
     date: '2026-09-20',
@@ -1465,6 +1484,9 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
       'depression',
       'mdd',
       'clinical depression',
+      // The codebook's own category title for the single-episode unspecified
+      // member (F32) — the wording the Chapter V sweep surfaced.
+      'depressive episode',
     ],
   },
   {
@@ -1517,6 +1539,62 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     synonyms: ['obsessive compulsive disorder', 'ocd'],
   },
 
+  // ── ICD-10 Chapter V sweep (1.16.0) — the seventh candidate source and the ──
+  // ── fifth codebook enumeration, and the first chapter whose rows are mostly ──
+  // ── *stateable*: a mental and behavioural disorder is something a person can ──
+  // ── say about themselves, so a bare category title is close to what a ──
+  // ── visitor types. The sweep found the vocabulary — grown from physical- ──
+  // ── condition sources — looking straight through mania, depressive episode, ──
+  // ── paraphilia and the whole intellectual-disability block; these are the ──
+  // ── named diagnoses it surfaced. Batch 1 = mania, paraphilia and the first ──
+  // ── three severity rows; batch 2 = the last two severity rows plus the ──
+  // ── generic wording the block's residual uses.
+  {
+    icd10_cm: 'F30.9',
+    name: 'Manic episode, unspecified',
+    system: 'mental_health',
+    synonyms: ['manic episode', 'mania'],
+  },
+  {
+    icd10_cm: 'F65.9',
+    name: 'Paraphilia, unspecified',
+    system: 'mental_health',
+    synonyms: ['paraphilia', 'paraphilic disorder'],
+  },
+  {
+    icd10_cm: 'F70',
+    name: 'Mild intellectual disabilities',
+    system: 'mental_health',
+    synonyms: ['mild intellectual disability'],
+  },
+  {
+    icd10_cm: 'F71',
+    name: 'Moderate intellectual disabilities',
+    system: 'mental_health',
+    synonyms: ['moderate intellectual disability'],
+  },
+  {
+    icd10_cm: 'F72',
+    name: 'Severe intellectual disabilities',
+    system: 'mental_health',
+    synonyms: ['severe intellectual disability'],
+  },
+  {
+    icd10_cm: 'F73',
+    name: 'Profound intellectual disabilities',
+    system: 'mental_health',
+    synonyms: ['profound intellectual disability'],
+  },
+  {
+    // The generic wording belongs to the *unspecified* member, not to the
+    // severity rows: F70–F73 assert a severity the person did not state, and
+    // F78 is a non-billable header (its only members are genetic-related), so
+    // "other intellectual disabilities" is gated descriptively instead.
+    icd10_cm: 'F79',
+    name: 'Unspecified intellectual disabilities',
+    system: 'mental_health',
+    synonyms: ['intellectual disability', 'unspecified intellectual disability'],
+  },
 
   // ── Oncologic / hematologic ──
   {
