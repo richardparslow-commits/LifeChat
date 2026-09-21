@@ -207,3 +207,56 @@ User=lifechat
 7. **The `data/` directory is gitignored.** A fresh clone has no records; the
    discovery of "where did the leads go" is almost always a container without the
    volume mounted.
+
+## 11. Vercel (serverless) — the `VERCEL_KEY` pipeline
+
+The repository also ships a serverless path for Vercel, driven by the
+`Deploy (Vercel)` workflow. It is additive to everything above: the container
+path (§2–§9) remains the way to run the app where a long-lived process, a
+mounted volume, or a private network is required.
+
+**How the deploy works.** After CI succeeds on `main` (a push, not a PR run),
+`.github/workflows/deploy.yml` checks out the exact commit CI validated, runs
+lint + typecheck + build again, deploys with the Vercel CLI
+(`vercel deploy --prebuilt --prod`), then smoke-checks the result: `/health`
+must answer 200 and `/widget.js` must serve. A failed probe fails the deploy
+job visibly instead of shipping a broken URL.
+
+**Required repository secret.** `VERCEL_KEY` — a Vercel token scoped to the
+project (Account Settings → Tokens, or per-project under Project Settings →
+Git Integration). Optional secrets: `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`
+pin the deploy to one project; without them the token's default scope decides.
+If `VERCEL_KEY` is unset the deploy job skips itself with an explanatory
+message, so forks and pre-secret states stay green.
+
+**How the app adapts.** `vercel.json` runs `npm run build` (tsc) and bundles
+`dist/` and `public/` into the function (`includeFiles`); `/api/*` rewrites to
+the function built from `api/index.ts`, which exports the Express app.
+Vercel's runtime always sets `VERCEL=1`, and `src/config/app-config.ts`
+treats it (or an explicit `SERVERLESS=true`) as _do not listen_: the app is
+constructed but never binds a port, and the session/rate-limit cleanup
+intervals are not scheduled — the platform owns the socket and the
+invocation. `tests/serverless-mode.test.ts` pins this contract: no port is
+bound under either flag, the router still serves every route with the same
+gates (admin auth, chat envelope), and the default path still listens.
+
+**Platform settings to mirror locally.** Set in the Vercel project
+environment what `.env` carries elsewhere — at minimum `PILOT_MODE=true`
+(sandbox) and `ALLOWED_ORIGINS` for the blog origin; the production gates
+(§5.2) apply unchanged. The platform serves `public/` statically, so the
+widget ships from the CDN rather than `express.static`.
+
+**Serverless caveats (read before relying on it).**
+
+1. **Records do not survive instance recycling.** The lead/DSR/abstention
+   JSONL logs are append-only files (§4) on an ephemeral filesystem; on
+   Vercel they live and die with the warm instance. The fail-closed write
+   guarantee still holds — an unsaved record is a 500/503, never a false
+   success — but for anything beyond a sandbox demo, wire the record store to
+   durable storage first, or keep consent capture on the container path.
+2. **Sessions and rate limits are per warm instance.** The §10.1/§10.2
+   limitations are sharper here: two warm instances are two independent
+   session stores and two rate budgets, and a cold start empties both.
+3. **The smoke check cannot see records.** It proves serving works; it does
+   not prove persistence. Verify record handling in an environment with the
+   volume or store mounted (§4).

@@ -54,6 +54,10 @@ export interface AppConfig {
   allowedOrigins: string[];
   /** Whether the system is in pilot mode (Phase 1) */
   pilotMode: boolean;
+  /** Whether the app must not listen on a port (serverless platforms).
+   *  Set SERVERLESS=true on platforms whose runtime starts invocations itself
+   *  (Vercel). Unset by default: local and container runs listen as before. */
+  serverless: boolean;
   /** Whether health data collection is disabled.
    *  Phase 1/2 gate: default true. Flip to false only after counsel approval
    *  of the medical consent flow (docs/medical-lead-capture-phase2.md).
@@ -151,6 +155,13 @@ export const config: AppConfig = {
     .map((origin) => origin.trim().replace(/\/+$/, '').toLowerCase())
     .filter(Boolean),
   pilotMode: process.env.PILOT_MODE !== 'false',
+  // Serverless deployment gate — when true, importing the server module builds
+  // the Express app but does not listen on a port. The platform (Vercel) starts
+  // each invocation itself; a self-started listener would crash the cold start.
+  // Detected automatically from the platform's VERCEL marker, with
+  // SERVERLESS=true as the manual override for any other serverless runtime.
+  // Local and container runs leave both unset so the server starts as before.
+  serverless: process.env.SERVERLESS === 'true' || process.env.VERCEL === '1',
   // Phase 2 gate — enabled only by explicit opt-in in .env after counsel review
   healthDataCollectionDisabled: process.env.HEALTH_DATA_COLLECTION_DISABLED !== 'false',
   outboundMarketingDisabled: true,

@@ -1,0 +1,120 @@
+name: Deploy (Vercel)
+
+# Deploys the serverless function to Vercel after every merge to main, using
+# the VERCEL_KEY repository secret (a Vercel deploy token). The deploy runs
+# only after the same gates CI enforces, so a red build never ships.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   VERCEL_KEY  - a Vercel token scoped to the project (Account Settings ->
+#                 Tokens, or created per-project under Project Settings ->
+#                 Git Integration). Stored under this name; the workflow does
+#                 not read any other name.
+#
+# The VERCEL_ORG_ID / VERCEL_PROJECT_ID secrets are optional: when present
+# they pin the deploy to one project; when absent the token's default project
+# scope decides. If VERCEL_KEY is not set the job skips itself, so forks and
+# pre-secret states stay green rather than failing.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    # workflow_run gives no permissions by default; deploy needs none beyond
+    # the checkout.
+    permissions:
+      contents: read
+    # Only deploy successful CI runs on main that came from a push (not a
+    # dependency dashboard or other actor).
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event == 'push'
+
+    steps:
+      - name: Check for the deploy token
+        id: token
+        env:
+          VERCEL_KEY: ${{ secrets.VERCEL_KEY }}
+        run: |
+          if [ -z "$VERCEL_KEY" ]; then
+            echo "VERCEL_KEY is not set — skipping the deploy (add the repository secret to enable it)."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.token.outputs.available == 'true'
+        uses: actions/checkout@v5
+        with:
+          # Deploy exactly the commit CI validated, not whatever main has
+          # moved to since the workflow started.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Node.js
+        if: steps.token.outputs.available == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies (including Vercel CLI)
+        if: steps.token.outputs.available == 'true'
+        run: npm ci && npm install --no-save vercel@latest
+
+      - name: Lint
+        if: steps.token.outputs.available == 'true'
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.token.outputs.available == 'true'
+        run: npm run typecheck
+
+      - name: Build
+        if: steps.token.outputs.available == 'true'
+        run: npm run build
+
+      - name: Deploy to Vercel (production)
+        if: steps.token.outputs.available == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_KEY }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npx vercel deploy --prebuilt --prod --yes \
+            --token "$VERCEL_TOKEN" \
+            ${VERCEL_ORG_ID:+--scope "$VERCEL_ORG_ID"} 2>&1 | tee deploy.log
+          URL=$(grep -oE 'https://[a-z0-9-]+\.vercel\.app' deploy.log | tail -1)
+          echo "DEPLOY_URL=$URL" >> "$GITHUB_ENV"
+          echo "Deployed to $URL"
+
+      - name: Smoke check the deployment
+        if: steps.token.outputs.available == 'true'
+        run: |
+          test -n "$DEPLOY_URL" || { echo "No deploy URL captured"; exit 1; }
+          echo "Probing $DEPLOY_URL/health"
+          curl -fsS --max-time 30 "$DEPLOY_URL/health" | tee health.json
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "$DEPLOY_URL/widget.js")
+          echo "widget.js HTTP $CODE"
+          test "$CODE" = "200"
+
+      - name: Deployment summary
+        if: steps.token.outputs.available == 'true'
+        run: |
+          {
+            echo "## Deployment"
+            echo ""
+            echo "- **Commit:** ${{ github.event.workflow_run.head_sha }}"
+            echo "- **URL:** $DEPLOY_URL"
+            echo "- **Health check:** passed"
+          } >> "$GITHUB_STEP_SUMMARY"
