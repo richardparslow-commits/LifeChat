@@ -2115,11 +2115,7 @@ describe('POST /api/chat — the Chapter X respiratory vocabulary at the endpoin
 
   // The occupational-lung and acute rows 1.19.0 mapped, stated the way a
   // visitor states them — each must hand off redacted, never reaching the model.
-  const DISCLOSURES = [
-    'I have asbestosis',
-    'I have silicosis',
-    'I have black lung disease',
-  ];
+  const DISCLOSURES = ['I have asbestosis', 'I have silicosis', 'I have black lung disease'];
 
   // The ordinary industrial/flu life the new stems must not spend — standards,
   // fluid, the coal trade, the temperature — each a benign sentence a visitor
@@ -2267,11 +2263,7 @@ describe('POST /api/chat - the Chapter XII skin vocabulary at the endpoint', () 
 
   // The skin rows 1.21.0 mapped, stated the way a visitor states them - each
   // must hand off redacted, never reaching the model.
-  const DISCLOSURES = [
-    'I have impetigo',
-    'I have pemphigoid',
-    'I have lichen sclerosus',
-  ];
+  const DISCLOSURES = ['I have impetigo', 'I have pemphigoid', 'I have lichen sclerosus'];
 
   // The ordinary cosmetics/food life the new stems must not spend.
   const COLLISIONS = [

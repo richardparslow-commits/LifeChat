@@ -600,9 +600,9 @@ describe('the committed corpus', () => {
       ICD10_CHAPTER_V_CANDIDATE_LIST_PATH,
       ICD10_CHAPTER_VI_CANDIDATE_LIST_PATH,
       ICD10_CHAPTER_X_CANDIDATE_LIST_PATH,
-  ICD10_CHAPTER_XI_CANDIDATE_LIST_PATH,
-  ICD10_CHAPTER_XII_CANDIDATE_LIST_PATH,
-  ICD10_CHAPTER_XIII_CANDIDATE_LIST_PATH,
+      ICD10_CHAPTER_XI_CANDIDATE_LIST_PATH,
+      ICD10_CHAPTER_XII_CANDIDATE_LIST_PATH,
+      ICD10_CHAPTER_XIII_CANDIDATE_LIST_PATH,
       DEFERRED_CANDIDATE_LIST_PATH,
     ]);
     for (const listPath of COMMITTED_CANDIDATE_LIST_PATHS) {
@@ -677,11 +677,20 @@ describe('the committed corpus', () => {
       ['Streptococcal pharyngitis, unspecified', 'J02.9'],
       ['Acute upper respiratory infection, unspecified', 'J06.9'],
       ['Acute bronchiolitis, unspecified', 'J21.9'],
-      ['Influenza due to unidentified influenza virus with other respiratory manifestations', 'J11.1'],
-      ['Influenza due to other identified influenza virus with other respiratory manifestations', 'J10.1'],
+      [
+        'Influenza due to unidentified influenza virus with other respiratory manifestations',
+        'J11.1',
+      ],
+      [
+        'Influenza due to other identified influenza virus with other respiratory manifestations',
+        'J10.1',
+      ],
       ['Acute respiratory distress syndrome', 'J80'],
       ['Pleural effusion, not elsewhere classified', 'J90'],
-      ['Respiratory failure, unspecified, unspecified whether with hypoxia or hypercapnia', 'J96.90'],
+      [
+        'Respiratory failure, unspecified, unspecified whether with hypoxia or hypercapnia',
+        'J96.90',
+      ],
       ['Unspecified pneumoconiosis', 'J64'],
       ["Coalworker's pneumoconiosis", 'J60'],
       ['Pneumoconiosis due to other dust containing silica', 'J62.8'],
@@ -707,7 +716,9 @@ describe('the committed corpus', () => {
     // billable home. The same rule keeps J81 pulmonary edema uncoded — the
     // words do not carry an acuity — and "pleural plaque" gates without a code
     // rather than misstating the J92 with/without-asbestos split.
-    expect(findCanonicalCondition('Influenza due to identified novel influenza A virus')).toBeNull();
+    expect(
+      findCanonicalCondition('Influenza due to identified novel influenza A virus'),
+    ).toBeNull();
     expect(findCanonicalCondition('Pulmonary edema')).toBeNull();
     expect(findCanonicalCondition('Pleural plaque')).toBeNull();
   });
@@ -856,7 +867,9 @@ describe('the committed corpus', () => {
     // The carried shoulder rows still resolve, so the chapter repeats none of
     // them; the dorsopathy and deformity residuals are descriptions rather
     // than stateable entities and stay gated-not-coded.
-    expect(findCanonicalCondition('Adhesive capsulitis of unspecified shoulder')?.icd10_cm).toBe('M75.00');
+    expect(findCanonicalCondition('Adhesive capsulitis of unspecified shoulder')?.icd10_cm).toBe(
+      'M75.00',
+    );
     expect(findCanonicalCondition('Other deforming dorsopathies')).toBeNull();
   });
 

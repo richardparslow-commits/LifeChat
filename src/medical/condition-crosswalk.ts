@@ -1524,7 +1524,13 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     icd10_cm: 'J60',
     name: 'Coalworker pneumoconiosis',
     system: 'respiratory',
-    synonyms: ['coalworker pneumoconiosis', 'coal worker pneumoconiosis', 'coalworkers pneumoconiosis', 'black lung disease', 'black lung'],
+    synonyms: [
+      'coalworker pneumoconiosis',
+      'coal worker pneumoconiosis',
+      'coalworkers pneumoconiosis',
+      'black lung disease',
+      'black lung',
+    ],
   },
   {
     icd10_cm: 'J62.8',
@@ -1590,7 +1596,11 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     icd10_cm: 'J35.9',
     name: 'Chronic disease of tonsils and adenoids, unspecified',
     system: 'respiratory',
-    synonyms: ['chronic tonsillitis', 'chronic adenoid disease', 'chronic disease of tonsils and adenoids'],
+    synonyms: [
+      'chronic tonsillitis',
+      'chronic adenoid disease',
+      'chronic disease of tonsils and adenoids',
+    ],
   },
   {
     icd10_cm: 'J05.0',
@@ -1652,7 +1662,13 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     icd10_cm: 'K12.0',
     name: 'Recurrent oral aphthae',
     system: 'gastrointestinal',
-    synonyms: ['canker sores', 'canker sore', 'mouth ulcers', 'mouth ulcer', 'recurrent oral aphthae'],
+    synonyms: [
+      'canker sores',
+      'canker sore',
+      'mouth ulcers',
+      'mouth ulcer',
+      'recurrent oral aphthae',
+    ],
   },
   {
     icd10_cm: 'K13.21',
@@ -1736,7 +1752,11 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     icd10_cm: 'L28.0',
     name: 'Lichen simplex chronicus',
     system: 'dermatologic',
-    synonyms: ['lichen simplex chronicus', 'lichen simplex chronicus and prurigo', 'neurodermatitis'],
+    synonyms: [
+      'lichen simplex chronicus',
+      'lichen simplex chronicus and prurigo',
+      'neurodermatitis',
+    ],
   },
   {
     icd10_cm: 'L42',

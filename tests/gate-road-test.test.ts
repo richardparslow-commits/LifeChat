@@ -4387,22 +4387,50 @@ describe('Gate road test — the ICD-10 Chapter VI sweep', () => {
 const CHAPTER_X_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
   { message: 'I have asbestosis', expected: 'health_data', why: 'J61, mapped' },
   { message: 'I have silicosis', expected: 'health_data', why: 'J62.8, mapped' },
-  { message: 'I was diagnosed with black lung disease', expected: 'health_data', why: 'J60, mapped' },
-  { message: 'I worked in the mines and got coal workers pneumoconiosis', expected: 'health_data', why: 'J60, mapped' },
+  {
+    message: 'I was diagnosed with black lung disease',
+    expected: 'health_data',
+    why: 'J60, mapped',
+  },
+  {
+    message: 'I worked in the mines and got coal workers pneumoconiosis',
+    expected: 'health_data',
+    why: 'J60, mapped',
+  },
   { message: 'I have berylliosis', expected: 'health_data', why: 'J63.2, mapped' },
   { message: 'I was diagnosed with byssinosis', expected: 'health_data', why: 'J66.0, mapped' },
   { message: 'I have farmers lung', expected: 'health_data', why: 'J67.0, mapped' },
-  { message: 'I keep pigeons and was diagnosed with bird fanciers lung', expected: 'health_data', why: 'J67.2, mapped' },
-  { message: 'my hypersensitivity pneumonitis is worsening', expected: 'health_data', why: 'J67.9, mapped' },
-  { message: 'I was exposed to asbestos', expected: 'health_data', why: 'the Z77 exposure row, watched since Chapter XXI' },
+  {
+    message: 'I keep pigeons and was diagnosed with bird fanciers lung',
+    expected: 'health_data',
+    why: 'J67.2, mapped',
+  },
+  {
+    message: 'my hypersensitivity pneumonitis is worsening',
+    expected: 'health_data',
+    why: 'J67.9, mapped',
+  },
+  {
+    message: 'I was exposed to asbestos',
+    expected: 'health_data',
+    why: 'the Z77 exposure row, watched since Chapter XXI',
+  },
   { message: 'I have the flu', expected: 'health_data', why: 'J11.1, mapped' },
   { message: 'I have influenza', expected: 'health_data', why: 'the full word stem' },
-  { message: 'my influenza A test came back positive', expected: 'health_data', why: 'J10.1, mapped' },
+  {
+    message: 'my influenza A test came back positive',
+    expected: 'health_data',
+    why: 'J10.1, mapped',
+  },
   { message: 'I have a common cold', expected: 'health_data', why: 'J00, mapped' },
   { message: 'I have a head cold', expected: 'health_data', why: 'J00, mapped' },
   { message: 'I have strep throat', expected: 'health_data', why: 'J02.0, mapped' },
   { message: 'I have a sore throat', expected: 'health_data', why: 'J02.9, mapped' },
-  { message: 'I was diagnosed with an upper respiratory infection', expected: 'health_data', why: 'J06.9, mapped' },
+  {
+    message: 'I was diagnosed with an upper respiratory infection',
+    expected: 'health_data',
+    why: 'J06.9, mapped',
+  },
   { message: 'my baby has bronchiolitis', expected: 'health_data', why: 'J21.9, mapped' },
   { message: 'I had croup as a child', expected: 'health_data', why: 'J05.0, mapped' },
   { message: 'my son has croup', expected: 'health_data', why: 'J05.0, mapped' },
@@ -4411,11 +4439,19 @@ const CHAPTER_X_DISCLOSURES: readonly { message: string; expected: string; why: 
   { message: 'I had a peritonsillar abscess', expected: 'health_data', why: 'J36, mapped' },
   { message: 'I have vocal cord paralysis', expected: 'health_data', why: 'J38.00, mapped' },
   { message: 'I have chronic tonsillitis', expected: 'health_data', why: 'J35.9, mapped' },
-  { message: 'I have acute respiratory distress syndrome', expected: 'health_data', why: 'J80, mapped' },
+  {
+    message: 'I have acute respiratory distress syndrome',
+    expected: 'health_data',
+    why: 'J80, mapped',
+  },
   { message: 'I have pleural effusion', expected: 'health_data', why: 'J90, mapped' },
   { message: 'I have water on the lung', expected: 'health_data', why: 'J90, mapped' },
   { message: 'I went into respiratory failure', expected: 'health_data', why: 'J96.90, mapped' },
-  { message: 'I have pleural plaque', expected: 'health_data', why: 'gated without a code — the J92 exposure split must not be misstated' },
+  {
+    message: 'I have pleural plaque',
+    expected: 'health_data',
+    why: 'gated without a code — the J92 exposure split must not be misstated',
+  },
 ];
 
 const CHAPTER_X_COLLISIONS: readonly { message: string; expected: string; why: string }[] = [
@@ -4491,14 +4527,26 @@ describe('Gate road test — the ICD-10 Chapter X sweep', () => {
  *   educational sentence is not a disclosure.
  */
 const CHAPTER_XI_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
-  { message: 'I have appendicitis', expected: 'health_data', why: 'K37, mapped - the codebook unspecified home of the bare word' },
-  { message: 'I was diagnosed with acute appendicitis', expected: 'health_data', why: 'K35.80, mapped' },
+  {
+    message: 'I have appendicitis',
+    expected: 'health_data',
+    why: 'K37, mapped - the codebook unspecified home of the bare word',
+  },
+  {
+    message: 'I was diagnosed with acute appendicitis',
+    expected: 'health_data',
+    why: 'K35.80, mapped',
+  },
   { message: 'I have chronic appendicitis', expected: 'health_data', why: 'K36, mapped' },
   { message: 'I get indigestion after every meal', expected: 'health_data', why: 'K30, mapped' },
   { message: 'I have dyspepsia', expected: 'health_data', why: 'K30, mapped' },
   { message: 'I had peritonitis', expected: 'health_data', why: 'K65.9, mapped' },
   { message: 'I have fatty liver disease', expected: 'health_data', why: 'K76.0, mapped' },
-  { message: 'my hepatic steatosis was found on a scan', expected: 'health_data', why: 'K76.0, mapped' },
+  {
+    message: 'my hepatic steatosis was found on a scan',
+    expected: 'health_data',
+    why: 'K76.0, mapped',
+  },
   { message: 'I have salivary gland disease', expected: 'health_data', why: 'K11.9, mapped' },
   { message: 'I get canker sores every month', expected: 'health_data', why: 'K12.0, mapped' },
   { message: 'I have a mouth ulcer', expected: 'health_data', why: 'K12.0, mapped' },
@@ -4506,7 +4554,11 @@ const CHAPTER_XI_DISCLOSURES: readonly { message: string; expected: string; why:
   { message: 'I have rectal prolapse', expected: 'health_data', why: 'K62.3, mapped' },
   { message: 'I have biliary disease', expected: 'health_data', why: 'K83.9, mapped' },
   { message: 'I have pancreatic disease', expected: 'health_data', why: 'K86.9, mapped' },
-  { message: 'I was diagnosed with disease of tongue', expected: 'health_data', why: 'K14.9, mapped' },
+  {
+    message: 'I was diagnosed with disease of tongue',
+    expected: 'health_data',
+    why: 'K14.9, mapped',
+  },
   { message: 'I have an anorectal ulcer', expected: 'health_data', why: 'K62.6, mapped' },
   { message: 'I had paralytic ileus after surgery', expected: 'health_data', why: 'K56.0, mapped' },
   { message: 'I have an ileus', expected: 'health_data', why: 'K56.7, mapped' },
@@ -4573,8 +4625,16 @@ describe('Gate road test - the ICD-10 Chapter XI sweep', () => {
  *   direction as `hives`.
  */
 const CHAPTER_XII_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
-  { message: 'my baby was diagnosed with staphylococcal scalded skin syndrome', expected: 'health_data', why: 'L00, mapped' },
-  { message: 'I have SSSS', expected: 'health_data', why: 'L00, mapped - the acronym, word-matched' },
+  {
+    message: 'my baby was diagnosed with staphylococcal scalded skin syndrome',
+    expected: 'health_data',
+    why: 'L00, mapped',
+  },
+  {
+    message: 'I have SSSS',
+    expected: 'health_data',
+    why: 'L00, mapped - the acronym, word-matched',
+  },
   { message: 'my son has impetigo', expected: 'health_data', why: 'L01.00, mapped' },
   { message: 'I have pemphigus', expected: 'health_data', why: 'L10.9, mapped' },
   { message: 'I was diagnosed with pemphigoid', expected: 'health_data', why: 'L12.9, mapped' },
@@ -4585,12 +4645,24 @@ const CHAPTER_XII_DISCLOSURES: readonly { message: string; expected: string; why
   { message: 'I was diagnosed with erythema nodosum', expected: 'health_data', why: 'L52, mapped' },
   { message: 'I have a bad sunburn', expected: 'health_data', why: 'L55.9, mapped' },
   { message: 'I was diagnosed with hypertrichosis', expected: 'health_data', why: 'L68.9, mapped' },
-  { message: 'I have excessive hair growth on my face', expected: 'health_data', why: 'L68.9, mapped' },
+  {
+    message: 'I have excessive hair growth on my face',
+    expected: 'health_data',
+    why: 'L68.9, mapped',
+  },
   { message: 'I have acanthosis nigricans', expected: 'health_data', why: 'L83, mapped' },
   { message: 'I have pyoderma gangrenosum', expected: 'health_data', why: 'L88, mapped' },
   { message: 'I have lichen sclerosus', expected: 'health_data', why: 'L90.0, mapped' },
-  { message: 'I have a pilonidal cyst', expected: 'health_data', why: 'L05 - gated without a code, the split is not carried by the bare words' },
-  { message: 'my pruritus keeps me up at night', expected: 'health_data', why: 'L29, gated descriptive' },
+  {
+    message: 'I have a pilonidal cyst',
+    expected: 'health_data',
+    why: 'L05 - gated without a code, the split is not carried by the bare words',
+  },
+  {
+    message: 'my pruritus keeps me up at night',
+    expected: 'health_data',
+    why: 'L29, gated descriptive',
+  },
 ];
 
 const CHAPTER_XII_COLLISIONS: readonly { message: string; expected: string; why: string }[] = [
@@ -4655,11 +4727,23 @@ describe('Gate road test - the ICD-10 Chapter XII sweep', () => {
 const CHAPTER_XIII_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
   { message: 'I have osteomalacia', expected: 'health_data', why: 'M83.9, mapped' },
   { message: 'I have polymyalgia rheumatica', expected: 'health_data', why: 'M35.3, mapped' },
-  { message: 'I have a stress fracture in my foot', expected: 'health_data', why: 'M84.9, mapped - bare fracture stays unwatched' },
+  {
+    message: 'I have a stress fracture in my foot',
+    expected: 'health_data',
+    why: 'M84.9, mapped - bare fracture stays unwatched',
+  },
   { message: 'myositis runs in our family', expected: 'health_data', why: 'M60.9, mapped' },
-  { message: 'I was diagnosed with polyarteritis nodosa', expected: 'health_data', why: 'M30.0, mapped' },
+  {
+    message: 'I was diagnosed with polyarteritis nodosa',
+    expected: 'health_data',
+    why: 'M30.0, mapped',
+  },
   { message: 'I have giant cell arteritis', expected: 'health_data', why: 'M31.6, mapped' },
-  { message: 'my frozen shoulder is back', expected: 'health_data', why: 'M75.00, carried from the carrier sources' },
+  {
+    message: 'my frozen shoulder is back',
+    expected: 'health_data',
+    why: 'M75.00, carried from the carrier sources',
+  },
   { message: 'I have Dupuytren contracture', expected: 'health_data', why: 'M72.0, mapped' },
   { message: 'I have osteonecrosis', expected: 'health_data', why: 'M87.9, mapped' },
   { message: 'I have Paget disease of bone', expected: 'health_data', why: 'M88.9, mapped' },
