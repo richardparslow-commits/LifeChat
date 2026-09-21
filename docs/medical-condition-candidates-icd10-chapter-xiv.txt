@@ -1,0 +1,85 @@
+acute nephritic syndrome
+rapidly progressive nephritic syndrome
+recurrent and persistent hematuria
+chronic nephritic syndrome
+nephrotic syndrome
+unspecified nephritic syndrome
+isolated proteinuria with specified morphological lesion
+hereditary nephropathy, not elsewhere classified
+glomerular disorders in diseases classified elsewhere
+acute pyelonephritis
+chronic tubulo-interstitial nephritis
+tubulo-interstitial nephritis, not specified as acute or chronic
+obstructive and reflux uropathy
+drug- and heavy-metal-induced tubulo-interstitial and tubular conditions
+other renal tubulo-interstitial diseases
+renal tubulo-interstitial disorders in diseases classified elsewhere
+acute kidney failure
+chronic kidney disease
+unspecified kidney failure
+calculus of kidney and ureter
+calculus of lower urinary tract
+calculus of urinary tract in diseases classified elsewhere
+unspecified renal colic
+disorders resulting from impaired renal tubular function
+unspecified contracted kidney
+small kidney of unknown cause
+other disorders of kidney and ureter, not elsewhere classified
+other disorders of kidney and ureter in diseases classified elsewhere
+cystitis
+neuromuscular dysfunction of bladder, not elsewhere classified
+other disorders of bladder
+bladder disorders in diseases classified elsewhere
+urethritis and urethral syndrome
+urethral stricture
+other disorders of urethra
+urethral disorders in diseases classified elsewhere
+other disorders of urinary system
+benign prostatic hyperplasia
+inflammatory diseases of prostate
+other and unspecified disorders of prostate
+hydrocele and spermatocele
+noninflammatory disorders of testis
+orchitis and epididymitis
+male infertility
+disorders of prepuce
+other disorders of penis
+inflammatory disorders of male genital organs, not elsewhere classified
+other and unspecified disorders of male genital organs
+disorders of male genital organs in diseases classified elsewhere
+male erectile dysfunction
+other male sexual dysfunction
+benign mammary dysplasia
+inflammatory disorders of breast
+hypertrophy of breast
+unspecified lump in breast
+other disorders of breast
+deformity and disproportion of reconstructed breast
+salpingitis and oophoritis
+inflammatory disease of uterus, except cervix
+inflammatory disease of cervix uteri
+other female pelvic inflammatory diseases
+female pelvic inflammatory disorders in diseases classified elsewhere
+diseases of bartholin's gland
+other inflammation of vagina and vulva
+vulvovaginal ulceration and inflammation in diseases classified elsewhere
+endometriosis
+female genital prolapse
+fistulae involving female genital tract
+noninflammatory disorders of ovary, fallopian tube and broad ligament
+polyp of female genital tract
+other noninflammatory disorders of uterus, except cervix
+erosion and ectropion of cervix uteri
+dysplasia of cervix uteri
+other noninflammatory disorders of cervix uteri
+other noninflammatory disorders of vagina
+other noninflammatory disorders of vulva and perineum
+absent, scanty and rare menstruation
+excessive, frequent and irregular menstruation
+other abnormal uterine and vaginal bleeding
+pain and other conditions associated with female genital organs and menstrual cycle
+menopausal and other perimenopausal disorders
+recurrent pregnancy loss
+female infertility
+complications associated with artificial fertilization
+intraoperative and postprocedural complications and disorders of genitourinary system, not elsewhere classified

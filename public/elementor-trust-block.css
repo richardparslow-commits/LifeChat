@@ -11,10 +11,22 @@
  * White on #485B61 hover          7.132:1  Pass AAA       Pass AAA      —
  * #CC0700 against #485B61         1.222:1  FAIL           FAIL          FAIL
  *
+ * Focus indicator (measured in the Section 508 review):
+ *   The button was outlined in #000000, which measures 2.305:1 against the
+ *   #414C32 fill and 2.945:1 against the #485B61 hover fill — both below the
+ *   3:1 non-text minimum the rule below states. One colour cannot satisfy both
+ *   the dark button fill and the light section background behind it, so the
+ *   ring is two-tone:
+ *     inner band #FFFFFF on the fill   9.112:1 normal, 7.132:1 hover
+ *     outer band #1A1A1A on #E2E8F0   14.118:1
+ *
  * Rules:
  *   - Button text must be white and the red headline remains on light background
  *   - Do NOT place the red headline on the slate border/hover color
- *   - Preserve a 3:1 focus indicator against both normal and hover states
+ *   - Preserve a 3:1 focus indicator against both normal and hover states, and
+ *     against whatever sits behind the control (hence the second band). The
+ *     outer band assumes the specified #E2E8F0 section background; against a
+ *     much darker section use a light outer band instead.
  *
  * Usage in Elementor:
  *   Element-level selector syntax is correct in Elementor's Custom CSS field,
@@ -71,8 +83,20 @@ selector .elementor-button:focus-visible {
 }
 
 selector .elementor-button:focus-visible {
-  outline: 3px solid #000000;
-  outline-offset: 3px;
+  /* Two-tone ring: the light inner band clears the button fill (9.112:1 normal,
+     7.132:1 hover), the dark outer band clears the #E2E8F0 section background
+     (14.118:1). Both are outlines, so Windows High Contrast Mode still paints
+     an indicator. */
+  outline: 3px solid #ffffff;
+  outline-offset: 0;
+  box-shadow: 0 0 0 6px #1a1a1a;
+}
+
+@media (forced-colors: active) {
+  selector .elementor-button:focus-visible {
+    outline: 3px solid ButtonText;
+    box-shadow: none;
+  }
 }
 
 /* ── Reduced motion (WCAG 2.2) ── */
@@ -102,8 +126,16 @@ selector .elementor-button:focus-visible {
 }
 
 .lpp-trust-cta .elementor-button:focus-visible {
-  outline: 3px solid #000000;
-  outline-offset: 3px;
+  outline: 3px solid #ffffff;
+  outline-offset: 0;
+  box-shadow: 0 0 0 6px #1a1a1a;
+}
+
+@media (forced-colors: active) {
+  .lpp-trust-cta .elementor-button:focus-visible {
+    outline: 3px solid ButtonText;
+    box-shadow: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

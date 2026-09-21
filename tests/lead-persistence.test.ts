@@ -8,8 +8,11 @@
  * legal records under TDPSA retention / consent-proof requirements.
  */
 
-// Use a temp lead log path before importing so tests don't touch the real file
-process.env.LEAD_LOG_PATH = `data/lead-test-${Date.now()}.jsonl`;
+// Use a temp lead log path before importing so tests never touch the repo's
+// data/ directory (or the real record log).
+import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
+
+process.env.LEAD_LOG_PATH = tempLogPath('lead-test');
 
 import {
   clearAllLeadRecords,
@@ -25,6 +28,7 @@ beforeEach(() => {
 
 afterAll(() => {
   clearAllLeadRecords();
+  cleanupTempLogs(process.env.LEAD_LOG_PATH);
   delete process.env.LEAD_LOG_PATH;
 });
 
@@ -97,7 +101,7 @@ describe('lead persistence across restarts', () => {
  * (never plaintext PII) when RECORD_ENCRYPTION_KEY is set, and decrypt on reload.
  */
 describe('lead at-rest encryption', () => {
-  const encryptedLog = `data/lead-enc-${Date.now()}.jsonl`;
+  const encryptedLog = tempLogPath('lead-enc');
   const key = 'test-encryption-key-999';
 
   afterAll(async () => {
@@ -207,8 +211,8 @@ describe('lead fail-closed persistence', () => {
  * silently dropping the consent artifacts (an operational trap).
  */
 describe('lead keyless-startup warning', () => {
-  const encLog = `data/lead-keyless-${Date.now()}.jsonl`;
-  const plainLog = `data/lead-keyless-plain-${Date.now()}.jsonl`;
+  const encLog = tempLogPath('lead-keyless');
+  const plainLog = tempLogPath('lead-keyless-plain');
   const key = 'warning-test-key-999';
   const originalKey = process.env.RECORD_ENCRYPTION_KEY;
   const originalLog = process.env.LEAD_LOG_PATH;

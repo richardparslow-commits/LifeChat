@@ -1,0 +1,144 @@
+# ICD-10-CM Chapter X (J00–J99), the three-character category titles of the
+# whole chapter, verbatim FY 2026 — the ninth coverage-sweep corpus and the
+# seventh codebook enumeration. Written down from the codebook enumeration
+# before any Chapter X row was mapped (2026-09-20): WHO lists 63 categories in
+# the chapter (J00–J99) and ICD-10-CM adds J4A (chronic lung allograft
+# dysfunction) while leaving J46, J83 and J97 unused, so the FY 2026 chapter
+# carries 64 three-character titles, of which 60 are candidates here. The
+# titles are listed in code order without their code prefixes (the same
+# convention as every earlier chapter corpus), so each line is the exact
+# wording the sweep measures: J00 Acute nasopharyngitis [common cold], J01
+# Acute sinusitis, J02 Acute pharyngitis, J03 Acute tonsillitis, J04 Acute
+# laryngitis and tracheitis, J05 Acute obstructive laryngitis [croup] and
+# epiglottitis, J06 Acute upper respiratory infections of multiple and
+# unspecified sites, J09 Influenza due to certain identified influenza
+# viruses, J10 Influenza due to other identified influenza virus, J11
+# Influenza due to unidentified influenza virus, J12 Viral pneumonia, not
+# elsewhere classified, J13 Pneumonia due to Streptococcus pneumoniae, J14
+# Pneumonia due to Hemophilus influenzae, J15 Bacterial pneumonia, not
+# elsewhere classified, J16 Pneumonia due to other infectious organisms, J18
+# Pneumonia, unspecified organism, J20 Acute bronchitis, J21 Acute
+# bronchiolitis, J22 Unspecified acute lower respiratory infection, J30
+# Vasomotor and allergic rhinitis, J31 Chronic rhinitis, nasopharyngitis and
+# pharyngitis, J32 Chronic sinusitis, J33 Nasal polyp, J34 Other and
+# unspecified disorders of nose and nasal sinuses, J35 Chronic diseases of
+# tonsils and adenoids, J36 Peritonsillar abscess, J37 Chronic laryngitis and
+# laryngotracheitis, J38 Diseases of vocal cords and larynx, not elsewhere
+# classified, J39 Other diseases of upper respiratory tract, J40 Bronchitis,
+# not specified as acute or chronic, J41 Simple and mucopurulent chronic
+# bronchitis, J42 Unspecified chronic bronchitis, J43 Emphysema, J44 Other
+# chronic obstructive pulmonary disease, J45 Asthma, J47 Bronchiectasis, J4A
+# Chronic lung allograft dysfunction, J60 Coalworker's pneumoconiosis, J61
+# Pneumoconiosis due to asbestos and other mineral fibers, J62 Pneumoconiosis
+# due to dust containing silica, J63 Pneumoconiosis due to other inorganic
+# dusts, J64 Unspecified pneumoconiosis, J65 Pneumoconiosis associated with
+# tuberculosis, J66 Airway disease due to specific organic dust, J67
+# Hypersensitivity pneumonitis due to organic dust, J68 Respiratory conditions
+# due to inhalation of chemicals, gases, fumes and vapors, J69 Pneumonitis due
+# to solids and liquids, J70 Respiratory conditions due to other external
+# agents, J80 Acute respiratory distress syndrome, J81 Pulmonary edema, J82
+# Pulmonary eosinophilia, not elsewhere classified, J84 Other interstitial
+# pulmonary diseases, J85 Abscess of lung and mediastinum, J86 Pyothorax, J90
+# Pleural effusion, not elsewhere classified, J92 Pleural plaque, J93
+# Pneumothorax and air leak, J94 Other pleural conditions, J96 Respiratory
+# failure, not elsewhere classified, J98 Other respiratory disorders.
+#
+# The chapter is the respiratory system — carrier-questionnaire strength in its
+# centre (asthma, COPD/emphysema, chronic bronchitis, pneumonia, hay fever,
+# chronic sinusitis, sleep apnea all arrived from the carrier and
+# critical-illness sources) and blind spots of the familiar kind at its
+# edges: the occupational-lung rows (the pneumoconioses), the pleural rows
+# (pneumothorax, pleural plaque, pyothorax) and the upper-respiratory
+# inflammatory rows (nasal polyp, peritonsillar abscess, vocal-cord disease)
+# never appeared on a questionnaire, and this sweep measures whether they can
+# stay absent from a vocabulary that claims medical-history coverage. The
+# environmental rows are the chapter's underwriting-weight finding: asbestos
+# exposure was gated as a Chapter XXI history row, but the *diagnoses* that
+# follow from it (asbestosis, silicosis, the organic-dust lung diseases) were
+# silent before this sweep.
+#
+# The 4 titles that are not candidates are declared here rather than dropped,
+# because "this row cannot be a disclosure" is a finding the next sweep should
+# re-read rather than rediscover. Each block names the row it covers and the
+# reason, and each covered row's *stateable* form — the sentence a person would
+# actually write — is watched by a gate term or mapped as a canonical
+# condition, which is why the declarations are safe: the chapter's content is
+# covered, its navigation is not pretended to be a statement.
+#
+# ── Group A: in-diseases-classified-elsewhere routing. A title whose place
+# tells the coder the condition belongs to another chapter, not something a
+# person reports — the person names the underlying disease or the generic
+# finding, which is watched or mapped on its own row. Declared here: J17
+# Pneumonia in diseases classified elsewhere (the stateable form is
+# "pneumonia", carried at J18.9); J91 Pleural effusion in conditions classified
+# elsewhere (the stateable form is "pleural effusion", watched on the J90 row);
+# and J99 Respiratory disorders in diseases classified elsewhere (files under
+# the underlying disease the person names, e.g. the connective-tissue disease).
+#
+# ── Group B: postprocedural constructs. A postprocedural disorder is coded
+# from the procedure, and is not a statement a visitor makes. Declared here:
+# J95 Intraoperative and postprocedural complications and disorders of
+# respiratory system, not elsewhere classified.
+#
+# Measure it with:
+#   npm run conditions:sweep -- docs/medical-condition-candidates-icd10-chapter-x.txt
+Acute nasopharyngitis [common cold]
+Acute sinusitis
+Acute pharyngitis
+Acute tonsillitis
+Acute laryngitis and tracheitis
+Acute obstructive laryngitis [croup] and epiglottitis
+Acute upper respiratory infections of multiple and unspecified sites
+Influenza due to certain identified influenza viruses
+Influenza due to other identified influenza virus
+Influenza due to unidentified influenza virus
+Viral pneumonia, not elsewhere classified
+Pneumonia due to Streptococcus pneumoniae
+Pneumonia due to Hemophilus influenzae
+Bacterial pneumonia, not elsewhere classified
+Pneumonia due to other infectious organisms
+Pneumonia, unspecified organism
+Acute bronchitis
+Acute bronchiolitis
+Unspecified acute lower respiratory infection
+Vasomotor and allergic rhinitis
+Chronic rhinitis, nasopharyngitis and pharyngitis
+Chronic sinusitis
+Nasal polyp
+Other and unspecified disorders of nose and nasal sinuses
+Chronic diseases of tonsils and adenoids
+Peritonsillar abscess
+Chronic laryngitis and laryngotracheitis
+Diseases of vocal cords and larynx, not elsewhere classified
+Other diseases of upper respiratory tract
+Bronchitis, not specified as acute or chronic
+Simple and mucopurulent chronic bronchitis
+Unspecified chronic bronchitis
+Emphysema
+Other chronic obstructive pulmonary disease
+Asthma
+Bronchiectasis
+Chronic lung allograft dysfunction
+Coalworker's pneumoconiosis
+Pneumoconiosis due to asbestos and other mineral fibers
+Pneumoconiosis due to dust containing silica
+Pneumoconiosis due to other inorganic dusts
+Unspecified pneumoconiosis
+Pneumoconiosis associated with tuberculosis
+Airway disease due to specific organic dust
+Hypersensitivity pneumonitis due to organic dust
+Respiratory conditions due to inhalation of chemicals, gases, fumes and vapors
+Pneumonitis due to solids and liquids
+Respiratory conditions due to other external agents
+Acute respiratory distress syndrome
+Pulmonary edema
+Pulmonary eosinophilia, not elsewhere classified
+Other interstitial pulmonary diseases
+Abscess of lung and mediastinum
+Pyothorax
+Pleural effusion, not elsewhere classified
+Pleural plaque
+Pneumothorax and air leak
+Other pleural conditions
+Respiratory failure, not elsewhere classified
+Other respiratory disorders

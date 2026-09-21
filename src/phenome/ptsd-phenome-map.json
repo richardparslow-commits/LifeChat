@@ -1,0 +1,2580 @@
+{
+  "map_id": "ptsd-phenome-map",
+  "map_version": "1.1.0",
+  "map_date": "2026-09-19",
+  "index_condition": "PTSD",
+  "rules_document": "docs/phenome-mapping-rules.md",
+  "rules_version": "1.1.0",
+  "search_date": "2026-09-18",
+  "search_scope": "The three reviewed syntheses listed in docs/phenome-mapping-rules.md (Docs A, B, and C). No primary sources were opened, so every estimate remains `unverified` (R1).",
+  "ascertainment_boundary": "Coded and diagnosed comorbidity only. The map cannot see undiagnosed disease, conditions never coded, deaths before outcome ascertainment, care delivered outside the data system, or phenotypes that predate the index diagnosis (R35). PheWAS over UKB/MVP/All of Us and the 145,000-patient analysis see coded comorbidity, and the number of conditions a body has is not the number a database contains.",
+  "exclusion_rules": [
+    "Prevalent disease at baseline is excluded from every incidence row",
+    "Outcomes occurring inside the pre-declared latency window are excluded (R12)",
+    "Deaths before outcome ascertainment are excluded, which biases the mortality rows toward survivorship (R13)",
+    "Index diagnoses recorded inside the acute window are reported separately rather than pooled (R33)"
+  ],
+  "review": {
+    "status": "unsigned",
+    "clinician": null,
+    "actuary": null
+  },
+  "claims_complete": false,
+  "verification_gaps": [
+    {
+      "row_id": "ptsd-to-incident-chd",
+      "reason": "Synthesis figures only (Docs A/B/C); primary sources behind the pooled estimate not yet opened (R1)"
+    },
+    {
+      "row_id": "ptsd-to-any-cvd",
+      "reason": "Synthesis figures only; Doc B and Doc C report this independently but neither is verified at source (R1)"
+    },
+    {
+      "row_id": "ptsd-to-stroke",
+      "reason": "Synthesis figures only; the WTC pooled MI/stroke estimate is a separate population and is not verified (R1)"
+    },
+    { "row_id": "ptsd-to-myocardial-infarction", "reason": "Synthesis figures only (R1)" },
+    {
+      "row_id": "ptsd-to-heart-failure-hospitalization",
+      "reason": "Synthesis figures only; the CAD-cohort hospitalization estimate is not verified at source (R1)"
+    },
+    {
+      "row_id": "ptsd-to-hypertension",
+      "reason": "No pooled estimate exists in the corpus; the military-cohort associations are unverified (R1)"
+    },
+    {
+      "row_id": "ptsd-to-subclinical-atherosclerosis",
+      "reason": "Null finding recorded from Doc C's discordance; the 3,119-adult cohort's primary report not yet opened (R1)"
+    },
+    {
+      "row_id": "ptsd-to-arrhythmia-sudden-cardiac-death",
+      "reason": "No estimate to verify — the domain row records no studies identified in the sources reviewed (R43)"
+    },
+    {
+      "row_id": "ptsd-to-metabolic-syndrome",
+      "reason": "Synthesis figures only; the 43% prevalence figure and the 'nearly doubled' risk not verified (R1)"
+    },
+    {
+      "row_id": "ptsd-to-type-2-diabetes",
+      "reason": "Synthesis figures only; the dose-response values carry no printed CI, which is the row's declared R20 tension (R1)"
+    },
+    {
+      "row_id": "ptsd-to-any-autoimmune-disease",
+      "reason": "Synthesis figures only; Swedish register and US military estimates not verified (R1)"
+    },
+    {
+      "row_id": "ptsd-to-multiple-sclerosis",
+      "reason": "Two conflicting synthesis values; neither primary estimate opened (R1)"
+    },
+    {
+      "row_id": "ptsd-to-rheumatoid-arthritis",
+      "reason": "Synthesis table value only, without model or adjustment detail (R2, R1)"
+    },
+    {
+      "row_id": "ptsd-to-inflammatory-bowel-disease",
+      "reason": "Synthesis values only; the 1.14 to >2-6 range is unverified at both ends (R1)"
+    },
+    {
+      "row_id": "ptsd-to-systemic-lupus-erythematosus",
+      "reason": "Two conflicting synthesis values; the NHS II primary analysis not opened (R1)"
+    },
+    {
+      "row_id": "ptsd-to-autoimmune-thyroid-disease",
+      "reason": "Mendelian randomization estimate quoted without a CI; the instrument's primary report not opened (R1)"
+    },
+    {
+      "row_id": "ptsd-to-all-cause-dementia",
+      "reason": "Synthesis figures only; the veteran 2.31 to adjusted 1.77 pair is not verified (R1)"
+    },
+    {
+      "row_id": "ptsd-to-alzheimers-disease",
+      "reason": "Single synthesis estimate without a CI (R1)"
+    },
+    {
+      "row_id": "ptsd-to-vascular-dementia",
+      "reason": "Single synthesis estimate without a CI (R1)"
+    },
+    {
+      "row_id": "ptsd-to-parkinsonism-dlb",
+      "reason": "Pooled estimate with a CI near 1; primary base not opened (R1)"
+    },
+    {
+      "row_id": "ptsd-to-cognitive-decline",
+      "reason": "Cognitive-marker findings only; the decline slopes and their modifiers are not verified (R1)"
+    },
+    {
+      "row_id": "insomnia-bidirectional",
+      "reason": "Synthesis figure only; the trauma-cohort OR is not verified at source (R1)"
+    },
+    {
+      "row_id": "obstructive-sleep-apnea",
+      "reason": "Prevalence figures only; the primary pooled prevalence analysis not opened (R1)"
+    },
+    {
+      "row_id": "narcolepsy",
+      "reason": "Prevalence-only, no incidence data; the first-responder cohort not opened (R1)"
+    },
+    {
+      "row_id": "ptsd-to-functional-somatic-syndromes-trauma-stratum",
+      "reason": "Synthesis figure only; the decisive trauma-vs-PTSD comparison not verified at source (R1)"
+    },
+    {
+      "row_id": "ptsd-to-severe-infection",
+      "reason": "Synthesis figures only; the sibling-controlled Swedish estimates not verified (R1)"
+    },
+    {
+      "row_id": "ptsd-to-neurological-outcomes",
+      "reason": "No estimate to verify — the domain row records no studies identified in the sources reviewed (R43)"
+    },
+    {
+      "row_id": "ptsd-to-respiratory-outcomes",
+      "reason": "No estimate to verify — the domain row records no studies identified in the sources reviewed (R43)"
+    },
+    {
+      "row_id": "ptsd-to-gastrointestinal-hepatobiliary-outcomes",
+      "reason": "No estimate to verify — the domain row records no studies identified in the sources reviewed (R43)"
+    },
+    {
+      "row_id": "ptsd-to-oncologic-outcomes",
+      "reason": "No estimate to verify — the domain row records no studies identified in the sources reviewed (R43)"
+    },
+    {
+      "row_id": "ptsd-to-renal-outcomes",
+      "reason": "No estimate to verify — the domain row records no studies identified in the sources reviewed (R43)"
+    },
+    {
+      "row_id": "ptsd-to-severe-infection",
+      "reason": "Synthesis figures only; the sibling-controlled Swedish estimates not verified, and no CI is printed for the primary estimate (R1, R2)"
+    }
+  ],
+  "rule_tensions": [
+    {
+      "row_id": "ptsd-to-severe-infection",
+      "rule": "R16",
+      "description": "Tier B is graded on a single data system (Swedish national registers). R16 requires the same association from >=2 populations that do not overlap in subjects, institution, or data system.",
+      "resolution": "pending reviewer decision: either cite the corroborating population the sources imply, or regrade to C"
+    },
+    {
+      "row_id": "ptsd-to-type-2-diabetes",
+      "rule": "R20",
+      "description": "Tier A requires a CI that excludes 1.00 to be recorded. The source reports a dose-response (1.4 / 1.5 / 1.8) and states the CI excludes 1, but does not print the interval.",
+      "resolution": "pending primary-source verification: add the printed CI (R1) or regrade to B"
+    },
+    {
+      "row_id": "ptsd-to-type-2-diabetes",
+      "rule": "R25",
+      "description": "Tier A requires the effect to persist under adjustment. This row attenuates under adjustment for obesity (Doc B: attenuates but does not eliminate; Doc A: often attenuates or eliminates), which is why it also carries the M modifier.",
+      "resolution": "pending reviewer decision: accept an M-modifier A row whose attenuation state is 'attenuates', or regrade to B + M"
+    },
+    {
+      "row_id": "ptsd-to-all-cause-dementia",
+      "rule": "R25",
+      "description": "Tier A requires the effect to persist under adjustment. The pooled estimate (1.75) attenuates to 1.77 in the most-adjusted veteran analysis — it remains significant, but the row's attenuation state is 'attenuates' rather than 'persists'.",
+      "resolution": "pending review: either record a persists-state estimate from a population where the fully adjusted model is printed, or hold the row at A with this tension declared"
+    },
+    {
+      "row_id": "insomnia-bidirectional",
+      "rule": "R24",
+      "description": "Tier B requires the mandatory adjustment set to be at least asserted. The insomnia synthesis reports the association without enumerating adjustment.",
+      "resolution": "pending review: promote the row's adjustment set to 'asserted' if the primary source names its covariates, or regrade to C"
+    }
+  ],
+  "open_items": [
+    {
+      "category": "verification",
+      "row_id": null,
+      "item": "No row is verified. Every estimate is still as-stated by the three syntheses; R1 promotion requires opening each primary source and confirming estimator, value, CI, population, and follow-up."
+    },
+    {
+      "category": "coverage",
+      "row_id": null,
+      "item": "Domain coverage in this version: domains 1–5, 7–13, and 15 carry at least one row (domains 4, 8, 10, 11, and 13 as explicit D rows — recorded as findings, never as evidence of no association, R43). Domains 6, 14, 16, 17, 18, 19, and 20 still have no row: a declared coverage gap, not a null finding."
+    },
+    {
+      "category": "coverage",
+      "row_id": null,
+      "item": "The §15 grade table is only partly materialized. New in 1.1.0: severe infection (tier B, domain 15) and the trauma stratum of the functional-somatic contrast (domain 12, R7). Still declared and absent: ME/CFS, the PTSD stratum of the functional-somatic contrast, the chronic-TMD prevalence row, leukocyte telomere length, endothelial/inflammatory intermediates, the neurodegenerative biomarker row, all-cause mortality year 1 and >1 year, post-MI PTSD, PTSD after trauma by sleep reactivity, and the R45 attribution-exception row (maternal autoimmune → offspring CVD)."
+    },
+    {
+      "category": "coverage",
+      "row_id": null,
+      "item": "Unmaterialized rule tensions, recorded rather than waived: the neurodegenerative biomarker row (tier B on one population, relying on R40 m2 as an R16 exception); all-cause mortality >1 year (tier B on one registry); the PTSD-stratum functional-somatic and chronic-TMD rows; and the iatrogenic domain, whose content is mechanism-only with no epidemiological estimate to verify."
+    },
+    {
+      "category": "coverage",
+      "row_id": null,
+      "item": "The §12 sweep has no domain for dermatologic, lymphatic, urologic/genital, or congenital/developmental outcomes. The 1.4.0 vocabulary cross-check (src/phenome/sequelae-crosswalk.ts) reports those conditions as domain-gap marks or not-a-sequela exclusions rather than forcing them into an unrelated domain."
+    },
+    {
+      "category": "other",
+      "row_id": null,
+      "item": "Shared-cohort dependency is not disclosed in the sources: the same Swedish registry supplies the autoimmune, infection, and mortality rows, and the same NHS II cohort supplies CVD, T2D, SLE, and telomere findings (R16)."
+    },
+    {
+      "category": "other",
+      "row_id": null,
+      "item": "Publication bias and heterogeneity reporting is thin throughout, with one explicit warning that CRP meta-analyses are highly heterogeneous — which caps those estimates well below precise (R15)."
+    },
+    {
+      "category": "other",
+      "row_id": null,
+      "item": "The map is unsigned, so it cannot claim completeness under §0 condition 7 even though coverage, tiers, and verification are all recorded. Reviewers are still null."
+    }
+  ],
+  "rows": [
+    {
+      "id": "ptsd-to-incident-chd",
+      "domain": 1,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD: structured diagnostic interview (CAPS/SCID), or >=2 clinical encounters / >=2 ICD-coded diagnoses on separate dates (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime or currently-diagnosed PTSD; the pooled estimate does not separate epochs (R6)"
+      },
+      "outcome": {
+        "name": "Incident coronary heart disease",
+        "codes": ["I25.10"],
+        "definition": "New coronary heart disease in an initially disease-free cohort, distinct from the composite 'any cardiovascular disease' outcome",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": [
+        "meta-analysis of prospective cohorts",
+        "prospective cohort",
+        "registry/administrative cohort"
+      ],
+      "populations": [
+        { "name": "Pooled prospective cohorts", "independence_group": "pooled-meta-analyses" },
+        {
+          "name": "Nurses' Health Study II",
+          "independence_group": "nhs-ii",
+          "region": "United States",
+          "sex_distribution": "women"
+        },
+        { "name": "World Trade Center responder cohorts", "independence_group": "wtc-responders" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.55 (1.46–1.77)",
+          "value": 1.55,
+          "ci_low": 1.46,
+          "ci_high": 1.77,
+          "model_label": "pooled across prospective cohorts",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": {
+          "estimator": "HR",
+          "raw": "adjusted for depression, smoking, physical inactivity, and obesity; effect persists",
+          "model_label": "fully adjusted (depression, smoking, inactivity, obesity)",
+          "magnitude_band": "not_applicable"
+        },
+        "attenuation": "persists",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": { "smoking": "yes", "adiposity": "yes", "psychiatric_comorbidity": "yes" },
+        "outcome_specific": ["physical_inactivity"]
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [
+        {
+          "dimension": "sex",
+          "label": "women — incident ischemic heart disease",
+          "estimate": {
+            "estimator": "HR",
+            "raw": "1.44",
+            "value": 1.44,
+            "model_label": "as reported for women",
+            "magnitude_band": "modest"
+          },
+          "null_not_absence": true,
+          "modifiers": "larger in younger women"
+        }
+      ],
+      "mechanism_tier": "none",
+      "evidence_tier": "A",
+      "causal_language": "PTSD is an established risk factor for incident coronary heart disease in the populations named here",
+      "verdict_basis": "Multiple independent prospective populations, CI excludes 1, mandatory adjustment (depression, smoking, inactivity, obesity) applied and the effect persists; magnitude conflict recorded per R44",
+      "conflicts": [
+        {
+          "source_document": "B",
+          "reported_as": "a 55–61% increase in one synthesis",
+          "resolved": false
+        },
+        {
+          "source_document": "A",
+          "reported_as": "a pooled 27–55% increase in another",
+          "resolved": false
+        }
+      ],
+      "residual_confounding": "Residual confounding and mediation by behavioral and comorbid conditions account for part, but not all, of the association (Doc A)",
+      "populations_note": "Meta-analyses plus NHS II (women) and WTC responder cohorts; both civilian and responder populations, predominantly United States (R36)",
+      "notes": "Magnitude conflict left unresolved rather than averaged (R44). NHS II's symptom-count estimate belongs to the prob stratum and is not pooled into this dx estimate (R4, R5). Detection bias cannot be ruled out from coded diagnoses alone (R46).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§15 row 1; Doc A CVD section, Doc B pooled table, Doc C CHD cohort",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-any-cvd",
+      "domain": 1,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD, as for the incident CHD row (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime or currently-diagnosed PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Any cardiovascular disease (composite)",
+        "codes": [],
+        "definition": "Composite cardiovascular disease. Unresolvable to a single code, and recorded as such rather than forced onto one (R11)",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["meta-analysis of prospective cohorts", "registry/administrative cohort"],
+      "populations": [
+        { "name": "Pooled analysis (Doc B)", "independence_group": "pooled-meta-analyses" },
+        {
+          "name": "Registry cohort (Doc C)",
+          "independence_group": "swedish-national-registers",
+          "region": "Sweden"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.42 (1.31–1.52)",
+          "value": 1.42,
+          "ci_low": 1.31,
+          "ci_high": 1.52,
+          "model_label": "pooled, adjusted",
+          "magnitude_band": "modest"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "persists",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "A",
+      "causal_language": "PTSD is an established risk factor for any cardiovascular disease in the populations named here",
+      "verdict_basis": "Two independent sources agree closely (1.417 and 1.42) with CIs excluding 1; the tight interval on a modest estimate is the more reliable claim, and magnitude alone did not drive the grade (R19)",
+      "conflicts": [],
+      "residual_confounding": "The composite outcome mixes phenotypes of different latency, so a single composite estimate cannot separate a fast pathway from a slow one (R34)",
+      "populations_note": "One pooled analysis and one national registry; the two are independent in data system (R16)",
+      "notes": "Doc C's 1.417 and Doc B's 1.42 are treated as agreement, not replication across designs (R17). The composite cannot resolve stroke, MI, or heart failure separately — those have their own rows (R32).",
+      "source": {
+        "documents": ["B", "C"],
+        "locator": "§15 row 2",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-stroke",
+      "domain": 2,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime or currently-diagnosed PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Stroke / cerebrovascular event",
+        "codes": ["I63.9"],
+        "definition": "Ischemic or haemorrhagic stroke. Transient ischemic attack is listed in the §12 sweep but is not reported separately by any source, so it is not given a separate estimate",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["meta-analysis of prospective cohorts", "prospective cohort"],
+      "populations": [
+        { "name": "Pooled prospective cohorts", "independence_group": "pooled-meta-analyses" },
+        { "name": "World Trade Center responder cohorts", "independence_group": "wtc-responders" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "2.074 (1.16–2.98); range 1.70–2.07 across sources",
+          "value": 2.074,
+          "ci_low": 1.16,
+          "ci_high": 2.98,
+          "model_label": "pooled, adjusted",
+          "magnitude_band": "strong"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "persists",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "B",
+      "causal_language": "PTSD is associated with an increased risk of stroke",
+      "verdict_basis": "Strong point estimate but a wide CI despite the strong band — the precision gate, not the magnitude, is what holds this below A (R19, R20)",
+      "conflicts": [],
+      "residual_confounding": "Head injury and substance use are shared antecedents of both PTSD and stroke and are not fully separable in pooled estimates (R26)",
+      "populations_note": "Pooled cohorts plus WTC responders; responder populations are not the default human (R36)",
+      "notes": "The strong band estimate with a CI whose upper bound is near 3 is a precision-limited claim, and the map records it as such rather than promoting it on magnitude (R19).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§15 row 3",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-myocardial-infarction",
+      "domain": 1,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime or currently-diagnosed PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Myocardial infarction",
+        "codes": ["I21.9"],
+        "definition": "Acute myocardial infarction as an incident event",
+        "ascertainment": "a",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["meta-analysis of prospective cohorts", "prospective cohort"],
+      "populations": [
+        { "name": "Pooled prospective cohorts", "independence_group": "pooled-meta-analyses" },
+        { "name": "World Trade Center responder cohorts", "independence_group": "wtc-responders" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.415; 1.42–1.50 (1.33–1.50)",
+          "value": 1.415,
+          "ci_low": 1.33,
+          "ci_high": 1.5,
+          "model_label": "pooled, adjusted",
+          "magnitude_band": "modest"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": {
+          "estimator": "HR",
+          "raw": "adjusted; WTC responders adjusted HR > 2",
+          "model_label": "fully adjusted",
+          "magnitude_band": "not_applicable"
+        },
+        "attenuation": "persists",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "A",
+      "causal_language": "PTSD is an established risk factor for myocardial infarction in the populations named here",
+      "verdict_basis": "Independent populations, consistent direction, adjusted, CI excludes 1",
+      "conflicts": [],
+      "residual_confounding": "Atherosclerotic plaque is structural, so a 12-month latency is a floor rather than a sufficient window for a mechanism claim (R12, R34)",
+      "populations_note": "Pooled cohorts plus WTC responders; the > 2 adjusted estimate in responders is a selected occupational population (R36)",
+      "notes": "The WTC adjusted HR > 2 and the pooled 1.415 differ by population and by cohort selection, so both are recorded rather than merged (R44).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§15 row 4",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-heart-failure-hospitalization",
+      "domain": 1,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD within a cohort already selected for coronary artery disease (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "currently diagnosed PTSD inside a CAD cohort (R6)"
+      },
+      "outcome": {
+        "name": "Heart failure hospitalization",
+        "codes": ["I50.9"],
+        "definition": "Heart failure hospitalization within a coronary artery disease cohort",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["prospective cohort"],
+      "populations": [
+        {
+          "name": "Coronary artery disease cohort (single)",
+          "independence_group": "single-cad-cohort"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "adjusted approximately 3.7 for hospitalization",
+          "value": 3.7,
+          "model_label": "adjusted within a CAD cohort",
+          "magnitude_band": "strong"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [
+        {
+          "name": "PTSD severity predicting recurrent heart failure",
+          "proportion_mediated": "proportion mediated not reported"
+        }
+      ],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with heart failure hospitalization in a single selected cohort",
+      "verdict_basis": "Single population, and an exceptionally high estimate in a cohort already selected for coronary disease (R16)",
+      "conflicts": [],
+      "residual_confounding": "Selecting on prevalent coronary disease raises the baseline risk so far that the relative estimate is not transportable to a general PTSD population (R36)",
+      "populations_note": "One CAD cohort; no civilian general-population replication reported (R36)",
+      "notes": "The severity relationship is recorded as a mediator candidate without a proportion, per R30's explicit gap.",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 5",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-hypertension",
+      "domain": 1,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "prob",
+        "definition": "PTSD by screen or symptom count in large military cohorts, where the sources report associations without a pooled diagnostic-stratum analysis (R4, prob stratum)",
+        "ascertainment": "validated screen or symptom count",
+        "epoch": "current symptoms at screening (R6)"
+      },
+      "outcome": {
+        "name": "Incident hypertension",
+        "codes": ["I10"],
+        "definition": "New hypertension diagnosis. The corpus contains no pooled incidence estimate for this outcome, and the appendix records that explicitly",
+        "ascertainment": "e",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": ["prospective cohort", "registry/administrative cohort"],
+      "populations": [
+        {
+          "name": "Large military cohorts (unnamed in the synthesis)",
+          "independence_group": "us-military"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "no pooled estimate; associations observed and attenuation reported when PTSD was treated",
+          "model_label": "adjusted, but no pooled model reported",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "attenuates",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": ["sleep_disordered_breathing"]
+      },
+      "mediators": [
+        {
+          "name": "Insomnia symptoms (difficulty falling and staying asleep), plausibly via loss of nocturnal blood-pressure dipping",
+          "proportion_mediated": "proportion mediated not reported"
+        }
+      ],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "m3",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with incident hypertension",
+      "verdict_basis": "No pooled estimate and no CI, with attenuation when PTSD was treated — the evidence is suggestive but limited",
+      "conflicts": [],
+      "residual_confounding": "Sleep-disordered breathing and adiposity are on the causal path as well as being confounders, so adjustment may be removing part of the effect (R27)",
+      "populations_note": "Military cohorts only; no civilian pooled estimate exists in the corpus (R36)",
+      "notes": "The insomnia pathway is a mediation claim, so this row is recorded as mediated-pathway without the M modifier because no proportion is reported (R29, R30).",
+      "source": {
+        "documents": ["A", "C"],
+        "locator": "§15 row 6; Appendix item 1 (no pooled hypertension incidence estimate)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-subclinical-atherosclerosis",
+      "domain": 1,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD in a 3,119-adult cohort with carotid imaging (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD at imaging (R6)"
+      },
+      "outcome": {
+        "name": "Subclinical atherosclerosis (carotid intima-media thickness and plaque)",
+        "codes": [],
+        "definition": "Carotid intima-media thickness and carotid plaque by imaging, a subclinical marker rather than a clinical event",
+        "ascertainment": "a",
+        "kind": "intermediate marker",
+        "severity": "not_severe"
+      },
+      "designs": ["cross-sectional", "prospective cohort"],
+      "populations": [
+        {
+          "name": "Adults with carotid imaging (n = 3,119)",
+          "independence_group": "carotid-imaging-cohort",
+          "n": 3119
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "OR",
+          "raw": "null for cIMT and plaque; PTSD predicted clinical events (OR 1.51) in the same body of work",
+          "model_label": "adjusted imaging analysis",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not applicable — the finding is a null",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "X",
+      "causal_language": "the evidence does not support an association between PTSD and subclinical carotid atherosclerosis",
+      "verdict_basis": "Discordant marker-versus-endpoint finding preserved as its own row rather than folded into the clinical-event rows (R47, R46)",
+      "conflicts": [],
+      "residual_confounding": "Not applicable — the row records a null, and a null is not evidence of no effect when imaging and event ascertainment differ in sensitivity (R46)",
+      "populations_note": "One adult cohort with carotid imaging; no independent replication of the null reported (R36)",
+      "notes": "This X row is the strongest internal protection against detection bias in the map: a contact-driven artifact would inflate both the clinical endpoint and the imaging marker, and only the clinical endpoint moved (R46).",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 7",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-arrhythmia-sudden-cardiac-death",
+      "domain": 1,
+      "outcome_class": "cardiovascular_clinical",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": null,
+        "definition": "Not applicable — no source reports an estimate for this outcome, so no exposure stratum can be pinned (R43)",
+        "ascertainment": "not applicable — no study identified",
+        "epoch": "not applicable — no study identified"
+      },
+      "outcome": {
+        "name": "Arrhythmia and sudden cardiac death",
+        "codes": ["I49.9", "I46.9"],
+        "definition": "Cardiac arrhythmia and sudden cardiac death. Asserted mechanistically through reduced heart-rate variability with no epidemiological estimate anywhere in the corpus",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": [],
+      "populations": [],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "no estimate reported",
+          "model_label": "no model — no studies identified",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "absolute_risk": "not reported — no studies identified",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "m1",
+      "evidence_tier": "D",
+      "causal_language": "insufficient evidence to determine",
+      "verdict_basis": "no studies identified in sources reviewed (R43), search date 2026-09-18 over Docs A, B, and C; the mechanism (reduced heart-rate variability, ventricular arrhythmia risk) does not upgrade an untested association (R39)",
+      "conflicts": [],
+      "residual_confounding": "Not applicable — no estimate exists to be confounded",
+      "populations_note": "No population reports this outcome in the reviewed sources",
+      "notes": "Recorded as a gap rather than as evidence of no association. The mechanism row is tier D because a mechanism without epidemiology is a hypothesis (R39).",
+      "source": {
+        "documents": ["C"],
+        "locator": "Appendix item 1 (absent domains — arrhythmia and sudden cardiac death)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-metabolic-syndrome",
+      "domain": 3,
+      "outcome_class": "metabolic",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD; one component finding is reported in severe PTSD, which is a severity stratum within dx (R4)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "currently diagnosed, including a severe-PTSD subgroup (R6)"
+      },
+      "outcome": {
+        "name": "Metabolic syndrome",
+        "codes": ["E88.81"],
+        "definition": "Metabolic syndrome meeting standard criteria, as a prevalent state in a PTSD population and as an elevated relative risk",
+        "ascertainment": "e",
+        "kind": "prevalence",
+        "severity": "not_severe"
+      },
+      "designs": ["cross-sectional", "prospective cohort"],
+      "populations": [
+        { "name": "Pooled prevalence analysis", "independence_group": "pooled-meta-analyses" },
+        { "name": "Veteran cohorts (severe PTSD subgroup)", "independence_group": "vha-mvp" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "prevalence",
+          "raw": "up to 43% of severe PTSD patients meet criteria; 'nearly doubled' risk in one synthesis",
+          "value": null,
+          "model_label": "prevalence in a severe-PTSD subgroup, plus an unadjusted relative estimate",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "43% prevalence in severe PTSD is the only anchoring figure reported",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [
+        {
+          "name": "Adiposity and behavioral risk factors on the causal path from PTSD to the metabolic cluster",
+          "proportion_mediated": "proportion mediated not reported"
+        }
+      ],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "B",
+      "causal_language": "PTSD is associated with an increased risk of metabolic syndrome",
+      "verdict_basis": "Two populations with a prevalence anchor plus a relative estimate; absolute-risk anchoring is incomplete for the relative estimate, which is what keeps it below A",
+      "conflicts": [],
+      "residual_confounding": "Adiposity adjustment may remove part of the effect because adiposity follows PTSD rather than preceding it (R27)",
+      "populations_note": "One pooled prevalence analysis plus a veteran severe-PTSD subgroup; no civilian incidence cohort reported (R36)",
+      "notes": "Prevalence and relative-risk statements are recorded side by side and neither is allowed to license the other (R8). Type 1 diabetes, obesity, and dyslipidemia are named in the §12 sweep but have no estimate in the sources, so they are noted here rather than given empty rows.",
+      "source": {
+        "documents": ["A", "B"],
+        "locator": "§15 row 8",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-type-2-diabetes",
+      "domain": 3,
+      "outcome_class": "metabolic",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD, with a symptom-count gradient reported in NHS II under the prob stratum; the doses 1.4 / 1.5 / 1.8 belong to the symptom-count scale (R4, R5)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD; the symptom-count gradient is a current-severity measure (R6)"
+      },
+      "outcome": {
+        "name": "Type 2 diabetes mellitus",
+        "codes": ["E11.9"],
+        "definition": "Incident type 2 diabetes in an initially disease-free cohort",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": [
+        "prospective cohort",
+        "meta-analysis of prospective cohorts",
+        "registry/administrative cohort"
+      ],
+      "populations": [
+        {
+          "name": "Nurses' Health Study II",
+          "independence_group": "nhs-ii",
+          "region": "United States",
+          "sex_distribution": "women"
+        },
+        { "name": "Pooled prospective cohorts", "independence_group": "pooled-meta-analyses" },
+        { "name": "Veteran cohorts", "independence_group": "vha-mvp" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.4 / 1.5 / 1.8 across PTSD symptom counts; 30–50% pooled. The source states the CI excludes 1 but does not print it",
+          "value": 1.8,
+          "model_label": "dose-response across symptom counts (monotone gradient)",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": {
+          "estimator": "HR",
+          "raw": "adjustment for obesity attenuates but does not eliminate the association; antidepressants and elevated BMI together mediate nearly half",
+          "model_label": "fully adjusted for obesity and medication exposure",
+          "magnitude_band": "not_applicable"
+        },
+        "attenuation": "attenuates",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": true,
+        "dose_response_detail": "Monotone gradient 1.4 to 1.5 to 1.8 across PTSD symptom counts, which strengthens the row but does not rescue an effect that disappears under adjustment (R22)",
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis; the pooled 30–50% estimate is quoted without an interval"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": { "adiposity": "yes", "medication_exposure": "yes" },
+        "outcome_specific": ["physical_inactivity"]
+      },
+      "mediators": [
+        {
+          "name": "Antidepressant use and elevated BMI, jointly",
+          "proportion_mediated": "approximately half of the increased risk"
+        }
+      ],
+      "mediated": true,
+      "lag_months": 12,
+      "subgroups": [
+        {
+          "dimension": "ancestry",
+          "label": "Black populations",
+          "estimate": {
+            "estimator": "RR",
+            "raw": "1.9 (1.4–2.5)",
+            "value": 1.9,
+            "ci_low": 1.4,
+            "ci_high": 2.5,
+            "model_label": "as reported for this stratum",
+            "magnitude_band": "moderate"
+          },
+          "null_not_absence": true,
+          "modifiers": "compounding allostatic load from systemic inequity is offered as a hypothesis, not as evidence"
+        },
+        {
+          "dimension": "ancestry",
+          "label": "non-Latino White populations",
+          "estimate": {
+            "estimator": "RR",
+            "raw": "1.2 (0.7–1.9)",
+            "value": 1.2,
+            "ci_low": 0.7,
+            "ci_high": 1.9,
+            "model_label": "as reported for this stratum",
+            "magnitude_band": "null_or_uncertain"
+          },
+          "null_not_absence": true,
+          "modifiers": "CI crosses 1.00 — imprecision, not evidence of absence, and it does not license quoting 1.9 as the general effect"
+        }
+      ],
+      "mechanism_tier": "m3",
+      "evidence_tier": "A",
+      "causal_language": "PTSD is an established risk factor for type 2 diabetes in the populations named here, with approximately half of the association running through BMI and antidepressant exposure",
+      "verdict_basis": "Independent populations, a monotone gradient, and a CI the source states excludes 1 — with the M modifier because BMI and antidepressants mediate nearly half (R29, R30)",
+      "conflicts": [
+        {
+          "source_document": "B",
+          "reported_as": "adjustment for obesity attenuates but does not eliminate the association",
+          "resolved": true
+        },
+        {
+          "source_document": "A",
+          "reported_as": "adjustment for BMI often attenuates or eliminates the statistical association",
+          "resolved": false
+        }
+      ],
+      "residual_confounding": "Adjustment for obesity and antidepressants removes a genuine mediated component, so the adjusted estimate describes the direct effect only (R27)",
+      "populations_note": "NHS II (women, United States) plus pooled cohorts and veteran cohorts; one occupational population and one sex-specific cohort predominate (R36)",
+      "notes": "Two declared tensions: the CI is asserted but not printed (R20), and the effect attenuates rather than persists while the row still carries A (R25). Both need a reviewer, not a silent regrade. The clinically meaningful improvement finding — a 49% reduction in incident T2D (HR 0.51, 0.26–0.98) over 2–7 years — is the reversibility evidence that pairs with this row (R34).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§15 row 9 and row 34 discordance test",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-any-autoimmune-disease",
+      "domain": 5,
+      "outcome_class": "autoimmune",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD, with a stress-related-disorder comparison group reported alongside (R4, dx stratum)",
+        "ascertainment": "registry-coded diagnosis",
+        "epoch": "lifetime PTSD from first diagnosis onward (R6)"
+      },
+      "outcome": {
+        "name": "Any autoimmune disease",
+        "codes": [],
+        "definition": "Any of a broad set of autoimmune diagnoses after the index diagnosis, including a three-or-more-diagnoses subgroup",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": ["population-matched retrospective cohort", "registry/administrative cohort"],
+      "populations": [
+        {
+          "name": "Swedish national registers",
+          "independence_group": "swedish-national-registers",
+          "region": "Sweden"
+        },
+        { "name": "US military cohorts", "independence_group": "us-military" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.36 after a stress-related disorder, 1.46 after PTSD; three or more autoimmune diseases 2.29; military cohort 1.58",
+          "value": 1.46,
+          "model_label": "sibling-matched registry analysis",
+          "magnitude_band": "modest"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "persists",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "the sources state the absolute risk of developing an autoimmune disorder remains modest, which is the anchoring statement for this row",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [
+        {
+          "dimension": "other",
+          "label": "three or more autoimmune diagnoses",
+          "estimate": {
+            "estimator": "HR",
+            "raw": "2.29",
+            "value": 2.29,
+            "model_label": "same registry design",
+            "magnitude_band": "strong"
+          },
+          "null_not_absence": true,
+          "modifiers": "a distinct severity outcome, not a stronger version of the any-autoimmune estimate"
+        }
+      ],
+      "mechanism_tier": "none",
+      "evidence_tier": "B",
+      "causal_language": "PTSD is associated with an increased risk of autoimmune disease",
+      "verdict_basis": "Sibling-matched design is strong, but the same registry supplies several rows (R16) and the sources state the absolute risk remains modest (R21)",
+      "conflicts": [],
+      "residual_confounding": "Familial confounding is partly controlled by sibling matching, but autoimmune surveillance is itself higher after a psychiatric diagnosis, which inflates coded detection (R46)",
+      "populations_note": "One national register (Sweden) plus a military cohort; the register is one data system supplying several rows of this map (R16)",
+      "notes": "The 1.36 stress-related vs 1.46 PTSD pair is recorded as two exposure definitions rather than one estimate (R4). The absolute-risk language is the sources' own corrective to the relative figures (R21).",
+      "source": {
+        "documents": ["B", "C"],
+        "locator": "§15 row 10",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-multiple-sclerosis",
+      "domain": 5,
+      "outcome_class": "autoimmune",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "registry-coded or interview-based diagnosis, differing between sources",
+        "epoch": "lifetime PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Multiple sclerosis",
+        "codes": ["G35"],
+        "definition": "Multiple sclerosis diagnosis after the index diagnosis",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["registry/administrative cohort", "case-control"],
+      "populations": [
+        {
+          "name": "Registry cohort (one source)",
+          "independence_group": "swedish-national-registers",
+          "region": "Sweden"
+        },
+        { "name": "Second cohort (other source)", "independence_group": "second-ms-cohort" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "elevated; magnitude uncertain (1.30–2.30 across sources)",
+          "value": 2.3,
+          "model_label": "one source's table value",
+          "magnitude_band": "strong"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with multiple sclerosis, with uncertain magnitude",
+      "verdict_basis": "Unresolved magnitude conflict; the correct output is the range, not the mean and not the largest value (R44)",
+      "conflicts": [
+        {
+          "source_document": "B",
+          "reported_as": "2.30 in the table",
+          "value": 2.3,
+          "resolved": false
+        },
+        { "source_document": "C", "reported_as": "1.302", "value": 1.302, "resolved": false }
+      ],
+      "residual_confounding": "Not reported by either source; the two estimates do not share a stated adjustment set, so they are not comparable quantities (R44)",
+      "populations_note": "Two sources with different ascertainment and adjustment; R17 replication is not demonstrated because the change of ascertainment was not tested",
+      "notes": "Pooling estimates across incompatible phenotypes, adjustment sets, and designs would manufacture false precision, so the range is recorded (R44).",
+      "source": {
+        "documents": ["B", "C"],
+        "locator": "§15 row 11; §13 conflict table",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-rheumatoid-arthritis",
+      "domain": 5,
+      "outcome_class": "autoimmune",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "registry-coded diagnosis",
+        "epoch": "lifetime PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Rheumatoid arthritis",
+        "codes": ["M06.9"],
+        "definition": "Rheumatoid arthritis diagnosis after the index diagnosis",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": ["meta-analysis of prospective cohorts", "registry/administrative cohort"],
+      "populations": [
+        { "name": "Pooled synthesis table", "independence_group": "pooled-meta-analyses" },
+        {
+          "name": "Cohort sources cited by the synthesis",
+          "independence_group": "arthritis-cohorts"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.60 (table value)",
+          "value": 1.6,
+          "model_label": "pooled table value, model not stated",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with rheumatoid arthritis",
+      "verdict_basis": "Pooled table value reported without model or adjustment detail, so it cannot clear the precision or adjustment gates (R2, R24)",
+      "conflicts": [],
+      "residual_confounding": "Smoking is a shared risk factor for both PTSD and rheumatoid arthritis and is not shown to be adjusted in the table value (R24)",
+      "populations_note": "A pooled table value whose constituent cohorts are not individually described (R36)",
+      "notes": "The estimate is quoted with its estimator named and its model absent, which is recorded rather than filled in (R2).",
+      "source": {
+        "documents": ["B"],
+        "locator": "§15 row 12",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-inflammatory-bowel-disease",
+      "domain": 5,
+      "outcome_class": "autoimmune",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "registry-coded diagnosis",
+        "epoch": "lifetime PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Inflammatory bowel disease",
+        "codes": ["K50.90", "K51.90"],
+        "definition": "Crohn's disease or ulcerative colitis diagnosis after the index diagnosis",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": ["registry/administrative cohort", "case-control"],
+      "populations": [
+        { "name": "Pooled synthesis table", "independence_group": "pooled-meta-analyses" },
+        { "name": "Cohort sources cited by the synthesis", "independence_group": "ibd-cohorts" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.60 pooled; individual-study hazard ratios from approximately 1.14 to more than 2–6",
+          "value": 1.6,
+          "model_label": "pooled table value",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis, despite a range this wide"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with inflammatory bowel disease",
+      "verdict_basis": "Range so wide that no single claim is defensible; a pooled value over such a spread is not a precise estimate (R44, R15)",
+      "conflicts": [
+        { "source_document": "B", "reported_as": "1.60 pooled", "value": 1.6, "resolved": false },
+        {
+          "source_document": "C",
+          "reported_as": "individual-study hazard ratios from approximately 1.14 to more than 2–6",
+          "resolved": false
+        }
+      ],
+      "residual_confounding": "Not reported; healthcare contact after a psychiatric diagnosis raises coded inflammatory bowel disease detection as well as true incidence (R46)",
+      "populations_note": "Pooled table plus its constituent cohorts, which are not described separately (R36)",
+      "notes": "The undisclosed heterogeneity is itself the finding, since R15 caps a pooled estimate with unknown heterogeneity well below precise.",
+      "source": {
+        "documents": ["B", "C"],
+        "locator": "§15 row 13; §13 conflict table",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-systemic-lupus-erythematosus",
+      "domain": 5,
+      "outcome_class": "autoimmune",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "prob",
+        "definition": "PTSD symptom count in NHS II, where the reported estimate comes from a symptom-based phenotype rather than a diagnostic interview (R4, prob stratum)",
+        "ascertainment": "validated screen or symptom count",
+        "epoch": "current symptom burden in mid-life women (R6)"
+      },
+      "outcome": {
+        "name": "Systemic lupus erythematosus",
+        "codes": ["M32.9"],
+        "definition": "Systemic lupus erythematosus diagnosis after the index diagnosis",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["prospective cohort", "meta-analysis of prospective cohorts"],
+      "populations": [
+        {
+          "name": "Nurses' Health Study II",
+          "independence_group": "nhs-ii",
+          "region": "United States",
+          "sex_distribution": "women"
+        },
+        { "name": "Pooled synthesis table", "independence_group": "pooled-meta-analyses" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "2.94 (NHS II) vs 1.40 (pooled table)",
+          "value": 2.94,
+          "model_label": "NHS II, adjusted for smoking, BMI, and oral contraceptive use",
+          "magnitude_band": "strong"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": {
+          "estimator": "HR",
+          "raw": "2.94 after adjustment for smoking, BMI, and oral contraceptive use",
+          "value": 2.94,
+          "model_label": "fully adjusted (smoking, BMI, oral contraceptives)",
+          "magnitude_band": "strong"
+        },
+        "attenuation": "persists",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": { "smoking": "yes", "adiposity": "yes" },
+        "outcome_specific": ["oral_contraceptive_use"]
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with systemic lupus erythematosus",
+      "verdict_basis": "Genuine conflict; the NHS II estimate is well adjusted but single-population, and the pooled estimate is far smaller (R16, R44)",
+      "conflicts": [
+        {
+          "source_document": "C",
+          "reported_as": "2.94 in NHS II, adjusted for smoking, BMI, and oral contraceptive use",
+          "value": 2.94,
+          "resolved": false
+        },
+        {
+          "source_document": "B",
+          "reported_as": "1.40 in the pooled table",
+          "value": 1.4,
+          "resolved": false
+        }
+      ],
+      "residual_confounding": "Autoimmune surveillance is higher after a psychiatric diagnosis, so part of the elevation may be coded detection rather than disease (R46)",
+      "populations_note": "NHS II is mid-life women in one country, and the same cohort supplies the CVD, T2D, and telomere rows (R16, R36)",
+      "notes": "Both estimates are recorded and the claim is limited to what both support, per R20. The 2.94 magnitude and the tight SLE interval in the pooled estimate disagree on both axes, which is why neither is adopted alone (R44).",
+      "source": {
+        "documents": ["B", "C"],
+        "locator": "§15 row 14; §13 conflict table",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-autoimmune-thyroid-disease",
+      "domain": 5,
+      "outcome_class": "autoimmune",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "PTSD liability defined genetically through a stress-related-disorder genome-wide instrument, which is a different exposure definition from a clinical diagnosis (R4, R18)",
+        "ascertainment": "genetically instrumented liability",
+        "epoch": "lifetime liability (R6)"
+      },
+      "outcome": {
+        "name": "Graves' disease / autoimmune thyroid disease",
+        "codes": ["E05.90"],
+        "definition": "Autoimmune thyroid disease, reported through a genetic instrument rather than a cohort",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": ["MR/genetic instrument"],
+      "populations": [
+        {
+          "name": "Genetically defined population (instrument sample, not described)",
+          "independence_group": "mr-instrument-sample"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "OR",
+          "raw": "1.056 (no confidence interval reported)",
+          "value": 1.056,
+          "model_label": "Mendelian randomization, no CI reported",
+          "magnitude_band": "marginal"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "m4",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with autoimmune thyroid disease in a genetically instrumented analysis",
+      "verdict_basis": "Marginal band, no CI, and a genetically defined population — a different question from the cohort rows and recorded separately (R18, R20)",
+      "conflicts": [],
+      "residual_confounding": "Mendelian randomization trades confounding for instrument validity assumptions, which the synthesis does not report or test (R18)",
+      "populations_note": "A genetic instrument population, not a cohort; it is not comparable to a mid-life cohort hazard ratio (R18)",
+      "notes": "The MR estimate is kept as its own row and never blended into a cohort estimate (R18). No CI is a precision failure recorded rather than imputed (R2).",
+      "source": {
+        "documents": ["B"],
+        "locator": "§15 row 15; Doc B PheWAS/genetic architecture section",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-all-cause-dementia",
+      "domain": 7,
+      "outcome_class": "neurodegenerative",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD with long follow-up, which is required for this outcome class (R6, R12)"
+      },
+      "outcome": {
+        "name": "All-cause dementia",
+        "codes": ["F03.90"],
+        "definition": "All-cause dementia incidence, distinct from Alzheimer's disease and vascular dementia rows",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": [
+        "meta-analysis of prospective cohorts",
+        "registry/administrative cohort",
+        "prospective cohort"
+      ],
+      "populations": [
+        {
+          "name": "Pooled cohort analysis (more than 1.6 million)",
+          "independence_group": "pooled-meta-analyses",
+          "n": 1600000
+        },
+        { "name": "Veteran cohorts (DoD-ADNI and VHA analyses)", "independence_group": "vha-mvp" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.75 (1.55–1.97) pooled; 1.61 in a second pooled analysis; 2.31 in veterans, adjusted to 1.77",
+          "value": 1.75,
+          "ci_low": 1.55,
+          "ci_high": 1.97,
+          "model_label": "pooled, adjusted",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": {
+          "estimator": "HR",
+          "raw": "2.31 in veterans before extensive adjustment",
+          "value": 2.31,
+          "model_label": "least adjusted (veteran cohort)",
+          "magnitude_band": "strong"
+        },
+        "fully_adjusted": {
+          "estimator": "HR",
+          "raw": "1.77 after adjusting head injury, substance abuse, and depression",
+          "value": 1.77,
+          "model_label": "fully adjusted (head injury, substance abuse, depression)",
+          "magnitude_band": "moderate"
+        },
+        "attenuation": "attenuates",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "total_n": 1600000,
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": {
+          "head_injury": "yes",
+          "substance_use": "yes",
+          "psychiatric_comorbidity": "yes"
+        },
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 24,
+      "subgroups": [
+        {
+          "dimension": "other",
+          "label": "civilians vs veterans",
+          "estimate": {
+            "estimator": "HR",
+            "raw": "civilians up to 2.11 vs veterans 1.61",
+            "value": 2.11,
+            "model_label": "as reported by population",
+            "magnitude_band": "strong"
+          },
+          "null_not_absence": true,
+          "modifiers": "veteran-dominant evidence is a generalization limitation, not a detail"
+        },
+        {
+          "dimension": "genotype",
+          "label": "APOE-e4 carriers co-diagnosed with PTSD",
+          "estimate": {
+            "estimator": "HR",
+            "raw": "accelerated delayed-recall and executive-function decline",
+            "model_label": "modifier analysis, no hazard ratio reported",
+            "magnitude_band": "not_applicable"
+          },
+          "null_not_absence": true,
+          "modifiers": "recorded as an effect modifier with its own magnitude rather than in discussion"
+        }
+      ],
+      "mechanism_tier": "none",
+      "evidence_tier": "A",
+      "causal_language": "PTSD is an established risk factor for all-cause dementia in the populations named here",
+      "verdict_basis": "Independent populations, persists after head injury, substance abuse, and depression, with a CI excluding 1 and a 24-month latency satisfied (R12, R24)",
+      "conflicts": [
+        {
+          "source_document": "B",
+          "reported_as": "1.75 (1.55–1.97)",
+          "value": 1.75,
+          "resolved": false
+        },
+        {
+          "source_document": "C",
+          "reported_as": "1.61 pooled over more than 1.6 million",
+          "value": 1.61,
+          "resolved": false
+        },
+        { "source_document": "A", "reported_as": "pooled commonly 1.6–2.1", "resolved": false }
+      ],
+      "residual_confounding": "Head injury, substance use, and depression are adjusted but are themselves downstream of trauma, so adjustment removes part of the pathway (R27)",
+      "populations_note": "A pooled civilian analysis plus veteran cohorts; the veteran adjustments move the estimate from 2.31 to 1.77, showing how much population and model choice matter (R36)",
+      "notes": "The attenuation from 2.31 to 1.77 is recorded alongside the pooled estimate rather than instead of it, because both facts are what the evidence says (R25). The 24-month latency reflects this outcome class (R12).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§15 row 16; §13 conflict table",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-alzheimers-disease",
+      "domain": 7,
+      "outcome_class": "neurodegenerative",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD with long follow-up (R6)"
+      },
+      "outcome": {
+        "name": "Alzheimer's disease",
+        "codes": ["G30.9"],
+        "definition": "Alzheimer's disease specifically, which the sources do not separate cleanly from all-cause dementia",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["registry/administrative cohort", "prospective cohort"],
+      "populations": [
+        {
+          "name": "Single cohort reporting a percentage elevation",
+          "independence_group": "alzheimers-cohort"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "a 31% elevation, no CI reported",
+          "value": 1.31,
+          "model_label": "single cohort, model not detailed",
+          "magnitude_band": "modest"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 24,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with Alzheimer's disease",
+      "verdict_basis": "A single estimate without a CI, and the phenotype is not separated from all-cause dementia, so the row cannot clear the precision gate (R20)",
+      "conflicts": [],
+      "residual_confounding": "Not reported; diagnostic drift between Alzheimer's disease and all-cause dementia is the dominant threat to this row (R46)",
+      "populations_note": "One cohort; no independent replication of the disease-specific estimate (R36)",
+      "notes": "Separated from the all-cause dementia row rather than absorbed into it, because a disease-specific claim cannot ride on a composite result (R10, R47).",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 17",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-vascular-dementia",
+      "domain": 7,
+      "outcome_class": "neurodegenerative",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD with long follow-up (R6)"
+      },
+      "outcome": {
+        "name": "Vascular dementia",
+        "codes": ["F01.50"],
+        "definition": "Vascular dementia as a subtype, reported as a percentage elevation",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["registry/administrative cohort"],
+      "populations": [
+        {
+          "name": "Single cohort reporting a percentage elevation",
+          "independence_group": "vascular-dementia-cohort"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "an 80% elevation, no CI reported",
+          "value": 1.8,
+          "model_label": "single cohort, model not detailed",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [
+        {
+          "name": "Cerebrovascular disease on the causal path to vascular dementia",
+          "proportion_mediated": "proportion mediated not reported"
+        }
+      ],
+      "mediated": false,
+      "lag_months": 24,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with vascular dementia",
+      "verdict_basis": "Single estimate without a CI, so precision cannot be assessed (R20)",
+      "conflicts": [],
+      "residual_confounding": "The stroke and vascular-dementia rows share a mechanism, so overlap between them is expected and is not independent corroboration (R16)",
+      "populations_note": "One cohort; no independent replication (R36)",
+      "notes": "The pathway through cerebrovascular disease is recorded as a mediator candidate, which is why this row must not be read as independent of the stroke row (R28).",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 18",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-parkinsonism-dlb",
+      "domain": 7,
+      "outcome_class": "neurodegenerative",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD with long follow-up (R6)"
+      },
+      "outcome": {
+        "name": "Parkinson's disease and dementia with Lewy bodies",
+        "codes": ["G20", "G31.83"],
+        "definition": "Parkinson's disease and dementia with Lewy bodies, grouped as synucleinopathies by the source",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["meta-analysis of prospective cohorts", "case-control"],
+      "populations": [
+        {
+          "name": "Pooled estimate (retrospective and case-control base)",
+          "independence_group": "pooled-meta-analyses"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.88 (1.08–3.24)",
+          "value": 1.88,
+          "ci_low": 1.08,
+          "ci_high": 3.24,
+          "model_label": "pooled",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 24,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with Parkinson's disease and Lewy body dementia",
+      "verdict_basis": "CI lower bound near 1 and a retrospective/case-control base, which is below the prospective designs the rules require for a higher tier (R17, R20)",
+      "conflicts": [],
+      "residual_confounding": "Not reported; case-control designs cannot establish temporality, which is required for this latency-sensitive outcome class (R34)",
+      "populations_note": "One pooled estimate over retrospective and case-control sources rather than independent prospective cohorts (R36)",
+      "notes": "The upper CI bound of 3.24 shows how much imprecision the moderate band can hide (R20).",
+      "source": {
+        "documents": ["B"],
+        "locator": "§15 row 19",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-cognitive-decline",
+      "domain": 7,
+      "outcome_class": "neurodegenerative",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD with repeated cognitive assessment (R6)"
+      },
+      "outcome": {
+        "name": "Cognitive decline and hippocampal atrophy",
+        "codes": ["G31.84"],
+        "definition": "Accelerated annual working-memory decline and hippocampal atrophy as intermediate cognitive markers, not clinical dementia",
+        "ascertainment": "e",
+        "kind": "intermediate marker",
+        "severity": "not_severe"
+      },
+      "designs": ["prospective cohort"],
+      "populations": [
+        {
+          "name": "Cohorts with repeated cognitive assessment",
+          "independence_group": "cognitive-cohorts"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "mean difference",
+          "raw": "accelerated annual working-memory decline; hippocampal atrophy reported without a pooled effect size",
+          "model_label": "mixed-effects decline models, adjusted",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": ["multisite_pain", "APOE_genotype"]
+      },
+      "mediators": [
+        {
+          "name": "Multisite pain as a modifier on the decline trajectory",
+          "proportion_mediated": "proportion mediated not reported"
+        }
+      ],
+      "mediated": false,
+      "lag_months": 24,
+      "subgroups": [
+        {
+          "dimension": "sex",
+          "label": "men vs women — working-memory decline",
+          "estimate": {
+            "estimator": "mean difference",
+            "raw": "men decline faster than women",
+            "model_label": "as reported by sex",
+            "magnitude_band": "not_applicable"
+          },
+          "null_not_absence": true,
+          "modifiers": "recorded as an effect modifier with its own magnitude rather than in discussion"
+        }
+      ],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "PTSD has been associated with accelerated cognitive decline",
+      "verdict_basis": "Intermediate cognitive-marker outcomes with incomplete modifier evidence; marker rows cannot stand in for the dementia row (R10)",
+      "conflicts": [],
+      "residual_confounding": "Pain, sleep disturbance, and medication exposure all affect cognitive testing performance and are unevenly adjusted (R26)",
+      "populations_note": "Cohorts with repeated assessment; the number of independent populations is not stated in the synthesis (R36)",
+      "notes": "Kept as its own row so the dementia rows are not supported by marker evidence (R10). The APOE-e4 modifier is also recorded on the all-cause dementia row, with the same value, because both sources report it.",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 20",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "insomnia-bidirectional",
+      "domain": 9,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD in traumatized cohorts, where the association runs in both directions and is partly definitional (R4, R32)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "current PTSD with current sleep symptoms (R6)"
+      },
+      "outcome": {
+        "name": "Insomnia",
+        "codes": ["G47.00"],
+        "definition": "Insomnia symptoms. The direction field records the index-to-outcome edge only; the reverse edge would be a second row (R32)",
+        "ascertainment": "e",
+        "kind": "prevalence",
+        "severity": "not_severe"
+      },
+      "designs": ["cross-sectional", "prospective cohort"],
+      "populations": [
+        { "name": "Traumatized cohorts (pooled OR)", "independence_group": "trauma-cohorts" },
+        { "name": "PTSD prevalence surveys", "independence_group": "ptsd-prevalence-surveys" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "OR",
+          "raw": "7.13 in traumatized cohorts; insomnia affects 70–90% of PTSD patients",
+          "value": 7.13,
+          "model_label": "pooled odds ratio in traumatized cohorts",
+          "magnitude_band": "strong"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "70–90% of PTSD patients affected — the anchoring prevalence for this row",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [
+        {
+          "name": "Insomnia as a mediator of the PTSD-to-hypertension association via loss of nocturnal blood-pressure dipping",
+          "proportion_mediated": "proportion mediated not reported"
+        }
+      ],
+      "mediated": true,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "m3",
+      "evidence_tier": "B",
+      "causal_language": "PTSD is associated with an increased risk of insomnia symptoms, in a bidirectional and partly definitional relationship",
+      "verdict_basis": "Very large and replicated, but bidirectional and partly definitional because insomnia is among the PTSD diagnostic criteria — which is why the direction is split into separate rows (R32, R11)",
+      "conflicts": [],
+      "residual_confounding": "Sleep disturbance in the diagnostic criteria means the exposure and outcome partly contain each other, so a portion of the association is definitional rather than causal (R28)",
+      "populations_note": "Traumatized cohorts plus prevalence surveys; sleep measures vary between them (R36)",
+      "notes": "Carries the M modifier as a mediator of the hypertension pathway, which is a different role from being an outcome of PTSD (R29, R31). The reverse edge, insomnia predicting PTSD onset, is recorded on the sleep-reactivity row.",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 21",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "obstructive-sleep-apnea",
+      "domain": 9,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD in cohorts with polysomnographic or screening-based apnea assessment (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime or currently-diagnosed PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Obstructive sleep apnea",
+        "codes": ["G47.33"],
+        "definition": "Obstructive sleep apnea by apnea-hypopnea index thresholds (>=5 and >=10), reported as prevalence rather than incidence",
+        "ascertainment": "e",
+        "kind": "prevalence",
+        "severity": "not_severe"
+      },
+      "designs": ["cross-sectional", "prospective cohort"],
+      "populations": [
+        { "name": "Pooled prevalence analysis", "independence_group": "pooled-meta-analyses" },
+        {
+          "name": "Veteran cohorts (young combat veterans screening high risk)",
+          "independence_group": "vha-mvp"
+        },
+        { "name": "Further screening cohorts", "independence_group": "apnea-screening-cohorts" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "prevalence",
+          "raw": "75.7% at AHI >= 5, 43.6% at AHI >= 10; 69.2% high-risk screening in young combat veterans",
+          "value": null,
+          "model_label": "pooled prevalence, independent of BMI and age",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "75.7% at AHI >= 5 and 43.6% at AHI >= 10 are the anchoring prevalences",
+        "dose_response": false,
+        "pooled": {
+          "heterogeneity_i2": "not reported in the reviewed synthesis"
+        }
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": { "adiposity": "yes" },
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [
+        {
+          "dimension": "age",
+          "label": "young combat veterans screening high risk (69.2%)",
+          "estimate": {
+            "estimator": "prevalence",
+            "raw": "69.2%",
+            "value": 69.2,
+            "model_label": "screening questionnaire",
+            "magnitude_band": "not_applicable"
+          },
+          "null_not_absence": true,
+          "modifiers": "independent of BMI and age"
+        }
+      ],
+      "mechanism_tier": "none",
+      "evidence_tier": "B",
+      "causal_language": "PTSD is associated with an increased risk of obstructive sleep apnea, on prevalence evidence",
+      "verdict_basis": "Three populations and an anchoring prevalence; incidence data are not reported, so this row cannot carry an incidence claim (R8)",
+      "conflicts": [],
+      "residual_confounding": "Screening questionnaires and AHI thresholds are not interchangeable, so the 69.2% screening figure and the 75.7% AHI figure are not the same quantity (R8, R23)",
+      "populations_note": "Pooled analysis plus veteran and screening cohorts; veteran-heavy evidence base (R36)",
+      "notes": "The two prevalence thresholds are recorded side by side because collapsing them would hide the measurement dependence (R23). No incidence estimate exists, which is itself a row-level finding (R8).",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 22",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "narcolepsy",
+      "domain": 9,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD in first-responder populations (R4, dx stratum)",
+        "ascertainment": "structured interview or registry-coded diagnosis",
+        "epoch": "lifetime PTSD (R6)"
+      },
+      "outcome": {
+        "name": "Narcolepsy",
+        "codes": ["G47.419"],
+        "definition": "Narcolepsy prevalence in first responders with no incidence data identified in the corpus",
+        "ascertainment": "e",
+        "kind": "prevalence",
+        "severity": "not_severe"
+      },
+      "designs": ["cross-sectional"],
+      "populations": [
+        { "name": "First-responder cohort", "independence_group": "first-responder-cohort" }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "prevalence",
+          "raw": "approximately 1% in first responders; no incidence data",
+          "value": null,
+          "model_label": "single-population prevalence",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "events_reported_as": "not reported in the reviewed synthesis",
+        "absolute_risk": "approximately 1% prevalence is the only anchoring figure",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "not_reported",
+        "mandatory": {},
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "m1",
+      "evidence_tier": "D",
+      "causal_language": "insufficient evidence to determine",
+      "verdict_basis": "no studies identified in sources reviewed (R43) for incidence — the single prevalence estimate cannot license an incidence claim (R8) — and a mechanism (orexin and hypocretin dysregulation) does not upgrade an untested association (R39)",
+      "conflicts": [],
+      "residual_confounding": "Not assessable — the single prevalence estimate has no comparison group reported (R35)",
+      "populations_note": "One first-responder cohort; the corpus records the absence of incidence data explicitly (R43)",
+      "notes": "Recorded as insufficient rather than empty: a prevalence estimate exists but cannot answer the incidence question this map is built for (R8).",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 23",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-renal-outcomes",
+      "domain": 4,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": null,
+        "definition": "Not applicable — no source reports an estimate for this outcome, so no exposure stratum can be pinned (R43)",
+        "ascertainment": "not applicable — no study identified",
+        "epoch": "not applicable — no study identified"
+      },
+      "outcome": {
+        "name": "Renal outcomes (acute kidney injury, chronic kidney disease, glomerulonephritis)",
+        "codes": ["N17.9", "N18.9", "N05.9"],
+        "definition": "Incident acute kidney injury, chronic kidney disease, or glomerulonephritis. Named in the §12 sweep (domain 4) and effectively absent from the corpus",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": [],
+      "populations": [],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "no estimate reported",
+          "model_label": "no model — no studies identified",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "absolute_risk": "not reported — no studies identified",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": { "completeness": "not_reported", "mandatory": {}, "outcome_specific": [] },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "D",
+      "causal_language": "insufficient evidence to determine",
+      "verdict_basis": "no studies identified in sources reviewed (R43), search date 2026-09-19 over Docs A, B, and C; the §12 sweep names renal/urinary outcomes and none of the three syntheses reports an estimate (appendix item 1)",
+      "conflicts": [],
+      "residual_confounding": "Not applicable — no estimate exists to be confounded",
+      "populations_note": "No population reports this outcome in the reviewed sources",
+      "notes": "Recorded as a gap rather than as evidence of no association. A single creatinine or eGFR finding would not lift this row above C (R10), and none is reported.",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "Appendix item 1 (renal, hepatic, and most oncologic outcomes effectively absent)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-neurological-outcomes",
+      "domain": 8,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": null,
+        "definition": "Not applicable — no source reports an estimate for this outcome, so no exposure stratum can be pinned (R43)",
+        "ascertainment": "not applicable — no study identified",
+        "epoch": "not applicable — no study identified"
+      },
+      "outcome": {
+        "name": "Neurological outcomes (migraine and tension-type headache, epilepsy, chronic pain, hydrocephalus)",
+        "codes": ["G43.909", "G44.209", "G40.909", "G91.9"],
+        "definition": "Incident neurological diagnoses other than the neurodegenerative and cerebrovascular rows. Named in the §12 sweep (domain 8); the corpus reports no estimate for any of them",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": [],
+      "populations": [],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "no estimate reported",
+          "model_label": "no model — no studies identified",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "absolute_risk": "not reported — no studies identified",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": { "completeness": "not_reported", "mandatory": {}, "outcome_specific": [] },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "D",
+      "causal_language": "insufficient evidence to determine",
+      "verdict_basis": "no studies identified in sources reviewed (R43), search date 2026-09-19 over Docs A, B, and C; headache and chronic pain appear as symptom language in the sources but never as an estimated outcome, and the TBI row is an exposure covariate rather than a sequela",
+      "conflicts": [],
+      "residual_confounding": "Not applicable — no estimate exists to be confounded",
+      "populations_note": "No population reports this outcome in the reviewed sources",
+      "notes": "Recorded as a gap rather than as evidence of no association. Head injury is in the mandatory adjustment set (R24) as a confounder, which is the opposite direction from this row.",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§12 domain 8 (migraine, epilepsy, chronic pain, TBI)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-respiratory-outcomes",
+      "domain": 10,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": null,
+        "definition": "Not applicable — no source reports an estimate for this outcome, so no exposure stratum can be pinned (R43)",
+        "ascertainment": "not applicable — no study identified",
+        "epoch": "not applicable — no study identified"
+      },
+      "outcome": {
+        "name": "Respiratory outcomes (asthma, COPD, pleural disease)",
+        "codes": ["J45.909", "J44.9", "R09.1", "J93.9"],
+        "definition": "Incident respiratory diagnoses beyond sleep-disordered breathing. Named in the §12 sweep (domain 10); the corpus reports no estimate",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": [],
+      "populations": [],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "no estimate reported",
+          "model_label": "no model — no studies identified",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "absolute_risk": "not reported — no studies identified",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": { "completeness": "not_reported", "mandatory": {}, "outcome_specific": [] },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "m1",
+      "evidence_tier": "D",
+      "causal_language": "insufficient evidence to determine",
+      "verdict_basis": "no studies identified in sources reviewed (R43), search date 2026-09-19 over Docs A, B, and C; a plausible hyperventilation/autonomic mechanism is asserted nowhere with an estimate, and a mechanism without epidemiology is a hypothesis (R39)",
+      "conflicts": [],
+      "residual_confounding": "Not applicable — no estimate exists to be confounded",
+      "populations_note": "No population reports this outcome in the reviewed sources",
+      "notes": "Recorded as a gap rather than as evidence of no association. Smoking, which sits on the pathway, is a mandatory covariate (R24).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§12 domain 10 (asthma, COPD, respiratory infection)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-gastrointestinal-hepatobiliary-outcomes",
+      "domain": 11,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": null,
+        "definition": "Not applicable — no source reports an estimate for this outcome, so no exposure stratum can be pinned (R43)",
+        "ascertainment": "not applicable — no study identified",
+        "epoch": "not applicable — no study identified"
+      },
+      "outcome": {
+        "name": "Gastrointestinal and hepatobiliary outcomes (gastroparesis, liver disease)",
+        "codes": ["K31.84", "K76.9"],
+        "definition": "Incident gastrointestinal and hepatobiliary diagnoses other than inflammatory bowel disease, which has its own row. Named in the §12 sweep (domain 11)",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": [],
+      "populations": [],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "no estimate reported",
+          "model_label": "no model — no studies identified",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "absolute_risk": "not reported — no studies identified",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": { "completeness": "not_reported", "mandatory": {}, "outcome_specific": [] },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "D",
+      "causal_language": "insufficient evidence to determine",
+      "verdict_basis": "no studies identified in sources reviewed (R43), search date 2026-09-19 over Docs A, B, and C; appendix item 1 records hepatic outcomes as effectively absent",
+      "conflicts": [],
+      "residual_confounding": "Not applicable — no estimate exists to be confounded",
+      "populations_note": "No population reports this outcome in the reviewed sources",
+      "notes": "Recorded as a gap rather than as evidence of no association. Alcohol use sits on several of these pathways and is a mandatory covariate (R24).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§12 domain 11; appendix item 1 (hepatic outcomes absent)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-oncologic-outcomes",
+      "domain": 13,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": null,
+        "definition": "Not applicable — no source reports an estimate for this outcome, so no exposure stratum can be pinned (R43)",
+        "ascertainment": "not applicable — no study identified",
+        "epoch": "not applicable — no study identified"
+      },
+      "outcome": {
+        "name": "Oncologic outcomes (all sites, site-specific where immune-mediated)",
+        "codes": [],
+        "definition": "Incident cancer, all sites, with site-specific rows only where an immune-mediated pathway is hypothesized. Named in the §12 sweep (domain 13)",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": [],
+      "populations": [],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "no estimate reported",
+          "model_label": "no model — no studies identified",
+          "magnitude_band": "not_applicable"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "absolute_risk": "not reported — no studies identified",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": { "completeness": "not_reported", "mandatory": {}, "outcome_specific": [] },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 24,
+      "subgroups": [],
+      "mechanism_tier": "m1",
+      "evidence_tier": "D",
+      "causal_language": "insufficient evidence to determine",
+      "verdict_basis": "no studies identified in sources reviewed (R43), search date 2026-09-19 over Docs A, B, and C; the sources mention rare malignancy associations as speculation without estimates, so no code is recorded and no claim is made",
+      "conflicts": [],
+      "residual_confounding": "Not applicable — no estimate exists to be confounded",
+      "populations_note": "No population reports this outcome in the reviewed sources",
+      "notes": "Recorded as a gap rather than as evidence of no association. No `codes` are listed because an unresolvable outcome must not be given a code that narrows it (R11).",
+      "source": {
+        "documents": ["A", "B", "C"],
+        "locator": "§12 domain 13; appendix item 1 (most oncologic outcomes effectively absent)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-severe-infection",
+      "domain": 15,
+      "outcome_class": "other",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "dx",
+        "definition": "Clinically diagnosed PTSD in a national register: >=2 ICD-coded diagnoses on separate dates (R4, dx stratum)",
+        "ascertainment": "registry-coded diagnosis",
+        "epoch": "lifetime register diagnosis; the synthesis does not separate epochs (R6)"
+      },
+      "outcome": {
+        "name": "Severe / life-threatening infection",
+        "codes": ["A41.9", "G00.9", "I33.0"],
+        "definition": "Hospitalized severe infection; site-specific estimates the synthesis reports are meningitis 1.63 and endocarditis 1.57",
+        "ascertainment": "b",
+        "kind": "incidence",
+        "severity": "severe"
+      },
+      "designs": ["population-matched retrospective cohort", "registry/administrative cohort"],
+      "populations": [
+        {
+          "name": "Swedish national registers (sibling-controlled)",
+          "independence_group": "swedish-registers",
+          "follow_up": "as reported by the synthesis; not restated here (R1)",
+          "region": "Sweden"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "HR",
+          "raw": "1.92 (siblings-controlled; CI not printed in the reviewed synthesis)",
+          "value": 1.92,
+          "model_label": "sibling-controlled",
+          "magnitude_band": "moderate"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": {
+          "estimator": "HR",
+          "raw": "sibling control is the reported design; the mandatory adjustment set is asserted rather than enumerated",
+          "model_label": "sibling-controlled (fully adjusted as reported)",
+          "magnitude_band": "not_applicable"
+        },
+        "attenuation": "persists",
+        "absolute_risk": "not reported — the synthesis states relative risks only",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": {
+        "completeness": "asserted",
+        "mandatory": { "age": "yes", "sex": "yes" },
+        "outcome_specific": []
+      },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "B",
+      "causal_language": "PTSD is associated with an increased risk of severe infection",
+      "verdict_basis": "Sibling matching addresses familial confounding and the estimate excludes 1.00, but the whole estimate rests on one data system, so R16 caps it at C on its own; it is held at B on the strength of the sibling design and the deviation from R16 is declared in rule_tensions rather than waived silently",
+      "conflicts": [],
+      "residual_confounding": "Residual confounding by health behaviour, care access, and undiagnosed immune disease is not assessed beyond the sibling control (R26)",
+      "populations_note": "One national registry (Sweden); both sexes; the source is not veteran-dominant (R36)",
+      "notes": "Detection-bias risk is moderate: infection ascertainment is hospital-discharge coded and therefore requires healthcare contact, which PTSD diagnosis also requires (R46).",
+      "source": {
+        "documents": ["B", "C"],
+        "locator": "§15 row 26 (severe / life-threatening infection)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    },
+    {
+      "id": "ptsd-to-functional-somatic-syndromes-trauma-stratum",
+      "domain": 12,
+      "outcome_class": "functional_somatic",
+      "direction": "index_to_outcome",
+      "exposure": {
+        "condition": "PTSD",
+        "stratum": "trauma",
+        "definition": "Trauma exposure without PTSD — the negative-control stratum that separates the stress response from the event (R4, R7)",
+        "ascertainment": "trauma exposure as reported by the reviewed synthesis; the PTSD stratum is declared but not yet a row",
+        "epoch": "not separated by the synthesis (R6)"
+      },
+      "outcome": {
+        "name": "Functional somatic syndrome diagnosis after trauma exposure (FM, CFS, IBS, TMD)",
+        "codes": ["M79.7", "G93.32", "K58.9", "M26.60"],
+        "definition": "A diagnosed functional somatic syndrome in people exposed to trauma who did not develop PTSD; the comparison that makes the PTSD rows interpretable",
+        "ascertainment": "c",
+        "kind": "incidence",
+        "severity": "not_severe"
+      },
+      "designs": ["case-control"],
+      "populations": [
+        {
+          "name": "Trauma-exposed cohorts in the reviewed synthesis",
+          "independence_group": "synthesis-trauma-cohorts"
+        }
+      ],
+      "mortality_window": null,
+      "estimate": {
+        "primary": {
+          "estimator": "OR",
+          "raw": "2.7 (2.27–3.10)",
+          "value": 2.7,
+          "ci_low": 2.27,
+          "ci_high": 3.1,
+          "model_label": "as reported by the synthesis",
+          "magnitude_band": "strong"
+        },
+        "least_adjusted": null,
+        "fully_adjusted": null,
+        "attenuation": "not_applicable",
+        "absolute_risk": "not reported in the reviewed synthesis",
+        "dose_response": false,
+        "pooled": null
+      },
+      "adjustment_set": { "completeness": "not_reported", "mandatory": {}, "outcome_specific": [] },
+      "mediators": [],
+      "mediated": false,
+      "lag_months": 12,
+      "subgroups": [],
+      "mechanism_tier": "none",
+      "evidence_tier": "C",
+      "causal_language": "Trauma exposure without PTSD has been associated with a functional somatic syndrome diagnosis, and the association is larger in those who developed full PTSD",
+      "verdict_basis": "The trauma-vs-PTSD contrast is the corpus's strongest design feature (R7), but the reviewed synthesis names one cohort family and no adjustment set, so the row is held at C where §15 graded B (R16, R24)",
+      "conflicts": [],
+      "residual_confounding": "Symptom overlap between functional somatic syndromes and PTSD, and differential healthcare contact after trauma, are not separable in the reviewed synthesis (R46)",
+      "populations_note": "Trauma-exposed adults; the synthesis does not separate veteran from civilian samples (R36)",
+      "notes": "This row exists because R7 makes the trauma stratum mandatory: without it the map cannot say whether the sequela follows the stress response or merely the event.",
+      "source": {
+        "documents": ["C"],
+        "locator": "§15 row 25 (functional somatic syndromes, trauma stratum)",
+        "primary_source_url": null
+      },
+      "verification": { "status": "unverified", "verifier": null, "date": null }
+    }
+  ]
+}

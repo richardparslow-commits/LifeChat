@@ -1,0 +1,159 @@
+# ICD-10-CM Chapter XIII (M00–M99), the three-character category titles of the
+# whole chapter, verbatim FY 2026 — the twelfth coverage-sweep corpus and the
+# tenth codebook enumeration. Written down from the codebook enumeration before
+# any Chapter XIII row was mapped (2026-09-20): the chapter spans 100
+# three-character slots and the FY 2026 codebook leaves M03, M28, M29, M37,
+# M38, M39, M44, M52, M55–M59, M68, M69, M73, M74 and M78 unused, so it
+# carries 79 titled categories (including the CM extension M1A Chronic gout),
+# of which 71 are candidates here. The titles are listed in code order without
+# their code prefixes (the same convention as every earlier chapter corpus),
+# so each line is the exact wording the sweep measures: M00 Pyogenic
+# arthritis, M01 Direct infections of joint in infectious and parasitic
+# diseases classified elsewhere, M02 Postinfective and reactive
+# arthropathies, M04 Autoinflammatory syndromes, M05 Rheumatoid arthritis
+# with rheumatoid factor, M06 Other rheumatoid arthritis, M07 Enteropathic
+# arthropathies, M08 Juvenile arthritis, M10 Gout, M11 Other crystal
+# arthropathies, M12 Other and unspecified arthropathy, M13 Other arthritis,
+# M14 Arthropathies in other diseases classified elsewhere, M1A Chronic gout,
+# M15 Polyosteoarthritis, M16 Osteoarthritis of hip, M17 Osteoarthritis of
+# knee, M18 Osteoarthritis of first carpometacarpal joint, M19 Other and
+# unspecified osteoarthritis, M20 Acquired deformities of fingers and toes,
+# M21 Other acquired deformities of limbs, M22 Disorder of patella, M23
+# Internal derangement of knee, M24 Other specific joint derangements, M25
+# Other joint disorder, not elsewhere classified, M26 Dentofacial anomalies
+# [including malocclusion], M27 Other diseases of jaws, M30 Polyarteritis
+# nodosa and related conditions, M31 Other necrotizing vasculopathies, M32
+# Systemic lupus erythematosus (SLE), M33 Dermatopolymyositis, M34 Systemic
+# sclerosis [scleroderma], M35 Other systemic involvement of connective
+# tissue, M36 Systemic disorders of connective tissue in other diseases
+# classified elsewhere, M40 Kyphosis and lordosis, M41 Scoliosis, M42 Spinal
+# osteochondrosis, M43 Other deforming dorsopathies, M45 Ankylosing
+# spondylitis, M46 Other inflammatory spondylopathies, M47 Spondylosis, M48
+# Other spondylopathies, M49 Spondylopathies in diseases classified
+# elsewhere, M50 Cervical disc disorders, M51 Thoracic, thoracolumbar, and
+# lumbosacral intervertebral disc disorders, M53 Other and unspecified
+# dorsopathies, not elsewhere classified, M54 Dorsalgia, M60 Myositis, M61
+# Calcification and ossification of muscle, M62 Other disorders of muscle,
+# M63 Disorders of muscle in diseases classified elsewhere, M65 Synovitis and
+# tenosynovitis, M66 Spontaneous rupture of synovium and tendon, M67 Other
+# disorders of synovium and tendon, M70 Soft tissue disorders related to use,
+# overuse and pressure, M71 Other bursopathies, M72 Fibroblastic disorders,
+# M75 Shoulder lesions, M76 Enthesopathies, lower limb, excluding foot, M77
+# Other enthesopathies, M79 Other and unspecified soft tissue disorders, not
+# elsewhere classified, M80 Osteoporosis with current pathological fracture,
+# M81 Osteoporosis without current pathological fracture, M83 Adult
+# osteomalacia, M84 Disorder of continuity of bone, M85 Other disorders of
+# bone density and structure, M86 Osteomyelitis, M87 Osteonecrosis, M88
+# Osteitis deformans [Paget's disease of bone], M89 Other disorders of bone,
+# M90 Osteopathies in diseases classified elsewhere, M91 Juvenile
+# osteochondrosis of hip and pelvis, M92 Other juvenile osteochondrosis, M93
+# Other osteochondropathies, M94 Other disorders of cartilage, M95 Other
+# acquired deformities of musculoskeletal system and connective tissue, M96
+# Intraoperative and postprocedural complications and disorders of
+# musculoskeletal system, not elsewhere classified, M97 Periprosthetic
+# fracture around internal prosthetic joint, M99 Biomechanical lesions, not
+# elsewhere classified.
+#
+# The chapter centre is carrier strength: gout, rheumatoid arthritis, SLE,
+# psoriatic arthritis, ankylosing spondylitis, scleroderma, fibromyalgia,
+# osteoarthritis, osteoporosis, osteopenia, scoliosis, intervertebral disc
+# disorders, spinal stenosis, osteomyelitis, sciatica, Ehlers-Danlos, Marfan,
+# carpal tunnel, tennis elbow, trigger finger, bursitis and ganglion cyst all
+# arrived from the carrier and PTSD-phenome sources long ago. The sweep's job
+# here is the named edges — the arthropathy residuals, the joint derangements
+# and TMJ, the vasculitides and myositides, Sjögren's and polymyalgia
+# rheumatica, the dorsopathy family, spondylosis and cervical discs, low back
+# pain, the tendon and shoulder lesions, Dupuytren's and plantar fasciitis,
+# frozen shoulder and rotator cuff, osteomalacia, osteonecrosis, Paget's,
+# stress fractures and the osteochondroses.
+#
+# ── Group A: in-diseases-classified-elsewhere routing. A title whose place
+# tells the coder the condition belongs to another chapter, not something a
+# person reports — the person names the underlying disease, which is watched
+# or mapped on its own row. Declared here: M01 Direct infections of joint in
+# infectious and parasitic diseases classified elsewhere; M14 Arthropathies
+# in other diseases classified elsewhere; M36 Systemic disorders of
+# connective tissue in other diseases classified elsewhere; M49
+# Spondylopathies in diseases classified elsewhere; M63 Disorders of muscle
+# in diseases classified elsewhere; and M90 Osteopathies in diseases
+# classified elsewhere.
+#
+# ── Group B: postprocedural constructs. A postprocedural disorder is coded
+# from the procedure, and is not a statement a visitor makes. Declared here:
+# M96 Intraoperative and postprocedural complications and disorders of
+# musculoskeletal system, not elsewhere classified; and M97 Periprosthetic
+# fracture around internal prosthetic joint.
+#
+# Measure it with:
+#   npm run conditions:sweep -- docs/medical-condition-candidates-icd10-chapter-xiii.txt
+Pyogenic arthritis
+Postinfective and reactive arthropathies
+Autoinflammatory syndromes
+Rheumatoid arthritis with rheumatoid factor
+Other rheumatoid arthritis
+Enteropathic arthropathies
+Juvenile arthritis
+Gout
+Other crystal arthropathies
+Other and unspecified arthropathy
+Other arthritis
+Chronic gout
+Polyosteoarthritis
+Osteoarthritis of hip
+Osteoarthritis of knee
+Osteoarthritis of first carpometacarpal joint
+Other and unspecified osteoarthritis
+Acquired deformities of fingers and toes
+Other acquired deformities of limbs
+Disorder of patella
+Internal derangement of knee
+Other specific joint derangements
+Other joint disorder, not elsewhere classified
+Dentofacial anomalies [including malocclusion]
+Other diseases of jaws
+Polyarteritis nodosa and related conditions
+Other necrotizing vasculopathies
+Systemic lupus erythematosus (SLE)
+Dermatopolymyositis
+Systemic sclerosis [scleroderma]
+Other systemic involvement of connective tissue
+Kyphosis and lordosis
+Scoliosis
+Spinal osteochondrosis
+Other deforming dorsopathies
+Ankylosing spondylitis
+Other inflammatory spondylopathies
+Spondylosis
+Other spondylopathies
+Cervical disc disorders
+Thoracic, thoracolumbar, and lumbosacral intervertebral disc disorders
+Other and unspecified dorsopathies, not elsewhere classified
+Dorsalgia
+Myositis
+Calcification and ossification of muscle
+Other disorders of muscle
+Synovitis and tenosynovitis
+Spontaneous rupture of synovium and tendon
+Other disorders of synovium and tendon
+Soft tissue disorders related to use, overuse and pressure
+Other bursopathies
+Fibroblastic disorders
+Shoulder lesions
+Enthesopathies, lower limb, excluding foot
+Other enthesopathies
+Other and unspecified soft tissue disorders, not elsewhere classified
+Osteoporosis with current pathological fracture
+Osteoporosis without current pathological fracture
+Adult osteomalacia
+Disorder of continuity of bone
+Other disorders of bone density and structure
+Osteomyelitis
+Osteonecrosis
+Osteitis deformans [Paget's disease of bone]
+Other disorders of bone
+Juvenile osteochondrosis of hip and pelvis
+Other juvenile osteochondrosis
+Other osteochondropathies
+Other disorders of cartilage
+Other acquired deformities of musculoskeletal system and connective tissue
+Biomechanical lesions, not elsewhere classified

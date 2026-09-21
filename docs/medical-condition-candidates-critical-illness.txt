@@ -1,0 +1,80 @@
+# Condition-coverage candidate phrases — critical-illness covered-condition lists
+#
+# Source: the carrier covered-condition enumerations published by a licensed
+# brokerage (calhealth.net, "Is Critical Illness insurance worth it?", fetched
+# 2026-09-19). Three lists appear there: the ten conditions a specific
+# Blue Cross Blue Shield / IHC plan covers, the standard "30 critical
+# illnesses", and the expanded "36 critical illnesses". They are transcribed
+# here because they are a different *kind* of source from the questionnaire
+# corpus: these are the conditions a claim is triggered by, i.e. exactly the
+# rows an underwriter asks about — and they were written by someone else, well
+# before this vocabulary existed.
+#
+# Transcription rules, so the list is reproducible:
+#   - lowercased; severity qualifiers ("of specified severity") and duplicates
+#     across the three lists collapsed;
+#   - parenthetical clarifications dropped ("Blindness (Loss of Sight)" →
+#     "blindness"), because the parenthetical is a gloss, not a second row;
+#   - "Loss of sight, speech or hearing" (one line in the source) is split into
+#     its three rows, since they are three different findings.
+#
+# Measure it with:
+#
+#   npm run conditions:sweep -- docs/medical-condition-candidates-critical-illness.txt
+#
+# Procedure rows (bypass, transplant, valve surgery, angioplasty), injury rows
+# (burns, head trauma) and cover-definition rows are expected to land in the
+# gated-but-uncoded bucket: the vocabulary carries diagnosed conditions, so a
+# procedure is protected by the gate and deliberately has no code.
+
+life-threatening cancer
+heart attack
+kidney failure
+stroke
+coma
+coronary artery bypass
+loss of sight
+loss of speech
+loss of hearing
+major organ transplant
+paralysis
+severe burn
+heart valve surgery
+blindness
+deafness
+multiple sclerosis
+fulminant hepatitis
+bone marrow transplant
+primary pulmonary hypertension
+alzheimer's disease
+severe dementia
+surgery to aorta
+major burns
+terminal illness
+hiv due to blood transfusion
+end stage lung disease
+end stage liver failure
+muscular dystrophy
+parkinson's disease
+aplastic anaemia
+angioplasty
+bacterial meningitis
+benign brain tumour
+viral encephalitis
+motor neurone disease
+coronary artery disease requiring surgery
+other serious coronary artery disease
+heart valve replacement
+fulminant viral hepatitis
+chronic liver disease
+primary pulmonary arterial hypertension
+chronic lung disease
+paraplegia
+degenerative brain disorder
+encephalitis
+major head trauma
+poliomyelitis
+apallic syndrome
+loss of independent existence
+aids due to blood transfusion
+cardiomyopathy

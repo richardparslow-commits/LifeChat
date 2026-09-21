@@ -1,0 +1,149 @@
+# ICD-10-CM Chapter XI (K00–K95), the three-character category titles of the
+# whole chapter, verbatim FY 2026 — the tenth coverage-sweep corpus and the
+# eighth codebook enumeration. Written down from the codebook enumeration
+# before any Chapter XI row was mapped (2026-09-20): the chapter spans 77
+# three-character slots and the FY 2026 codebook leaves K07, K10, K24, K84 and
+# K93 unused, so it carries 72 titled categories, of which 65 are candidates
+# here. The titles are listed in code order without their code prefixes (the
+# same convention as every earlier chapter corpus), so each line is the exact
+# wording the sweep measures: K00 Disorders of tooth development and eruption,
+# K01 Embedded and impacted teeth, K02 Dental caries, K03 Other diseases of
+# hard tissues of teeth, K04 Diseases of pulp and periapical tissues, K05
+# Gingivitis and periodontal diseases, K06 Other disorders of gingiva and
+# edentulous alveolar ridge, K08 Other disorders of teeth and supporting
+# structures, K09 Cysts of oral region, not elsewhere classified, K11 Diseases
+# of salivary glands, K12 Stomatitis and related lesions, K13 Other diseases
+# of lip and oral mucosa, K14 Diseases of tongue, K20 Esophagitis, K21
+# Gastro-esophageal reflux disease, K22 Other diseases of esophagus, K23
+# Disorders of esophagus in diseases classified elsewhere, K25 Gastric ulcer,
+# K26 Duodenal ulcer, K27 Peptic ulcer, site unspecified, K28 Gastrojejunal
+# ulcer, K29 Gastritis and duodenitis, K30 Functional dyspepsia, K31 Other
+# diseases of stomach and duodenum, K35 Acute appendicitis, K36 Other
+# appendicitis, K37 Unspecified appendicitis, K38 Other diseases of appendix,
+# K40 Inguinal hernia, K41 Femoral hernia, K42 Umbilical hernia, K43 Ventral
+# hernia, K44 Diaphragmatic hernia, K45 Other abdominal hernia, K46
+# Unspecified abdominal hernia, K50 Crohn's disease [regional enteritis], K51
+# Ulcerative colitis, K52 Other and unspecified noninfective gastroenteritis
+# and colitis, K55 Vascular disorders of intestine, K56 Paralytic ileus and
+# intestinal obstruction without hernia, K57 Diverticular disease of
+# intestine, K58 Irritable bowel syndrome, K59 Other functional intestinal
+# disorders, K60 Fissure and fistula of anal and rectal regions, K61 Abscess
+# of anal and rectal regions, K62 Other diseases of anus and rectum, K63 Other
+# diseases of intestine, K64 Hemorrhoids and perianal venous thrombosis, K65
+# Peritonitis, K66 Other disorders of peritoneum, K67 Disorders of peritoneum
+# in infectious diseases classified elsewhere, K68 Disorders of
+# retroperitoneum, K70 Alcoholic liver disease, K71 Toxic liver disease, K72
+# Hepatic failure, not elsewhere classified, K73 Chronic hepatitis, not
+# elsewhere classified, K74 Fibrosis and cirrhosis of liver, K75 Other
+# inflammatory liver diseases, K76 Other diseases of liver, K77 Liver
+# disorders in diseases classified elsewhere, K80 Cholelithiasis, K81
+# Cholecystitis, K82 Other diseases of gallbladder, K83 Other diseases of
+# biliary tract, K85 Acute pancreatitis, K86 Other diseases of pancreas, K87
+# Disorders of gallbladder, biliary tract and pancreas in diseases classified
+# elsewhere, K90 Intestinal malabsorption, K91 Intraoperative and
+# postprocedural complications of the digestive system, K92 Other diseases of
+# digestive system, K94 Complications of artificial openings of the digestive
+# tract, K95 Complications of bariatric procedures.
+#
+# The chapter is the digestive system — carrier-questionnaire strength in its
+# centre (IBS, GERD/heartburn, gastritis, cirrhosis, pancreatitis, Crohn's,
+# colitis, diverticular disease, gallstones/gallbladder, hernia, hemorrhoids
+# and piles all arrived from the carrier and critical-illness sources, and the
+# 2026-09-18 boundary probes carried dental caries and gingivitis) and blind
+# spots of the familiar kind at its edges: the dental and salivary rows, the
+# appendiceal rows, the peritoneal and hepatic-failure rows, the
+# cholecystitis/biliary rows and the intestinal-obstruction rows never
+# appeared on a questionnaire, and this sweep measures whether they can stay
+# absent from a vocabulary that claims medical-history coverage.
+#
+# The 7 titles that are not candidates are declared here rather than dropped,
+# because "this row cannot be a disclosure" is a finding the next sweep should
+# re-read rather than rediscover. Each block names the row it covers and the
+# reason, and each covered row's *stateable* form — the sentence a person
+# would actually write — is watched by a gate term or mapped as a canonical
+# condition, which is why the declarations are safe: the chapter's content is
+# covered, its navigation is not pretended to be a statement.
+#
+# ── Group A: in-diseases-classified-elsewhere routing. A title whose place
+# tells the coder the condition belongs to another chapter, not something a
+# person reports — the person names the underlying disease or the organ
+# finding, which is watched or mapped on its own row. Declared here: K23
+# Disorders of esophagus in diseases classified elsewhere; K67 Disorders of
+# peritoneum in infectious diseases classified elsewhere; K77 Liver disorders
+# in diseases classified elsewhere; and K87 Disorders of gallbladder, biliary
+# tract and pancreas in diseases classified elsewhere.
+#
+# ── Group B: postprocedural constructs. A postprocedural disorder is coded
+# from the procedure, and is not a statement a visitor makes. Declared here:
+# K91 Intraoperative and postprocedural complications of the digestive
+# system; K94 Complications of artificial openings of the digestive tract
+# (the stoma state itself is watched, not this complication coding); and K95
+# Complications of bariatric procedures.
+#
+# Measure it with:
+#   npm run conditions:sweep -- docs/medical-condition-candidates-icd10-chapter-xi.txt
+Disorders of tooth development and eruption
+Embedded and impacted teeth
+Dental caries
+Other diseases of hard tissues of teeth
+Diseases of pulp and periapical tissues
+Gingivitis and periodontal diseases
+Other disorders of gingiva and edentulous alveolar ridge
+Other disorders of teeth and supporting structures
+Cysts of oral region, not elsewhere classified
+Diseases of salivary glands
+Stomatitis and related lesions
+Other diseases of lip and oral mucosa
+Diseases of tongue
+Esophagitis
+Gastro-esophageal reflux disease
+Other diseases of esophagus
+Gastric ulcer
+Duodenal ulcer
+Peptic ulcer, site unspecified
+Gastrojejunal ulcer
+Gastritis and duodenitis
+Functional dyspepsia
+Other diseases of stomach and duodenum
+Acute appendicitis
+Other appendicitis
+Unspecified appendicitis
+Other diseases of appendix
+Inguinal hernia
+Femoral hernia
+Umbilical hernia
+Ventral hernia
+Diaphragmatic hernia
+Other abdominal hernia
+Unspecified abdominal hernia
+Crohn's disease [regional enteritis]
+Ulcerative colitis
+Other and unspecified noninfective gastroenteritis and colitis
+Vascular disorders of intestine
+Paralytic ileus and intestinal obstruction without hernia
+Diverticular disease of intestine
+Irritable bowel syndrome
+Other functional intestinal disorders
+Fissure and fistula of anal and rectal regions
+Abscess of anal and rectal regions
+Other diseases of anus and rectum
+Other diseases of intestine
+Hemorrhoids and perianal venous thrombosis
+Peritonitis
+Other disorders of peritoneum
+Disorders of retroperitoneum
+Alcoholic liver disease
+Toxic liver disease
+Hepatic failure, not elsewhere classified
+Chronic hepatitis, not elsewhere classified
+Fibrosis and cirrhosis of liver
+Other inflammatory liver diseases
+Other diseases of liver
+Cholelithiasis
+Cholecystitis
+Other diseases of gallbladder
+Other diseases of biliary tract
+Acute pancreatitis
+Other diseases of pancreas
+Intestinal malabsorption
+Other diseases of digestive system

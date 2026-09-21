@@ -1,0 +1,105 @@
+# ICD-10-CM Chapter VI (G00–G99), the three-character category titles of the
+# whole chapter, verbatim FY 2026 — the eighth coverage-sweep corpus and the
+# sixth codebook enumeration. Written down from the codebook enumeration before
+# any Chapter VI row was mapped (2026-09-20): WHO lists 67 categories in the
+# chapter and ICD-10-CM adds G14 (postpolio syndrome) while leaving G42
+# unused, so the FY 2026 chapter carries 68 three-character titles, of which 50
+# are candidates here.
+#
+# The chapter is the nervous system — the vocabulary's oldest strength (MS,
+# migraine, epilepsy, Alzheimer's, Parkinson's, ALS, myasthenia gravis all
+# arrived from the carrier sources) and its largest blind spot of the same
+# kind: the peripheral-nerve and muscle rows (trigeminal neuralgia, dystonia,
+# Huntington's, Guillain-Barré, syringomyelia) never appeared on a carrier
+# questionnaire, and this sweep measures whether they can stay absent from a
+# vocabulary that claims medical-history coverage.
+#
+# The 18 titles that are not candidates are declared here rather than dropped,
+# because "this row cannot be a disclosure" is a finding the next sweep should
+# re-read rather than rediscover. Each block names the rows it covers and the
+# reason, and each covered row's *stateable* form — the sentence a person would
+# actually write — is watched by a gate term or mapped as a canonical
+# condition, which is why the declarations are safe: the chapter's content is
+# covered, its navigation is not pretended to be a statement.
+#
+# ── Group A: in-diseases-classified-elsewhere routing. A title whose place
+# tells the coder the condition belongs to another chapter, not something a
+# person reports — the person names the underlying disease, which is watched or
+# mapped on its own row. Declared here: Meningitis in bacterial diseases
+# classified elsewhere and Meningitis in other infectious and parasitic
+# diseases classified elsewhere (the stateable form is "meningitis", carried at
+# G03.9); Encephalitis, myelitis and encephalomyelitis in diseases classified
+# elsewhere (the stateable form is "encephalitis"); Intracranial and intraspinal
+# abscess and granuloma in diseases classified elsewhere; Parkinsonism in
+# diseases classified elsewhere (the stateable form is parkinsonism, watched on
+# the secondary-parkinsonism row); Extrapyramidal and movement disorders in
+# diseases classified elsewhere; Other degenerative disorders of nervous system
+# in diseases classified elsewhere; Vascular syndromes of brain in
+# cerebrovascular diseases (the stateable form is "stroke", carried since the
+# critical-illness source); Cranial nerve disorders, nerve root and plexus
+# compressions, mononeuropathy, and polyneuropathy in diseases classified
+# elsewhere (polyneuropathy is carried at G62.9); Disorders of myoneural
+# junction and muscle in diseases classified elsewhere; Other disorders of brain
+# in diseases classified elsewhere; Other disorders of nervous system in
+# diseases classified elsewhere; and Systemic atrophies primarily affecting
+# central nervous system in diseases classified elsewhere (the paraneoplastic
+# constructs file under the cancer the person names).
+#
+# ── Group B: sequelae and postprocedural constructs. A sequela is coded from
+# the original condition's own chapter; a postprocedural disorder is coded from
+# the procedure, and neither is a statement a visitor makes. Declared here:
+# Sequelae of inflammatory diseases of central nervous system; Postprocedural
+# disorders of nervous system, not elsewhere classified.
+#
+# Measure it with:
+#   npm run conditions:sweep -- docs/medical-condition-candidates-icd10-chapter-vi.txt
+Bacterial meningitis, not elsewhere classified
+Meningitis due to other and unspecified causes
+Encephalitis, myelitis and encephalomyelitis
+Intracranial and intraspinal abscess and granuloma
+Intracranial and intraspinal phlebitis and thrombophlebitis
+Huntington's disease
+Hereditary ataxia
+Spinal muscular atrophy and related syndromes
+Postpolio syndrome
+Parkinson's disease
+Secondary parkinsonism
+Other degenerative diseases of basal ganglia
+Dystonia
+Other extrapyramidal and movement disorders
+Alzheimer's disease
+Other degenerative diseases of nervous system, not elsewhere classified
+Multiple sclerosis
+Other acute disseminated demyelination
+Other demyelinating diseases of central nervous system
+Epilepsy and recurrent seizures
+Status epilepticus
+Migraine
+Other headache syndromes
+Transient cerebral ischemic attacks and related syndromes
+Sleep disorders
+Disorders of trigeminal nerve
+Facial nerve disorders
+Disorders of other cranial nerves
+Nerve root and plexus disorders
+Mononeuropathies of upper limb
+Mononeuropathies of lower limb
+Other mononeuropathies
+Hereditary and idiopathic neuropathy
+Inflammatory polyneuropathy
+Other polyneuropathies
+Other disorders of peripheral nervous system
+Myasthenia gravis and other myoneural disorders
+Primary disorders of muscles
+Other myopathies
+Cerebral palsy and other paralytic syndromes
+Hemiplegia and hemiparesis
+Paraplegia (spastic and flaccid)
+Other paralytic syndromes
+Disorders of autonomic nervous system
+Hydrocephalus
+Toxic encephalopathy
+Other disorders of brain
+Other diseases of spinal cord
+Other disorders of central nervous system
+Other disorders of nervous system, not elsewhere classified

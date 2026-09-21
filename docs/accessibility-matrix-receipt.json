@@ -1,0 +1,312 @@
+{
+  "schema": "lifechat.a11y-walkthrough-receipt/1",
+  "reviewer": "",
+  "reviewedAt": "",
+  "rows": {
+    "Chrome / NVDA": {
+      "environment": {
+        "browserVersion": "",
+        "atVersion": "",
+        "os": ""
+      },
+      "items": {
+        "AT-01": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-02": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-03": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-04": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-05": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-06": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-07": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-08": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-09": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-10": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-11": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-12": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-13": {
+          "result": "not_performed",
+          "note": ""
+        }
+      }
+    },
+    "Safari / VoiceOver": {
+      "environment": {
+        "browserVersion": "",
+        "atVersion": "",
+        "os": ""
+      },
+      "items": {
+        "AT-01": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-02": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-03": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-04": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-05": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-06": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-07": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-08": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-09": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-10": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-11": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-12": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-13": {
+          "result": "not_performed",
+          "note": ""
+        }
+      }
+    },
+    "Firefox / Keyboard only": {
+      "environment": {
+        "browserVersion": "",
+        "atVersion": "",
+        "os": ""
+      },
+      "items": {
+        "AT-01": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-02": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-03": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-04": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-05": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-06": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-07": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-08": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-09": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-10": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-11": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-12": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-13": {
+          "result": "not_performed",
+          "note": ""
+        }
+      }
+    },
+    "Safari Mobile / VoiceOver (iOS)": {
+      "environment": {
+        "browserVersion": "",
+        "atVersion": "",
+        "os": ""
+      },
+      "items": {
+        "AT-01": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-02": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-03": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-04": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-05": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-06": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-07": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-08": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-09": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-10": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-11": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-12": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-13": {
+          "result": "not_performed",
+          "note": ""
+        }
+      }
+    },
+    "Chrome Mobile / Talkback (Android)": {
+      "environment": {
+        "browserVersion": "",
+        "atVersion": "",
+        "os": ""
+      },
+      "items": {
+        "AT-01": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-02": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-03": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-04": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-05": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-06": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-07": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-08": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-09": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-10": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-11": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-12": {
+          "result": "not_performed",
+          "note": ""
+        },
+        "AT-13": {
+          "result": "not_performed",
+          "note": ""
+        }
+      }
+    }
+  }
+}

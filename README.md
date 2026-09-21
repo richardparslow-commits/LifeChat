@@ -33,7 +33,7 @@ The assistant is **educational, not advisory**. It may explain approved content 
 - **Backend**: Node.js / TypeScript / Express
 - **Validation**: Zod schema validation of every model response
 - **LLM**: single-call + validation-retry orchestrator with safe fallbacks (no autonomous tool loop; tool budgets removed until real tools exist)
-- **Frontend**: Vanilla JS drop-in widget (no framework dependency)
+- **Frontend**: Vanilla JS drop-in widget (no framework dependency), carrying a tested Section 508 / WCAG 2.2 AA contract
 - **Analytics**: GTM/GA4 with dataLayer (no PII)
 - **At-rest encryption**: AES-256-GCM envelopes for lead and DSR record logs
 
@@ -52,6 +52,8 @@ LifeChat/
 │   │   └── response-schema.ts     # JSON output schema & validation (Section 15)
 │   ├── consent/
 │   │   └── consent-model.ts       # Lead records: fail-closed, encrypted, consent model (Section 4.7)
+│   ├── medical/
+│   │   └── condition-crosswalk.ts # Versioned ICD-10-CM condition crosswalk (Phase 2, consented only)
 │   ├── privacy/
 │   │   ├── dsr.ts                 # DSR intake (TDPSA rights) — fail-closed, encrypted
 │   │   └── record-encryption.ts   # AES-256-GCM envelope / keyless-warning helpers
@@ -86,7 +88,7 @@ LifeChat/
 │   ├── demo.html                  # Local widget preview (serve with a dev-run server)
 │   └── elementor-trust-block.css  # Elementor "Trust & Transition" CSS
 ├── docs/                          # Compliance matrix, persona config, privacy notice, etc.
-├── tests/                         # 18 suites incl. API, consent/DSR persistence, encryption, admin auth
+├── tests/                         # 21 suites incl. API, consent/DSR persistence, encryption, admin auth, server hardening
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -137,6 +139,15 @@ npm run test:verdicts
 
 # Both + persona unit tests
 npm run test:persona
+
+# Section 508 walkthrough — the runnable checklist and the recorded results it validates
+npm run a11y:checklist
+
+# Condition-coverage sweep — every candidate phrase is mapped or gated (exits 1 on a silent row)
+# Sweeps all three committed corpora: the carrier questionnaire, the carrier
+# critical-illness covered-condition lists, and the ICD-10 Chapter IX
+# category enumeration.
+npm run conditions:sweep
 ```
 
 ## Configuration
@@ -144,7 +155,8 @@ npm run test:persona
 Set environment variables (or create a `.env` file):
 
 ```bash
-LIFECHAT_PORT=3000
+LIFECHAT_PORT=3000 # wins when set; otherwise PORT is honored (hosting platforms inject PORT)
+ALLOWED_ORIGINS="" # cross-origin embed allowlist; empty = same-origin only (see Embedding the Widget)
 BUSINESS_NAME="Life Policy Pilot"
 LICENSED_BROKER_NAME="Richard Parslow"
 TEXAS_LICENSE_NUMBER="[Your Texas license number]"
@@ -164,7 +176,7 @@ ABSTENTION_LOGGING_ENABLED=true # Abstention logging for content strategy: hashe
 ABSTENTION_LOG_PATH="data/abstention-log.jsonl"
 
 # Security & record store (added in the compliance audit)
-ADMIN_API_KEY="" # when set, gates /api/system-prompt, session history/sessions, RAG search, DSR status via x-admin-key
+ADMIN_API_KEY="" # when set, gates /api/system-prompt, session history/sessions, RAG search, DSR status, and the runtime kill switch, via x-admin-key
 RECORD_ENCRYPTION_KEY="" # 32-byte hex key (openssl rand -hex 32). Encrypts DSR + lead logs at rest; loaders warn and skip records if missing or wrong. Do not change after records are written.
 DSR_LOG_PATH="data/dsr-records.jsonl"
 LEAD_LOG_PATH="data/lead-records.jsonl"
@@ -187,23 +199,25 @@ LEAD_LOG_PATH="data/lead-records.jsonl"
 
 `🔒` = requires `x-admin-key` when `ADMIN_API_KEY` is configured.
 
-| Method | Path                                 | Description                                                                                                            |
-| ------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/`                                  | Product info & available endpoints                                                                                     |
-| GET    | `/health`                            | Health check (kill switch status + compliance matrix overview)                                                         |
-| GET    | `/api/disclosure`                    | First-message disclosure & AI identity                                                                                 |
-| GET    | `/api/consent-text`                  | Consent copy for counsel review                                                                                        |
-| GET    | `/api/availability`                  | Staff availability & SLA message                                                                                       |
-| GET    | `/api/system-prompt` 🔒              | Hardened system prompt                                                                                                 |
-| POST   | `/api/chat`                          | Main chat endpoint (kill switch → rate limit → injection → sensitive-data gates → RAG/LLM → validate/retry → fallback) |
-| POST   | `/api/consent`                       | Submit consent for lead capture — **fail-closed** (500, no `leadId`, when the encrypted write fails)                   |
-| POST   | `/api/dsr`                           | Submit a data subject request — **fail-closed** (503 "Storage unavailable" on write failure vs. 400 on validation)     |
-| GET    | `/api/dsr/:requestId` 🔒             | DSR request status                                                                                                     |
-| GET    | `/api/rag/search` 🔒                 | RAG retrieval search                                                                                                   |
-| GET    | `/api/session/:sessionId/history` 🔒 | Conversation history (redacted placeholders for sensitive messages)                                                    |
-| DELETE | `/api/session/:sessionId` 🔒         | Delete a session                                                                                                       |
-| GET    | `/api/sessions` 🔒                   | List sessions                                                                                                          |
-| GET    | `/api/analytics/example`             | Example GTM dataLayer snippet                                                                                          |
+| Method | Path                                 | Description                                                                                                                                     |
+| ------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/`                                  | Product info & available endpoints                                                                                                              |
+| GET    | `/health`                            | Health/readiness check (kill switch, uptime, LLM configured + endpoint, record paths writable, key/license posture, compliance matrix overview) |
+| GET    | `/api/disclosure`                    | First-message disclosure & AI identity                                                                                                          |
+| GET    | `/api/consent-text`                  | Consent copy for counsel review                                                                                                                 |
+| GET    | `/api/availability`                  | Staff availability & SLA message                                                                                                                |
+| GET    | `/api/system-prompt` 🔒              | Hardened system prompt                                                                                                                          |
+| POST   | `/api/chat`                          | Main chat endpoint (kill switch → rate limit → injection → sensitive-data gates → RAG/LLM → validate/retry → fallback)                          |
+| POST   | `/api/consent`                       | Submit consent for lead capture — **fail-closed** (500, no `leadId`, when the encrypted write fails)                                            |
+| POST   | `/api/dsr`                           | Submit a data subject request — **fail-closed** (503 "Storage unavailable" on write failure vs. 400 on validation)                              |
+| GET    | `/api/dsr/:requestId` 🔒             | DSR request status                                                                                                                              |
+| GET    | `/api/rag/search` 🔒                 | RAG retrieval search                                                                                                                            |
+| GET    | `/api/session/:sessionId/history` 🔒 | Conversation history (redacted placeholders for sensitive messages)                                                                             |
+| DELETE | `/api/session/:sessionId` 🔒         | Delete a session                                                                                                                                |
+| GET    | `/api/sessions` 🔒                   | List sessions                                                                                                                                   |
+| GET    | `/api/analytics/example`             | Example GTM dataLayer snippet                                                                                                                   |
+| POST   | `/api/admin/kill-switch` 🔒          | Stop the assistant at runtime (static safe fallback, `staffed:false`); body may carry `{ reason }` for the server log                           |
+| DELETE | `/api/admin/kill-switch` 🔒          | Clear the kill switch and resume normal responses                                                                                               |
 
 ## Embedding the Widget
 
@@ -214,6 +228,48 @@ Add this script to your WordPress/Elementor site (via HTML widget or theme foote
 ```
 
 Or open `public/demo.html` served by the app (e.g. `http://localhost:3001/demo.html`) for a local preview — the widget in the bottom-right corner talks to the same-origin `/api/disclosure` and `/api/chat` endpoints.
+
+Serving `widget.js` from this app while the page lives on the blog makes every call
+cross-origin: list the blog origin in `ALLOWED_ORIGINS` (comma-separated, exact
+scheme + host, no trailing slash). Nothing is allowed cross-origin by default, and
+a disallowed origin simply receives no CORS grant — preflight (`OPTIONS`) is
+answered without running route logic.
+
+## Running in a Sandbox / Preview
+
+The app is designed to boot with no credentials and no writable project directory:
+
+```bash
+npm ci && npm run build
+PILOT_MODE=true node dist/index.js        # honors PORT if LIFECHAT_PORT is unset
+```
+
+- **No `LLM_API_KEY`:** the server still starts and answers from the static safe
+  fallback (`state: standby`) instead of failing — sandbox demos stay interactive.
+- **Port:** `LIFECHAT_PORT` wins; otherwise `PORT` is used, so managed platforms
+  bind correctly. `PORT=0` asks the OS for a free port (used by the tests).
+- **Record logs:** written under `data/` relative to the working directory,
+  created on demand; `LEAD_LOG_PATH` / `DSR_LOG_PATH` / `ABSTENTION_LOG_PATH`
+  redirect them to a mounted volume. The startup preflight logs each resolved
+  path, whether it is writable, whether `public/` was found, and which LLM
+  endpoint is in use.
+- **Smoke checks** after boot:
+
+  ```bash
+  curl -s localhost:$PORT/health        # status, uptime, readiness facts
+  curl -s -o /dev/null -w '%{http_code}\n' localhost:$PORT/demo.html
+  curl -s -o /dev/null -w '%{http_code}\n' localhost:$PORT/widget.js
+  curl -s -X POST localhost:$PORT/api/chat -H 'Content-Type: application/json' \
+    -d '{"sessionId":"smoke","currentState":"education","message":"What is term life insurance?"}'
+  ```
+
+- **Stopping it:** `SIGTERM`/`SIGINT` close the listener gracefully (in-flight
+  requests finish, 5s cap), so restarts do not leave the port held.
+- **Records are real records:** the suite writes to the OS temp directory, so a
+  clean `data/` after a test run contains only genuine lead/DSR/abstention files.
+- Deployment specifics that are not in this repository (container image, TLS,
+  reverse proxy, volume/secret wiring, process supervision) are covered in
+  [docs/sandbox-deployment.md](docs/sandbox-deployment.md).
 
 ## Phased Rollout (Section 6)
 
@@ -230,6 +286,8 @@ Or open `public/demo.html` served by the app (e.g. `http://localhost:3001/demo.h
 - [Compliance Classification Matrix](docs/compliance-classification-matrix.md) — counsel-approved classification of every conversation flow (Phase 0)
 - [AI Chatbot Persona Configuration](docs/ai-chatbot-persona-configuration.md) — the assistant's persona spec; mirrors the system prompt; keep in sync per its §13 change triggers
 - [Medical Lead Capture — Phase 2](docs/medical-lead-capture-phase2.md) — consented medical fact-finding (draft, requires approval)
+- [Section 508 Accessibility Review](docs/section-508-accessibility-review.md) — the manual review of the widget, its measured contrast and focus indicators, and the runnable assistive-technology walkthrough (`npm run a11y:checklist`) whose recorded results the accessibility gate reads
+- [Sandbox Deployment](docs/sandbox-deployment.md) — boot, healthchecks, volumes, secrets, TLS/reverse-proxy steps
 - [Privacy Notice](docs/privacy-notice.md) — GLBA + TDPSA disclosures
 - [Transcript Review — Speech Patterns](docs/transcripts-style-recommendations.md) — adaptable vs. rejected sales-training patterns
 

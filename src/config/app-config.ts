@@ -38,6 +38,20 @@ export interface AppConfig {
   llmApiKey: string;
   /** LLM model identifier */
   llmModel: string;
+  /**
+   * OpenAI-compatible base URL for chat completions (no trailing slash), e.g.
+   * `https://api.openai.com/v1` or a gateway/proxy. Read here rather than in
+   * the client so startup, /health, and the preflight all report the same
+   * endpoint the app will actually call.
+   */
+  llmApiBaseUrl: string;
+  /**
+   * Browser origins allowed to call the API cross-origin (the widget's
+   * `data-server-url` embed case), from the comma-separated ALLOWED_ORIGINS
+   * env var. Empty by default: same-origin only. Each entry is scheme + host +
+   * optional port, normalized without a trailing slash.
+   */
+  allowedOrigins: string[];
   /** Whether the system is in pilot mode (Phase 1) */
   pilotMode: boolean;
   /** Whether health data collection is disabled.
@@ -113,7 +127,9 @@ export interface AppConfig {
 export const LICENSE_PENDING_PLACEHOLDER = '[Pending compliance approval]';
 
 export const config: AppConfig = {
-  port: parseInt(process.env.LIFECHAT_PORT || '3000', 10),
+  // LIFECHAT_PORT wins; PORT is honored as the fallback because managed sandbox
+  // and hosting platforms inject PORT and expect the app to bind to it.
+  port: parseInt(process.env.LIFECHAT_PORT || process.env.PORT || '3000', 10),
   businessName: process.env.BUSINESS_NAME || 'Life Policy Pilot',
   licensedBrokerName: process.env.LICENSED_BROKER_NAME || 'Richard Parslow',
   texasLicenseNumber: process.env.TEXAS_LICENSE_NUMBER || LICENSE_PENDING_PLACEHOLDER,
@@ -129,6 +145,11 @@ export const config: AppConfig = {
   dsrEmail: process.env.DSR_EMAIL || 'privacy@lifepolicypilot.blog',
   llmApiKey: process.env.LLM_API_KEY || '',
   llmModel: process.env.LLM_MODEL || 'gpt-4o',
+  llmApiBaseUrl: (process.env.LLM_API_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
+  allowedOrigins: (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, '').toLowerCase())
+    .filter(Boolean),
   pilotMode: process.env.PILOT_MODE !== 'false',
   // Phase 2 gate — enabled only by explicit opt-in in .env after counsel review
   healthDataCollectionDisabled: process.env.HEALTH_DATA_COLLECTION_DISABLED !== 'false',
@@ -161,6 +182,19 @@ export const config: AppConfig = {
 export function isLicenseNumberConfigured(): boolean {
   const value = config.texasLicenseNumber.trim();
   return value.length > 0 && value !== LICENSE_PENDING_PLACEHOLDER;
+}
+
+/**
+ * True when a browser origin is on the cross-origin allowlist.
+ *
+ * Deny-by-default: with ALLOWED_ORIGINS unset nothing is allowed cross-origin,
+ * which is the correct posture while the widget is only used same-origin (the
+ * bundled demo page). The public blog embed is the case that opts in, by
+ * listing its origin. Comparison ignores case and a trailing slash.
+ */
+export function isAllowedOrigin(origin: string): boolean {
+  const normalized = origin.trim().replace(/\/+$/, '').toLowerCase();
+  return normalized.length > 0 && config.allowedOrigins.includes(normalized);
 }
 
 /**
