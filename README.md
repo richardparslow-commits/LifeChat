@@ -11,7 +11,7 @@ The assistant is **educational, not advisory**. It may explain approved content 
 ## What It Does
 
 - **Grounded RAG answers with citations** — retrieval over approved sources (broker-approved articles, controlled FAQ, NAIC/TDI/regulatory material) with claim-level source titles and canonical URLs. Grounding failures and off-topic questions produce an abstention sentence rather than a guess.
-- **Deterministic safety gates before any LLM call** — prompt-injection detection, health-data and financial-account-data blocking (with redacted session history and a licensed-broker handoff), and a kill switch.
+- **Deterministic safety gates before any LLM call** — prompt-injection detection, health-data and financial-account-data blocking (with redacted session history and a licensed-broker handoff), health-topic questions routed to the same handoff, and a kill switch.
 - **Persona & policy guardrails** — a hardened system prompt (identity, abstention rules, prohibited promotion/comparison copy, consent rules) enforced by a deterministic persona validator, an offline golden-set gate (`test:guardrails:golden`), and a verdict gate (`test:verdicts`) so approved personas can never drift from model behavior.
 - **Consented lead capture & data-subject rights** — `/api/consent` and `/api/dsr` both persist **fail-closed** (an acknowledgment is only issued after the record hits disk) and **encrypted at rest** when `RECORD_ENCRYPTION_KEY` is set (AES-256-GCM envelopes; loaders warn loudly when records are skipped for a missing or mismatched key; in pilot mode without a key, records persist in plaintext so never deploy pilot mode without setting the key).
 - **Admin-gated operations** — system prompt, session history, session listing/deletion, RAG search, and DSR status require an `x-admin-key` header compared in constant time when `ADMIN_API_KEY` is configured.
@@ -53,12 +53,26 @@ LifeChat/
 │   ├── consent/
 │   │   └── consent-model.ts       # Lead records: fail-closed, encrypted, consent model (Section 4.7)
 │   ├── medical/
-│   │   └── condition-crosswalk.ts # Versioned ICD-10-CM condition crosswalk (Phase 2, consented only)
+│   │   ├── condition-crosswalk.ts       # Versioned ICD-10-CM condition crosswalk, v1.22.0 — 471 conditions (Phase 2, consented only)
+│   │   ├── condition-coverage-sweep.ts  # Coverage sweep: every candidate phrase mapped, gated, or deferred (docs/medical-condition-candidates-*.txt)
+│   │   ├── condition-coverage-sweep-cli.ts # CLI + --json for the sweep (npm run conditions:sweep)
+│   │   └── condition-screening.ts       # Consented-profile screening over the qualifier dimensions (childhood vs adult, suicidal vs not)
+│   ├── phenome/
+│   │   ├── phenome-map-schema.ts        # Row schema + validators for the systemic-phenome rule set
+│   │   ├── ptsd-phenome-map.json        # Graded PTSD systemic-sequelae rows (tiers, conflicts, verification status)
+│   │   └── sequelae-crosswalk.ts        # Joins canonical conditions to phenome rows (graded or explicit no-phenome-evidence)
 │   ├── privacy/
 │   │   ├── dsr.ts                 # DSR intake (TDPSA rights) — fail-closed, encrypted
 │   │   └── record-encryption.ts   # AES-256-GCM envelope / keyless-warning helpers
 │   ├── security/
-│   │   └── security-controls.ts   # Injection + sensitive-data gates, rate & token budgets, constant-time admin key check (Section 4.9)
+│   │   ├── security-controls.ts        # Injection + sensitive-data gates, rate & token budgets, constant-time admin key check (Section 4.9)
+│   │   ├── context-qualified-terms.ts  # Declarative context-qualified rules (condition, treatment, heart, symptom…)
+│   │   ├── context-family-terms.ts     # The seven broad context families as declared clause data
+│   │   └── ordinary-sense-shapes.ts    # Ordinary-sense strips (product provisions, topic mentions, compounds) as one registry
+│   ├── accessibility/
+│   │   ├── accessibility.ts            # Accessibility gate and checks
+│   │   ├── accessibility-checklist.ts  # The runnable assistive-technology checklist the gate reads
+│   │   └── accessibility-checklist-cli.ts # CLI that records a walkthrough's results (npm run a11y:checklist)
 │   ├── compliance/
 │   │   ├── classification-matrix.ts   # Flow classification for counsel
 │   │   └── persona-guardrails.ts      # Deterministic persona/policy validator
@@ -82,13 +96,16 @@ LifeChat/
 │   │   └── evaluation-plan.ts     # Evaluation & QA plan (Section 4.14)
 │   ├── estimator/
 │   │   └── dime-estimator.ts      # DIME coverage-needs estimator (educational)
+│   ├── analytics/
+│   │   ├── analytics.ts           # GTM/GA4 dataLayer events (categorical, no PII)
+│   │   └── abstention-log.ts      # Hashed, anonymized abstention feed for content strategy
 │   └── index.ts                   # Express server entry point (admin auth, session store, endpoints)
 ├── public/
 │   ├── widget.js                  # Embeddable chat widget
 │   ├── demo.html                  # Local widget preview (serve with a dev-run server)
 │   └── elementor-trust-block.css  # Elementor "Trust & Transition" CSS
-├── docs/                          # Compliance matrix, persona config, privacy notice, etc.
-├── tests/                         # 21 suites incl. API, consent/DSR persistence, encryption, admin auth, server hardening
+├── docs/                          # Compliance matrix, persona config, privacy notice, candidate corpora (medical-condition-candidates-*.txt), etc.
+├── tests/                         # 33 suites incl. API, consent/DSR persistence, encryption, admin auth, server hardening, the gate road test, and the coverage sweep
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -143,11 +160,15 @@ npm run test:persona
 # Section 508 walkthrough — the runnable checklist and the recorded results it validates
 npm run a11y:checklist
 
-# Condition-coverage sweep — every candidate phrase is mapped or gated (exits 1 on a silent row)
-# Sweeps all three committed corpora: the carrier questionnaire, the carrier
-# critical-illness covered-condition lists, and the ICD-10 Chapter IX
-# category enumeration.
+# Condition-coverage sweep — every candidate phrase is mapped, gated, or
+# deliberately deferred (exits 1 on a silent row). Sweeps all 13 committed
+# sources in one run: the carrier questionnaire and critical-illness lists,
+# ten ICD-10-CM chapter enumerations (V, VI, IX, X, XI, XII, XIII, XIV,
+# XVIII, XXI), and the deferral ledger, which is re-asked on every sweep.
 npm run conditions:sweep
+
+# The sweep's machine-readable form (per-source totals and per-row status)
+npm run conditions:sweep -- --json
 ```
 
 ## Configuration
@@ -285,7 +306,8 @@ PILOT_MODE=true node dist/index.js        # honors PORT if LIFECHAT_PORT is unse
 
 - [Compliance Classification Matrix](docs/compliance-classification-matrix.md) — counsel-approved classification of every conversation flow (Phase 0)
 - [AI Chatbot Persona Configuration](docs/ai-chatbot-persona-configuration.md) — the assistant's persona spec; mirrors the system prompt; keep in sync per its §13 change triggers
-- [Medical Lead Capture — Phase 2](docs/medical-lead-capture-phase2.md) — consented medical fact-finding (draft, requires approval)
+- [Medical Lead Capture — Phase 2](docs/medical-lead-capture-phase2.md) — consented medical fact-finding (draft, requires approval); also records the per-release history of the ICD-10-CM vocabulary and its sweep
+- [Phenome Mapping Rules](docs/phenome-mapping-rules.md) — the rule set for mapping a condition's systemic physical sequelae (case definitions, effect-size thresholds, evidence grading), with the PTSD map as its first machine-readable instance
 - [Section 508 Accessibility Review](docs/section-508-accessibility-review.md) — the manual review of the widget, its measured contrast and focus indicators, and the runnable assistive-technology walkthrough (`npm run a11y:checklist`) whose recorded results the accessibility gate reads
 - [Sandbox Deployment](docs/sandbox-deployment.md) — boot, healthchecks, volumes, secrets, TLS/reverse-proxy steps
 - [Privacy Notice](docs/privacy-notice.md) — GLBA + TDPSA disclosures
