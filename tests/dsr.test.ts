@@ -5,8 +5,11 @@
  * record creation, and the in-memory store.
  */
 
-// Use a temp DSR log path before importing so tests don't touch the real file
-process.env.DSR_LOG_PATH = `data/dsr-test-${Date.now()}.jsonl`;
+// Use a temp DSR log path before importing so tests never touch the repo's
+// data/ directory (or the real record log).
+import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
+
+process.env.DSR_LOG_PATH = tempLogPath('dsr-test');
 
 import {
   clearAllDsrRecords,
@@ -198,7 +201,7 @@ describe('DSR persistence across restarts', () => {
  * and are still decoded correctly on reload.
  */
 describe('DSR at-rest encryption', () => {
-  const encryptedLog = `data/dsr-enc-${Date.now()}.jsonl`;
+  const encryptedLog = tempLogPath('dsr-enc');
   const key = 'test-encryption-key-123';
 
   afterAll(async () => {
@@ -330,12 +333,12 @@ describe('DSR fail-closed persistence', () => {
  * silently dropping the records (an operational trap).
  */
 describe('DSR keyless-startup warning', () => {
-  const encLog = `data/dsr-keyless-${Date.now()}.jsonl`;
-  const plainLog = `data/dsr-keyless-plain-${Date.now()}.jsonl`;
+  const encLog = tempLogPath('dsr-keyless');
+  const plainLog = tempLogPath('dsr-keyless-plain');
   // dsr.ts imports validateEmail from consent-model, so the lead loader runs
   // transitively — point it at an empty temp file so the real dev log's
   // encrypted records do not trigger a warning mid-test.
-  const tempLeadLog = `data/dsr-keyless-lead-${Date.now()}.jsonl`;
+  const tempLeadLog = tempLogPath('dsr-keyless-lead');
   const key = 'warning-test-key-123';
   const originalKey = process.env.RECORD_ENCRYPTION_KEY;
   const originalLog = process.env.DSR_LOG_PATH;
@@ -373,6 +376,8 @@ describe('DSR keyless-startup warning', () => {
     mod.clearAllDsrRecords();
     jest.resetModules();
     await import('../src/privacy/dsr');
+    // clearAllDsrRecords() removes the active log; these cover the others.
+    cleanupTempLogs(encLog, plainLog, tempLeadLog);
     restoreEnv();
   });
 

@@ -1376,6 +1376,9 @@ describe('POST /api/chat — contract questions about the policy’s own wording
     'can the policy be voided for a cancer diagnosis?',
     'how does the carrier assess sleep apnea?',
     'does the policy require declaring cancer?',
+    'does the policy have a child abuse exclusion?',
+    'does the application ask about child abuse?',
+    'does the policy pay out for child abuse claims?',
   ];
 
   const PERSONALLY_FRAMED = [
@@ -1431,6 +1434,40 @@ describe('POST /api/chat — contract questions about the policy’s own wording
     expect(body.risk_flags).toContain('health_topic_question');
     expect(body.risk_flags ?? []).not.toContain('sensitive_data_disclosed');
   });
+
+  // The act-as-subject payout question — silent at the gate until the
+  // three-reading audit, because it names no condition and the question
+  // opener's conditional branch was inert. The act's pronoun decides the
+  // person: the generic third person is a topic question, the first person
+  // and the family form stay disclosures.
+  it.each([
+    'If someone takes their own life, does the policy pay out?',
+    'If someone takes their own life after two years, is the claim denied?',
+  ])(
+    'answers the conditional payout question %p as a health-topic question, redacted',
+    async (message) => {
+      const sessionId = `contract-act-topic-${message.length}`;
+      const { body, history } = await visitorTurn(sessionId, message);
+      expect(body.state).toBe('handoff');
+      expect(body.risk_flags).toContain('health_topic_question');
+      expect(body.risk_flags ?? []).not.toContain('sensitive_data_disclosed');
+      const stored = history.messages.map((entry) => entry.content).join('\n');
+      expect(stored).toContain('[USER MESSAGE REDACTED — contained sensitive data, not stored]');
+    },
+  );
+
+  it.each([
+    'If I kill myself, does the policy pay out?',
+    'If my husband takes his own life, does the policy pay out?',
+  ])(
+    'keeps the personally-framed conditional payout question %p on the health-data path',
+    async (message) => {
+      const sessionId = `contract-act-personal-${message.length}`;
+      const { body } = await visitorTurn(sessionId, message);
+      expect(body.state).toBe('handoff');
+      expect(body.risk_flags).toContain('sensitive_data_disclosed');
+    },
+  );
 
   it.each(['do you cover treatment?', 'do you cover prescriptions?'])(
     'keeps the pinned bare-coverage question %p on the health-data path',
@@ -1652,6 +1689,7 @@ describe('POST /api/chat — the maltreatment compound sense is closed at the en
     'a study of child abuse',
     'the child abuse hotline',
     'child abuse report form',
+    'child neglect policy for our staff',
   ];
 
   const MALTREATMENT_DISCLOSURES = [
@@ -1662,6 +1700,7 @@ describe('POST /api/chat — the maltreatment compound sense is closed at the en
     'the child abuse report form I filed',
     'I called the child abuse hotline',
     'I filled out the domestic abuse report form',
+    'I have a history of child neglect',
   ];
 
   it.each(MALTREATMENT_TOPIC_COMPOUNDS)(
@@ -2030,6 +2069,306 @@ describe('POST /api/chat — the Chapter VI nervous-system vocabulary at the end
 
   it.each(COLLISIONS)('passes the collision %p through untouched', async (message) => {
     const sessionId = `chapter6-collision-${COLLISIONS.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).not.toBe('handoff');
+    expect(body.risk_flags ?? []).not.toContain('sensitive_data_disclosed');
+    expect(['ai_fallback_shown', 'ai_abstention']).toContain(analytics(body).event_name);
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain(message);
+    expect(stored).not.toContain('REDACTED');
+  });
+});
+
+describe('POST /api/chat — the Chapter X respiratory vocabulary at the endpoint', () => {
+  let loaded: Awaited<ReturnType<typeof loadApp>>;
+
+  beforeEach(async () => {
+    loaded = await loadApp({
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'true',
+    });
+  });
+
+  afterEach(async () => {
+    await loaded.cleanup();
+  });
+
+  async function visitorTurn(
+    sessionId: string,
+    message: string,
+  ): Promise<{
+    body: Record<string, unknown>;
+    history: { messages: { role: string; content: string }[] };
+  }> {
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({ sessionId, currentState: 'education', message });
+    expect(res.status).toBe(200);
+    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    expect(history.status).toBe(200);
+    return { body: res.body as Record<string, unknown>, history: history.body };
+  }
+
+  function analytics(body: Record<string, unknown>): Record<string, unknown> {
+    return (body.analytics ?? {}) as Record<string, unknown>;
+  }
+
+  // The occupational-lung and acute rows 1.19.0 mapped, stated the way a
+  // visitor states them — each must hand off redacted, never reaching the model.
+  const DISCLOSURES = [
+    'I have asbestosis',
+    'I have silicosis',
+    'I have black lung disease',
+  ];
+
+  // The ordinary industrial/flu life the new stems must not spend — standards,
+  // fluid, the coal trade, the temperature — each a benign sentence a visitor
+  // could type.
+  const COLLISIONS = [
+    'the new safety standards apply from January',
+    'the fluid reservation was cancelled',
+    'my brother works in the coal industry',
+    'the office is cold in winter',
+  ];
+
+  it.each(DISCLOSURES)('hands the disclosure %p off, redacted', async (message) => {
+    const sessionId = `chapter10-disclosure-${DISCLOSURES.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).toBe('handoff');
+    expect(body.risk_flags).toContain('sensitive_data_disclosed');
+    expect((body.action_arguments as Record<string, unknown>).handoff_reason).toBe(
+      'health_data_disclosed',
+    );
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain('[USER MESSAGE REDACTED — contained sensitive data, not stored]');
+    expect(stored.toLowerCase()).not.toContain(message.toLowerCase());
+  });
+
+  it.each(COLLISIONS)('passes the collision %p through untouched', async (message) => {
+    const sessionId = `chapter10-collision-${COLLISIONS.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).not.toBe('handoff');
+    expect(body.risk_flags ?? []).not.toContain('sensitive_data_disclosed');
+    expect(['ai_fallback_shown', 'ai_abstention']).toContain(analytics(body).event_name);
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain(message);
+    expect(stored).not.toContain('REDACTED');
+  });
+});
+
+describe('POST /api/chat - the Chapter XI digestive vocabulary at the endpoint', () => {
+  let loaded: Awaited<ReturnType<typeof loadApp>>;
+
+  beforeEach(async () => {
+    loaded = await loadApp({
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'true',
+    });
+  });
+
+  afterEach(async () => {
+    await loaded.cleanup();
+  });
+
+  async function visitorTurn(
+    sessionId: string,
+    message: string,
+  ): Promise<{
+    body: Record<string, unknown>;
+    history: { messages: { role: string; content: string }[] };
+  }> {
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({ sessionId, currentState: 'education', message });
+    expect(res.status).toBe(200);
+    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    expect(history.status).toBe(200);
+    return { body: res.body as Record<string, unknown>, history: history.body };
+  }
+
+  function analytics(body: Record<string, unknown>): Record<string, unknown> {
+    return (body.analytics ?? {}) as Record<string, unknown>;
+  }
+
+  // The digestive rows 1.20.0 mapped, stated the way a visitor states them -
+  // each must hand off redacted, never reaching the model.
+  const DISCLOSURES = [
+    'I have appendicitis',
+    'I get indigestion after every meal',
+    'I have fatty liver disease',
+  ];
+
+  // The ordinary document/anatomy life the new stems must not spend - the
+  // report appendix, the organ in an educational sentence.
+  const COLLISIONS = [
+    'the data tables are in the report appendix',
+    'the pancreas is part of the digestive tract',
+    'the liver filters your blood',
+  ];
+
+  it.each(DISCLOSURES)('hands the disclosure %p off, redacted', async (message) => {
+    const sessionId = `chapter11-disclosure-${DISCLOSURES.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).toBe('handoff');
+    expect(body.risk_flags).toContain('sensitive_data_disclosed');
+    expect((body.action_arguments as Record<string, unknown>).handoff_reason).toBe(
+      'health_data_disclosed',
+    );
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain('[USER MESSAGE REDACTED — contained sensitive data, not stored]');
+    expect(stored.toLowerCase()).not.toContain(message.toLowerCase());
+  });
+
+  it.each(COLLISIONS)('passes the collision %p through untouched', async (message) => {
+    const sessionId = `chapter11-collision-${COLLISIONS.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).not.toBe('handoff');
+    expect(body.risk_flags ?? []).not.toContain('sensitive_data_disclosed');
+    expect(['ai_fallback_shown', 'ai_abstention']).toContain(analytics(body).event_name);
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain(message);
+    expect(stored).not.toContain('REDACTED');
+  });
+});
+
+describe('POST /api/chat - the Chapter XII skin vocabulary at the endpoint', () => {
+  let loaded: Awaited<ReturnType<typeof loadApp>>;
+
+  beforeEach(async () => {
+    loaded = await loadApp({
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'true',
+    });
+  });
+
+  afterEach(async () => {
+    await loaded.cleanup();
+  });
+
+  async function visitorTurn(
+    sessionId: string,
+    message: string,
+  ): Promise<{
+    body: Record<string, unknown>;
+    history: { messages: { role: string; content: string }[] };
+  }> {
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({ sessionId, currentState: 'education', message });
+    expect(res.status).toBe(200);
+    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    expect(history.status).toBe(200);
+    return { body: res.body as Record<string, unknown>, history: history.body };
+  }
+
+  function analytics(body: Record<string, unknown>): Record<string, unknown> {
+    return (body.analytics ?? {}) as Record<string, unknown>;
+  }
+
+  // The skin rows 1.21.0 mapped, stated the way a visitor states them - each
+  // must hand off redacted, never reaching the model.
+  const DISCLOSURES = [
+    'I have impetigo',
+    'I have pemphigoid',
+    'I have lichen sclerosus',
+  ];
+
+  // The ordinary cosmetics/food life the new stems must not spend.
+  const COLLISIONS = [
+    'this serum is for pigmentation correction',
+    'we grilled corns and peppers',
+    'the exfoliation step comes after cleansing',
+  ];
+
+  it.each(DISCLOSURES)('hands the disclosure %p off, redacted', async (message) => {
+    const sessionId = `chapter12-disclosure-${DISCLOSURES.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).toBe('handoff');
+    expect(body.risk_flags).toContain('sensitive_data_disclosed');
+    expect((body.action_arguments as Record<string, unknown>).handoff_reason).toBe(
+      'health_data_disclosed',
+    );
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain('[USER MESSAGE REDACTED — contained sensitive data, not stored]');
+    expect(stored.toLowerCase()).not.toContain(message.toLowerCase());
+  });
+
+  it.each(COLLISIONS)('passes the collision %p through untouched', async (message) => {
+    const sessionId = `chapter12-collision-${COLLISIONS.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).not.toBe('handoff');
+    expect(body.risk_flags ?? []).not.toContain('sensitive_data_disclosed');
+    expect(['ai_fallback_shown', 'ai_abstention']).toContain(analytics(body).event_name);
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain(message);
+    expect(stored).not.toContain('REDACTED');
+  });
+});
+
+describe('POST /api/chat - the Chapter XIII musculoskeletal vocabulary at the endpoint', () => {
+  let loaded: Awaited<ReturnType<typeof loadApp>>;
+
+  beforeEach(async () => {
+    loaded = await loadApp({
+      LLM_API_KEY: '',
+      HEALTH_DATA_COLLECTION_DISABLED: 'true',
+    });
+  });
+
+  afterEach(async () => {
+    await loaded.cleanup();
+  });
+
+  async function visitorTurn(
+    sessionId: string,
+    message: string,
+  ): Promise<{
+    body: Record<string, unknown>;
+    history: { messages: { role: string; content: string }[] };
+  }> {
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({ sessionId, currentState: 'education', message });
+    expect(res.status).toBe(200);
+    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    expect(history.status).toBe(200);
+    return { body: res.body as Record<string, unknown>, history: history.body };
+  }
+
+  function analytics(body: Record<string, unknown>): Record<string, unknown> {
+    return (body.analytics ?? {}) as Record<string, unknown>;
+  }
+
+  // The musculoskeletal rows 1.22.0 mapped, stated the way a visitor states
+  // them - each must hand off redacted, never reaching the model.
+  const DISCLOSURES = [
+    'I have osteomalacia',
+    'I have polymyalgia rheumatica',
+    'I have a stress fracture',
+  ];
+
+  // The ordinary engineering/anatomy life the new stems must not spend.
+  const COLLISIONS = [
+    'the spine of the report lists the exhibits',
+    'a biomechanical analysis of the golf swing',
+    'the joint venture closed last week',
+  ];
+
+  it.each(DISCLOSURES)('hands the disclosure %p off, redacted', async (message) => {
+    const sessionId = `chapter13-disclosure-${DISCLOSURES.indexOf(message)}`;
+    const { body, history } = await visitorTurn(sessionId, message);
+    expect(body.state).toBe('handoff');
+    expect(body.risk_flags).toContain('sensitive_data_disclosed');
+    expect((body.action_arguments as Record<string, unknown>).handoff_reason).toBe(
+      'health_data_disclosed',
+    );
+    const stored = history.messages.map((entry) => entry.content).join('\n');
+    expect(stored).toContain('[USER MESSAGE REDACTED — contained sensitive data, not stored]');
+    expect(stored.toLowerCase()).not.toContain(message.toLowerCase());
+  });
+
+  it.each(COLLISIONS)('passes the collision %p through untouched', async (message) => {
+    const sessionId = `chapter13-collision-${COLLISIONS.indexOf(message)}`;
     const { body, history } = await visitorTurn(sessionId, message);
     expect(body.state).not.toBe('handoff');
     expect(body.risk_flags ?? []).not.toContain('sensitive_data_disclosed');

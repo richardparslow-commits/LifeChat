@@ -1,0 +1,97 @@
+abnormalities of heart beat
+cardiac murmurs and other cardiac sounds
+abnormal blood-pressure reading, without diagnosis
+hemorrhage from respiratory passages
+cough
+abnormalities of breathing
+pain in throat and chest
+other symptoms and signs involving the circulatory and respiratory system
+abdominal and pelvic pain
+nausea and vomiting
+heartburn
+aphagia and dysphagia
+flatulence and related conditions
+fecal incontinence
+hepatomegaly and splenomegaly, not elsewhere classified
+unspecified jaundice
+ascites
+other symptoms and signs involving the digestive system and abdomen
+disturbances of skin sensation
+rash and other nonspecific skin eruption
+localized swelling, mass and lump of skin and subcutaneous tissue
+other skin changes
+abnormal involuntary movements
+abnormalities of gait and mobility
+# R27 "other lack of coordination" is not a disclosure: every word that matches
+# it (coordination, lack of) is ordinary business English, and its stateable
+# members (ataxia, unsteady on my feet) are gated instead. Declared, not hidden.
+other symptoms and signs involving the nervous and musculoskeletal systems
+pain associated with micturition
+hematuria
+unspecified urinary incontinence
+retention of urine
+anuria and oliguria
+polyuria
+urethral discharge
+sexual dysfunction, unspecified
+other and unspecified symptoms and signs involving the genitourinary system
+somnolence, stupor and coma
+other symptoms and signs involving cognitive functions and awareness
+dizziness and giddiness
+disturbances of smell and taste
+other symptoms and signs involving general sensations and perceptions
+symptoms and signs involving emotional state
+symptoms and signs involving appearance and behavior
+speech disturbances, not elsewhere classified
+dyslexia and other symbolic dysfunctions, not elsewhere classified
+voice and resonance disorders
+fever of other and unknown origin
+headache
+pain, unspecified
+malaise and fatigue
+age-related physical debility
+syncope and collapse
+convulsions, not elsewhere classified
+# R57 "shock, not elsewhere classified" is not a disclosure either: "it came as a
+# shock" is how this product's own conversations use the word, so the category
+# is protected through its members (anaphylactic, cardiogenic, hypovolemic,
+# septic) rather than through the bare noun.
+hemorrhage, not elsewhere classified
+enlarged lymph nodes
+edema, not elsewhere classified
+generalized hyperhidrosis
+lack of expected normal physiological development in childhood and adults
+symptoms and signs concerning food and fluid intake
+cachexia
+symptoms and signs specifically associated with systemic inflammation and infection
+other general symptoms and signs
+illness, unspecified
+elevated erythrocyte sedimentation rate and abnormality of plasma viscosity
+abnormality of red blood cells
+elevated blood glucose level
+abnormal serum enzyme levels
+inconclusive laboratory evidence of human immunodeficiency virus [hiv]
+other abnormal immunological findings in serum
+other abnormalities of plasma proteins
+findings of drugs and other substances, not normally found in blood
+other abnormal findings of blood chemistry
+proteinuria
+glycosuria
+other and unspecified abnormal findings in urine
+abnormal findings in cerebrospinal fluid
+abnormal findings in specimens from respiratory organs and thorax
+abnormal findings in specimens from digestive organs and abdominal cavity
+abnormal findings in specimens from male genital organs
+abnormal findings in specimens from female genital organs
+abnormal findings in other body fluids and substances
+abnormal findings in specimens from other organs, systems and tissues
+abnormal findings on diagnostic imaging of central nervous system
+abnormal findings on diagnostic imaging of lung
+abnormal and inconclusive findings on diagnostic imaging of breast
+abnormal findings on diagnostic imaging of other body structures
+abnormal results of function studies
+abnormal tumor markers
+# R99 "ill-defined and unknown cause of mortality" is a death-certificate
+# construct. Gating it would mean watching "cause of mortality", which is the
+# subject matter of the product's own answers rather than a visitor's health
+# disclosure, so the row is declared non-stateable here instead.

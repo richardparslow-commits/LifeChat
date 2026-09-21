@@ -103,7 +103,7 @@
 export const CONDITION_VOCABULARY_ID = 'lifechat-condition-v1';
 
 /** Bump on any change to codes, names, systems, or aliases. */
-export const CONDITION_VOCABULARY_VERSION = '1.16.0';
+export const CONDITION_VOCABULARY_VERSION = '1.22.0';
 
 /** One released revision of the vocabulary. */
 export interface ConditionVocabularyRevision {
@@ -138,6 +138,158 @@ export interface ConditionVocabularyRevision {
  * or removing a condition without a matching entry fails the build.
  */
 export const CONDITION_VOCABULARY_CHANGELOG: ConditionVocabularyRevision[] = [
+  {
+    version: '1.22.0',
+    date: '2026-09-20',
+    summary:
+      'Closed the ICD-10-CM Chapter XIII sweep — the twelfth candidate source and the tenth codebook enumeration: the three-character titles of M00–M99, diseases of the musculoskeletal system and connective tissue (the FY 2026 codebook leaves M03, M28, M29, M37, M38, M39, M44, M52, M55–M59, M68, M69, M73, M74 and M78 unused, so 79 titled categories including the CM extension M1A Chronic gout, 71 candidates, 8 declared in the corpus with reasons because they are in-diseases-classified-elsewhere routing rows M01/M14/M36/M49/M63/M90 and the postprocedural rows M96/M97). The chapter centre is carrier strength (gout, rheumatoid arthritis, SLE, psoriatic arthritis, ankylosing spondylitis, scleroderma, fibromyalgia, osteoarthritis, osteoporosis, osteopenia, scoliosis, intervertebral disc disorders, spinal stenosis, osteomyelitis, sciatica, Ehlers-Danlos, Marfan, carpal tunnel, tennis elbow, trigger finger, bursitis, ganglion cyst), and its edges were silent: the arthropathy residuals, the jaw and knee derangements, the vasculitides and myositides, the dorsopathy family, the tendon and shoulder lesions, the bone-density and osteochondrosis residuals. Eleven named diagnoses became canonical rows in three batches: heel spur (M77.30, with calcaneal spur), Dupuytren contracture (M72.0 palmar fascial fibromatosis), adult osteomalacia (M83.9), osteonecrosis (M87.9, with avascular necrosis), Paget disease of bone (M88.9 osteitis deformans, the bare stem paget watched so the apostrophe forms resolve), stress fracture (M84.9 disorder of continuity of bone — the category title, and bare fracture stays unwatched because a broken bone from injury is the S chapter, not this), myositis (M60.9), polyarteritis nodosa (M30.0), giant cell arteritis (M31.6, with temporal arteritis), dermatomyositis (M33.10 — the dermatopolymyositis title closes through the polymyositis stem), and polymyalgia rheumatica (M35.3) — 460 \u2192 471 conditions. The TMJ row the chapter would have repeated is already carried at M26.60, the Sjogren row at M35.00 (the sicca-syndrome wording joined its synonyms), and the frozen-shoulder and rotator-cuff rows from the carrier-questionnaire source (M75.00 and M75.100) — so the batches repeat none of them. The category nouns and residuals close gated-not-coded: one arthropath stem closes the reactive/enteropathic/crystal/unspecified arthropathy titles, one dorsopath stem the deforming/other dorsopathy titles, one osteochondrosis stem all three juvenile/spinal titles; patella, internal derangement and joint derangements close the knee; dentofacial and malocclusion the jaw anomalies; synovitis, synovium, enthesopath, bursopath and shoulder lesion the synovial/soft-tissue titles; ossification of muscle, disorders of bone density, disorders of bone, osteochondropath, disorders of cartilage and biomechanical lesion the bone/cartilage residuals; acquired deformities the M20/M21/M95 deformity titles. Bare joints and bare spine stay unwatched — the educational anatomy sense is ordinary, exactly as bare liver and bare pancreas. No existing row changed meaning and no alias moved.',
+    condition_count: 471,
+    added: [
+      // Batch 1 — shoulder and the hand/foot soft-tissue named rows.
+      'M77.30',
+      'M72.0',
+      // Batch 2 — the bone rows.
+      'M83.9',
+      'M87.9',
+      'M88.9',
+      'M84.9',
+      'M60.9',
+      // Batch 3 — the systemic vasculitides and myositides.
+      'M30.0',
+      'M31.6',
+      'M33.10',
+      'M35.3',
+    ],
+    aliases_moved: [],
+  },
+  {
+    version: '1.21.0',
+    date: '2026-09-20',
+    summary:
+      'Closed the ICD-10-CM Chapter XII sweep — the eleventh candidate source and the ninth codebook enumeration: the three-character titles of L00–L99, diseases of the skin and subcutaneous tissue (the FY 2026 codebook leaves L06, L07, L61, L69 and L96 unused, so 74 titled categories, 67 candidates, 7 declared in the corpus with reasons because they are in-diseases-classified-elsewhere routing rows L14/L45/L54/L62/L86/L99 and the postprocedural row L76). The chapter centre is carrier strength (atopic dermatitis, eczema, psoriasis, urticaria, rosacea, acne, vitiligo, alopecia areata, melanoma, the non-melanoma skin cancers), and its edges were silent: the bullous disorders, the erythemas, the radiation and hair residuals, the chronic-wound and autoimmune-skin rarities. Thirteen named diagnoses became canonical rows in three batches: staphylococcal scalded skin syndrome (L00), impetigo (L01.00 — the L01.0 header is non-billable and its unspecified member carries the generic statement), pemphigus (L10.9), pemphigoid (L12.9), lichen simplex chronicus (L28.0, with neurodermatitis), pityriasis rosea (L42), erythema multiforme (L51.9), erythema nodosum (L52), sunburn (L55.9 — the degree split is not carried by the bare word and L55.9 is its billable unspecified home, the same shape as impetigo), hypertrichosis (L68.9, with excessive hair growth), acanthosis nigricans (L83), pyoderma gangrenosum (L88), and lichen sclerosus (L90.0 — the stateable member of the atrophic-disorders category) — 447 \u2192 460 conditions. The descriptive residuals close gated-not-coded: pilonidal cyst (L05 stays uncoded — the with/without-abscess split is not carried by the bare words, the same rule as pleural plaque), pruritus and prurigo (the itch categories), the hair residuals (L65/L67), the pigmentation residual (L81, bare \u201cpigmentation\u201d stays unwatched for its cosmetics sense), corns and callosities (L84, bare \u201ccorns\u201d stays unwatched for its food sense — the same recorded trade as bare \u201ccoal\u201d), epidermal thickening (L85), and the atrophic/hypertrophic category titles (L90/L91, with \u201cexfoliation due to\u201d closing L49 and bare \u201cexfoliation\u201d unwatched for its cosmetics sense). No existing row changed meaning and no alias moved.',
+    condition_count: 460,
+    added: [
+      // Batch 1 — the infection and bullous rows.
+      'L00',
+      'L01.00',
+      'L10.9',
+      'L12.9',
+      'L28.0',
+      // Batch 2 — papulosquamous, erythema, radiation, hair.
+      'L42',
+      'L51.9',
+      'L52',
+      'L55.9',
+      'L68.9',
+      // Batch 3 — the autoimmune-skin rarities.
+      'L83',
+      'L88',
+      'L90.0',
+    ],
+    aliases_moved: [],
+  },
+  {
+    version: '1.20.0',
+    date: '2026-09-20',
+    summary:
+      'Closed the ICD-10-CM Chapter XI sweep — the tenth candidate source and the eighth codebook enumeration: the three-character titles of K00–K95, diseases of the digestive system (the FY 2026 codebook leaves K07, K10, K24, K84 and K93 unused, so 72 titled categories, 65 candidates, 7 declared in the corpus with reasons because they are in-diseases-classified-elsewhere routing and postprocedural constructs). The chapter centre is carrier strength (IBS, GERD, gastritis, cirrhosis, pancreatitis, Crohn\u2019s, colitis, diverticular disease, gallstones, hernia, hemorrhoids all carried), and its edges were silent: the dental residuals, the appendiceal rows, the peritoneal and hepatic-failure rows, the biliary/pancreatic residuals and the intestinal-obstruction rows. Sixteen named diagnoses became canonical rows in four batches: acute appendicitis (K35.80 — the K35.8 header is non-billable and its unspecified member carries the generic statement), appendicitis (K37 — the codebook\u2019s unspecified home of the bare word, kept disjoint from the acute row), chronic appendicitis (K36, the "other appendicitis" row), functional dyspepsia (K30, with indigestion), peritonitis (K65.9), salivary-gland disease (K11.9), canker sores (K12.0 recurrent oral aphthae), leukoplakia (K13.21 — the K13.2 header is non-billable; the chapter\u2019s anal-fistula row is already carried at K60.3 from the 1.2.0 release, and the fatty-liver row at K76.0 from the 1.4.0 probe scope), then rectal prolapse (K62.3), biliary-tract disease (K83.9), pancreatic disease (K86.9), tongue disease (K14.9), ulcer of anus and rectum (K62.6), and the ileus pair (paralytic K56.0, unspecified K56.7) with intestinal malabsorption (K90.9) — 431 \u2192 447 conditions. The non-billable headers were gated, not coded, the same rule as every chapter: K38 (its members are hyperplasia/concretions/fistula specifics) and the sialoadenitis header K11.2 (parotitis is its inclusion term and the gate watches it). The dental residuals close gated-not-coded per the 2026-09-18 boundary ruling: the vocabulary carries diagnosed conditions, not the tooth-development, hard-tissue, pulp/periapical and gingival rows a dentist manages. No existing row changed meaning and no alias moved.',
+    condition_count: 447,
+    added: [
+      // Batch 1 — the appendiceal rows, dyspepsia, peritonitis.
+      'K35.80',
+      'K37',
+      'K36',
+      'K30',
+      'K65.9',
+      // Batch 2 — salivary and oral-mucosa rows. The chapter's fatty-liver and anal-fistula rows are already carried (K76.0 from the 1.4.0 probe scope, K60.3 from 1.2.0).
+      'K11.9',
+      'K12.0',
+      'K13.21',
+      // Batch 3 — anorectal and hepatobiliary/pancreatic residuals.
+      'K62.3',
+      'K83.9',
+      'K86.9',
+      'K14.9',
+      'K62.6',
+      // Batch 4 — the ileus pair and malabsorption.
+      'K56.0',
+      'K56.7',
+      'K90.9',
+    ],
+    aliases_moved: [],
+  },
+  {
+    version: '1.19.0',
+    date: '2026-09-20',
+    summary:
+      'Closed the ICD-10-CM Chapter X sweep — the ninth candidate source and the seventh codebook enumeration: the three-character titles of J00–J99, diseases of the respiratory system (CM adds J4A and leaves J46/J83/J97 unused, so 64 titles, 60 candidates, 4 declared in the corpus with reasons). The sweep found the chapters strongest block already carried (asthma, COPD, pneumonia, OSA, sarcoidosis, pulmonary fibrosis, sinusitis) and its own blind spot exactly where Chapter XXIs exposure row pointed: the diagnoses that follow asbestos. Twenty-six named diagnoses became canonical rows in five batches of five: the occupational-lung block (pneumoconiosis J64, coalworker J60, silicosis J62.8, asbestosis J61, unspecified organic-dust pneumoconiosis J67.9), its named members (berylliosis J63.2, byssinosis J66.0, farmers lung J67.0, bird-fanciers lung J67.2, the J68 chemical-inhalation residual), the acute infections (acute nasopharyngitis J00, strep pharyngitis J02.0, unspecified pharyngitis J02.9, unspecified URI J06.9, acute bronchiolitis J21.9), the ENT block (peritonsillar abscess J36, vocal-cord paralysis J38.00, chronic tonsil-and-adenoid disease J35.9, croup J05.0 and acute epiglottitis J05.1, acute tracheitis J04.9), and the pleural/residual generics (influenza at the generic flu rows J11.1 and J10.1, acute respiratory distress syndrome J80, pleural effusion J90, respiratory failure J96.90). The non-billable headers were gated, not coded, the same rule as every chapter: the J09 and J10/J11 strain-qualified influenza categories (the flu stem covers the disclosure), J38 (its stateable member is J38.00) and J81 pulmonary edema (the words do not carry an acuity). No existing row changed meaning and no alias moved.',
+    condition_count: 431,
+    added: [
+      // Batch 1 — the occupational-lung block the sweep found silent.
+      'J64',
+      'J60',
+      'J62.8',
+      'J61',
+      'J67.9',
+      // Batch 2 — named pneumoconiosis members and the chemical-inhalation residual.
+      'J63.2',
+      'J66.0',
+      'J67.0',
+      'J67.2',
+      'J68.9',
+      // Batch 3 — the acute infections.
+      'J00',
+      'J02.0',
+      'J02.9',
+      'J06.9',
+      'J21.9',
+      // Batch 4 — ENT block, and the pleural/residual generics.
+      'J36',
+      'J38.00',
+      'J35.9',
+      'J05.0',
+      'J05.1',
+      'J04.9',
+      // Influenza, ARDS, pleural effusion and respiratory failure.
+      'J11.1',
+      'J10.1',
+      'J80',
+      'J90',
+      'J96.90',
+    ],
+    aliases_moved: [],
+  },
+  {
+    version: '1.18.0',
+    date: '2026-09-20',
+    summary:
+      'Gave the neglect row the codebook\u2019s other lay word order: \u201cchild neglect\u201d and \u201chistory of child neglect\u201d join Z62.812 beside \u201cchildhood neglect\u201d, the same both-orders shape the sibling abuse row (Z62.819) has carried since 1.13.0. The gate watches the phrase, so \u201cI have a history of child neglect\u201d gates and resolves; the ordinary-sense registry\u2019s compound and mention frames, which had declared \u201cchild\\s+neglect\u201d since the fold, reach live data for the first time. No code changed meaning; no alias moved.',
+    condition_count: 405,
+    added: [],
+    aliases_moved: [],
+  },
+  {
+    version: '1.17.0',
+    date: '2026-09-20',
+    summary:
+      "Closed the ICD-10-CM Chapter VI sweep — the eighth candidate source and the sixth codebook enumeration: the three-character titles of G00–G99, diseases of the nervous system (WHO lists 67 categories; CM adds G14 and leaves G42 unused, so 68 titles, 50 candidates, 18 declared in the corpus with reasons because they are in-diseases-classified-elsewhere routing and sequela/postprocedural constructs). The chapter is the vocabulary\u2019s oldest strength — MS, migraine, epilepsy, Alzheimer\u2019s, Parkinson\u2019s, ALS, myasthenia gravis all arrived from the carrier sources — and its largest blind spot of the same kind: the peripheral-nerve and muscle rows never appeared on a questionnaire, and seventeen of the fifty candidates travelled to the model unclassified. Ten named diagnoses became canonical rows in two batches of five: spinal muscular atrophy (G12.9 — the G12 header is non-billable and its unspecified member carries the generic statement), dystonia (G24.9), hemiplegia (G81.90 — the laterality-unspecified member, because the person\u2019s words do not carry a side), primary disorder of muscle (G71.9), myopathy (G72.9), then trigeminal neuralgia (G50.0, with tic douloureux), toxic encephalopathy (G92.9 — same non-billable-header rule as G12), disorder of brain (G93.9), disease of spinal cord (G95.9) and the G98 nervous-system residual. The other silent rows are organ and residual constructs, gated descriptively instead — which is where the sweep\u2019s sharpest finding sat: 'paralys' was already watched, yet \"hemiplegia and hemiparesis\" measured silent, because the G81 category names a paralysis family the gate\u2019s single stem never reached; the gate now carries the stems the chapter\u2019s stateable forms reach it by (dystonia, hemiplegi, paresis, myopath, muscle disorder, trigeminal, neuralgi, encephalopath, brain disorder, spinal cord, cranial nerve, basal ganglia, demyelinat, extrapyramidal, the autonomic/peripheral nervous-system compounds, movement disorder, paralyt) and 'nervous system' as a bare stem beside the central/peripheral/autonomic compounds already watched, so every \"…of nervous system\" category title is covered without new classification for them. 'sclerosis' stays deliberately unwatched — it sits inside atherosclerosis, which is watched on its own stem, and the demyelinating family is reached by 'demyelinat'. No existing row changed meaning and no alias moved.",
+    condition_count: 405,
+    added: [
+      // Batch 1 — motor neuron, movement, muscle, and the G81 paralysis family.
+      'G12.9',
+      'G24.9',
+      'G81.90',
+      'G71.9',
+      'G72.9',
+      // Batch 2 — cranial nerve, toxic and unspecified brain/cord, residual.
+      'G50.0',
+      'G92.9',
+      'G93.9',
+      'G95.9',
+      'G98',
+    ],
+    aliases_moved: [],
+  },
   {
     version: '1.16.0',
     date: '2026-09-20',
@@ -1136,7 +1288,7 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     icd10_cm: 'M35.00',
     name: 'Sjögren syndrome, unspecified',
     system: 'autoimmune_inflammatory',
-    synonyms: ['sjogren syndrome', 'sjogrens syndrome', 'sjogrens'],
+    synonyms: ['sjogren syndrome', 'sjogrens syndrome', 'sjogrens', 'sicca syndrome'],
   },
   {
     icd10_cm: 'K90.0',
@@ -1299,6 +1451,406 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     name: 'Pneumonia, unspecified organism',
     system: 'respiratory',
     synonyms: ['pneumonia'],
+  },
+
+  // ── Respiratory (ICD-10-CM Chapter X, release 1.19.0) ──
+  {
+    icd10_cm: 'J00',
+    name: 'Acute nasopharyngitis [common cold]',
+    system: 'respiratory',
+    synonyms: ['common cold', 'head cold', 'nasopharyngitis'],
+  },
+  {
+    icd10_cm: 'J02.0',
+    name: 'Streptococcal pharyngitis',
+    system: 'respiratory',
+    synonyms: ['strep throat', 'strep pharyngitis', 'streptococcal throat infection'],
+  },
+  {
+    icd10_cm: 'J02.9',
+    name: 'Streptococcal pharyngitis, unspecified',
+    system: 'respiratory',
+    synonyms: ['pharyngitis', 'sore throat'],
+  },
+  {
+    icd10_cm: 'J06.9',
+    name: 'Acute upper respiratory infection, unspecified',
+    system: 'respiratory',
+    synonyms: ['upper respiratory infection', 'upper respiratory tract infection'],
+  },
+  {
+    icd10_cm: 'J21.9',
+    name: 'Acute bronchiolitis, unspecified',
+    system: 'respiratory',
+    synonyms: ['bronchiolitis'],
+  },
+  {
+    icd10_cm: 'J11.1',
+    name: 'Influenza due to unidentified influenza virus with other respiratory manifestations',
+    system: 'respiratory',
+    synonyms: ['flu', 'influenza', 'seasonal flu'],
+  },
+  {
+    icd10_cm: 'J10.1',
+    name: 'Influenza due to other identified influenza virus with other respiratory manifestations',
+    system: 'respiratory',
+    synonyms: ['influenza a virus untyped strain present'],
+  },
+  {
+    icd10_cm: 'J80',
+    name: 'Acute respiratory distress syndrome',
+    system: 'respiratory',
+    synonyms: ['ARDS'],
+  },
+  {
+    icd10_cm: 'J90',
+    name: 'Pleural effusion, not elsewhere classified',
+    system: 'respiratory',
+    synonyms: ['pleural effusion', 'water on the lung'],
+  },
+  {
+    icd10_cm: 'J96.90',
+    name: 'Respiratory failure, unspecified, unspecified whether with hypoxia or hypercapnia',
+    system: 'respiratory',
+    synonyms: ['respiratory failure'],
+  },
+  {
+    icd10_cm: 'J64',
+    name: 'Unspecified pneumoconiosis',
+    system: 'respiratory',
+    synonyms: ['pneumoconiosis'],
+  },
+  {
+    icd10_cm: 'J60',
+    name: 'Coalworker pneumoconiosis',
+    system: 'respiratory',
+    synonyms: ['coalworker pneumoconiosis', 'coal worker pneumoconiosis', 'coalworkers pneumoconiosis', 'black lung disease', 'black lung'],
+  },
+  {
+    icd10_cm: 'J62.8',
+    name: 'Pneumoconiosis due to other dust containing silica',
+    system: 'respiratory',
+    synonyms: ['silicosis'],
+  },
+  {
+    icd10_cm: 'J61',
+    name: 'Pneumoconiosis due to asbestos and other mineral fibers',
+    system: 'respiratory',
+    synonyms: ['asbestosis'],
+  },
+  {
+    icd10_cm: 'J67.9',
+    name: 'Hypersensitivity pneumonitis due to unspecified organic dust',
+    system: 'respiratory',
+    synonyms: ['hypersensitivity pneumonitis', 'organic dust pneumoconiosis'],
+  },
+  {
+    icd10_cm: 'J63.2',
+    name: 'Berylliosis',
+    system: 'respiratory',
+    synonyms: ['berylliosis', 'beryllium disease'],
+  },
+  {
+    icd10_cm: 'J66.0',
+    name: 'Byssinosis',
+    system: 'respiratory',
+    synonyms: ['byssinosis', 'brown lung disease'],
+  },
+  {
+    icd10_cm: 'J67.0',
+    name: 'Farmer lung',
+    system: 'respiratory',
+    synonyms: ['farmer lung', 'farmers lung'],
+  },
+  {
+    icd10_cm: 'J67.2',
+    name: 'Bird fancier lung',
+    system: 'respiratory',
+    synonyms: ['bird fancier lung', 'bird fanciers lung'],
+  },
+  {
+    icd10_cm: 'J68.9',
+    name: 'Unspecified respiratory condition due to chemicals, gases, fumes and vapours',
+    system: 'respiratory',
+    synonyms: ['chemical inhalation'],
+  },
+  {
+    icd10_cm: 'J36',
+    name: 'Peritonsillar abscess',
+    system: 'respiratory',
+    synonyms: ['peritonsillar abscess', 'quinsy'],
+  },
+  {
+    icd10_cm: 'J38.00',
+    name: 'Paralysis of vocal cords and larynx, unspecified',
+    system: 'respiratory',
+    synonyms: ['vocal cord paralysis', 'paralysis of vocal cords'],
+  },
+  {
+    icd10_cm: 'J35.9',
+    name: 'Chronic disease of tonsils and adenoids, unspecified',
+    system: 'respiratory',
+    synonyms: ['chronic tonsillitis', 'chronic adenoid disease', 'chronic disease of tonsils and adenoids'],
+  },
+  {
+    icd10_cm: 'J05.0',
+    name: 'Acute obstructive laryngitis [croup]',
+    system: 'respiratory',
+    synonyms: ['croup'],
+  },
+  {
+    icd10_cm: 'J05.1',
+    name: 'Acute epiglottitis',
+    system: 'respiratory',
+    synonyms: ['epiglottitis'],
+  },
+  {
+    icd10_cm: 'J04.9',
+    name: 'Acute laryngitis and tracheitis, unspecified',
+    system: 'respiratory',
+    synonyms: ['acute laryngitis', 'acute tracheitis'],
+  },
+
+  // ── Digestive (ICD-10-CM Chapter XI, release 1.20.0) ──
+  {
+    icd10_cm: 'K35.80',
+    name: 'Unspecified acute appendicitis',
+    system: 'gastrointestinal',
+    synonyms: ['acute appendicitis'],
+  },
+  {
+    icd10_cm: 'K37',
+    name: 'Unspecified appendicitis',
+    system: 'gastrointestinal',
+    synonyms: ['appendicitis'],
+  },
+  {
+    icd10_cm: 'K36',
+    name: 'Other appendicitis',
+    system: 'gastrointestinal',
+    synonyms: ['chronic appendicitis'],
+  },
+  {
+    icd10_cm: 'K30',
+    name: 'Functional dyspepsia',
+    system: 'gastrointestinal',
+    synonyms: ['functional dyspepsia', 'dyspepsia', 'indigestion'],
+  },
+  {
+    icd10_cm: 'K65.9',
+    name: 'Peritonitis, unspecified',
+    system: 'gastrointestinal',
+    synonyms: ['peritonitis'],
+  },
+  {
+    icd10_cm: 'K11.9',
+    name: 'Disease of salivary gland, unspecified',
+    system: 'gastrointestinal',
+    synonyms: ['salivary gland disease', 'disease of salivary gland'],
+  },
+  {
+    icd10_cm: 'K12.0',
+    name: 'Recurrent oral aphthae',
+    system: 'gastrointestinal',
+    synonyms: ['canker sores', 'canker sore', 'mouth ulcers', 'mouth ulcer', 'recurrent oral aphthae'],
+  },
+  {
+    icd10_cm: 'K13.21',
+    name: 'Leukoplakia of oral mucosa, including tongue',
+    system: 'gastrointestinal',
+    synonyms: ['leukoplakia', 'leucoplakia'],
+  },
+  {
+    icd10_cm: 'K62.3',
+    name: 'Rectal prolapse',
+    system: 'gastrointestinal',
+    synonyms: ['rectal prolapse'],
+  },
+  {
+    icd10_cm: 'K83.9',
+    name: 'Disease of biliary tract, unspecified',
+    system: 'gastrointestinal',
+    synonyms: ['biliary tract disease', 'biliary disease'],
+  },
+  {
+    icd10_cm: 'K86.9',
+    name: 'Disease of pancreas, unspecified',
+    system: 'gastrointestinal',
+    synonyms: ['pancreatic disease', 'disease of pancreas', 'diseases of pancreas'],
+  },
+  {
+    icd10_cm: 'K14.9',
+    name: 'Disease of tongue, unspecified',
+    system: 'gastrointestinal',
+    synonyms: ['disease of tongue', 'disorder of tongue'],
+  },
+  {
+    icd10_cm: 'K62.6',
+    name: 'Ulcer of anus and rectum',
+    system: 'gastrointestinal',
+    synonyms: ['ulcer of anus and rectum', 'anorectal ulcer'],
+  },
+  {
+    icd10_cm: 'K56.0',
+    name: 'Paralytic ileus',
+    system: 'gastrointestinal',
+    synonyms: ['paralytic ileus'],
+  },
+  {
+    icd10_cm: 'K56.7',
+    name: 'Ileus, unspecified',
+    system: 'gastrointestinal',
+    synonyms: ['ileus'],
+  },
+  {
+    icd10_cm: 'K90.9',
+    name: 'Intestinal malabsorption, unspecified',
+    system: 'gastrointestinal',
+    synonyms: ['malabsorption', 'intestinal malabsorption'],
+  },
+  {
+    icd10_cm: 'L00',
+    name: 'Staphylococcal scalded skin syndrome',
+    system: 'dermatologic',
+    synonyms: ['staphylococcal scalded skin syndrome', 'scalded skin syndrome', 'SSSS'],
+  },
+  {
+    icd10_cm: 'L01.00',
+    name: 'Impetigo, unspecified',
+    system: 'dermatologic',
+    synonyms: ['impetigo'],
+  },
+  {
+    icd10_cm: 'L10.9',
+    name: 'Pemphigus, unspecified',
+    system: 'dermatologic',
+    synonyms: ['pemphigus'],
+  },
+  {
+    icd10_cm: 'L12.9',
+    name: 'Pemphigoid, unspecified',
+    system: 'dermatologic',
+    synonyms: ['pemphigoid'],
+  },
+  {
+    icd10_cm: 'L28.0',
+    name: 'Lichen simplex chronicus',
+    system: 'dermatologic',
+    synonyms: ['lichen simplex chronicus', 'lichen simplex chronicus and prurigo', 'neurodermatitis'],
+  },
+  {
+    icd10_cm: 'L42',
+    name: 'Pityriasis rosea',
+    system: 'dermatologic',
+    synonyms: ['pityriasis rosea'],
+  },
+  {
+    icd10_cm: 'L51.9',
+    name: 'Erythema multiforme, unspecified',
+    system: 'dermatologic',
+    synonyms: ['erythema multiforme'],
+  },
+  {
+    icd10_cm: 'L52',
+    name: 'Erythema nodosum',
+    system: 'dermatologic',
+    synonyms: ['erythema nodosum'],
+  },
+  {
+    icd10_cm: 'L55.9',
+    name: 'Sunburn, unspecified',
+    system: 'dermatologic',
+    synonyms: ['sunburn'],
+  },
+  {
+    icd10_cm: 'L68.9',
+    name: 'Hypertrichosis, unspecified',
+    system: 'dermatologic',
+    synonyms: ['hypertrichosis', 'excessive hair growth'],
+  },
+  {
+    icd10_cm: 'L83',
+    name: 'Acanthosis nigricans',
+    system: 'dermatologic',
+    synonyms: ['acanthosis nigricans'],
+  },
+  {
+    icd10_cm: 'L88',
+    name: 'Pyoderma gangrenosum',
+    system: 'dermatologic',
+    synonyms: ['pyoderma gangrenosum'],
+  },
+  {
+    icd10_cm: 'L90.0',
+    name: 'Lichen sclerosus et atrophicus',
+    system: 'dermatologic',
+    synonyms: ['lichen sclerosus', 'lichen sclerosus et atrophicus'],
+  },
+  {
+    icd10_cm: 'M77.30',
+    name: 'Calcaneal spur, unspecified foot',
+    system: 'musculoskeletal',
+    synonyms: ['heel spur', 'calcaneal spur'],
+  },
+  {
+    icd10_cm: 'M72.0',
+    name: 'Palmar fascial fibromatosis [Dupuytren]',
+    system: 'musculoskeletal',
+    synonyms: ['dupuytrens contracture', 'dupuytren contracture', 'dupuytrens disease'],
+  },
+  {
+    icd10_cm: 'M83.9',
+    name: 'Adult osteomalacia, unspecified',
+    system: 'musculoskeletal',
+    synonyms: ['osteomalacia'],
+  },
+  {
+    icd10_cm: 'M87.9',
+    name: 'Osteonecrosis, unspecified',
+    system: 'musculoskeletal',
+    synonyms: ['osteonecrosis', 'avascular necrosis'],
+  },
+  {
+    icd10_cm: 'M88.9',
+    name: 'Osteitis deformans of unspecified bone',
+    system: 'musculoskeletal',
+    synonyms: ['pagets disease of bone', 'paget disease of bone', 'osteitis deformans'],
+  },
+  {
+    icd10_cm: 'M84.9',
+    name: 'Disorder of continuity of bone, unspecified',
+    system: 'musculoskeletal',
+    synonyms: ['stress fracture', 'disorder of continuity of bone'],
+  },
+  {
+    icd10_cm: 'M60.9',
+    name: 'Myositis, unspecified',
+    system: 'musculoskeletal',
+    synonyms: ['myositis'],
+  },
+  {
+    icd10_cm: 'M30.0',
+    name: 'Polyarteritis nodosa',
+    system: 'musculoskeletal',
+    synonyms: ['polyarteritis nodosa'],
+  },
+  {
+    icd10_cm: 'M31.6',
+    name: 'Other giant cell arteritis',
+    system: 'musculoskeletal',
+    synonyms: ['giant cell arteritis', 'temporal arteritis'],
+  },
+  {
+    icd10_cm: 'M33.10',
+    name: 'Other dermatomyositis, organ involvement unspecified',
+    system: 'musculoskeletal',
+    synonyms: ['dermatomyositis'],
+  },
+  {
+    icd10_cm: 'M35.3',
+    name: 'Polymyalgia rheumatica',
+    system: 'musculoskeletal',
+    synonyms: ['polymyalgia rheumatica', 'polymyalgia'],
   },
 
   // ── Sleep ──
@@ -1594,6 +2146,72 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     name: 'Unspecified intellectual disabilities',
     system: 'mental_health',
     synonyms: ['intellectual disability', 'unspecified intellectual disability'],
+  },
+
+  // ── ICD-10 Chapter VI sweep (1.17.0), batch 1 — motor neuron, movement,
+  //    muscle, and the paralysis the G81 category names ──
+  {
+    icd10_cm: 'G12.9',
+    name: 'Spinal muscular atrophy, unspecified',
+    system: 'neurodegenerative',
+    synonyms: ['spinal muscular atrophy', 'spinal muscular atrophy and related syndromes'],
+  },
+  {
+    icd10_cm: 'G24.9',
+    name: 'Dystonia, unspecified',
+    system: 'neurological',
+    synonyms: ['dystonia', 'dystonias'],
+  },
+  {
+    icd10_cm: 'G81.90',
+    name: 'Hemiplegia, unspecified affecting unspecified side',
+    system: 'neurological',
+    synonyms: ['hemiplegia', 'hemiplegias', 'hemiplegia and hemiparesis'],
+  },
+  {
+    icd10_cm: 'G71.9',
+    name: 'Primary disorder of muscle, unspecified',
+    system: 'neurological',
+    synonyms: ['primary disorder of muscle', 'primary disorders of muscles'],
+  },
+  {
+    icd10_cm: 'G72.9',
+    name: 'Myopathy, unspecified',
+    system: 'neurological',
+    synonyms: ['myopathy', 'myopathies', 'other myopathies'],
+  },
+
+  // ── ICD-10 Chapter VI sweep (1.17.0), batch 2 — cranial nerve, toxic and
+  //    unspecified brain/cord, and the nervous-system residual ──
+  {
+    icd10_cm: 'G50.0',
+    name: 'Trigeminal neuralgia',
+    system: 'neurological',
+    synonyms: ['trigeminal neuralgia', 'tic douloureux', 'disorders of trigeminal nerve'],
+  },
+  {
+    icd10_cm: 'G92.9',
+    name: 'Unspecified toxic encephalopathy',
+    system: 'neurological',
+    synonyms: ['toxic encephalopathy'],
+  },
+  {
+    icd10_cm: 'G93.9',
+    name: 'Disorder of brain, unspecified',
+    system: 'neurological',
+    synonyms: ['brain disorder', 'other disorders of brain'],
+  },
+  {
+    icd10_cm: 'G95.9',
+    name: 'Disease of spinal cord, unspecified',
+    system: 'neurological',
+    synonyms: ['spinal cord disease', 'other diseases of spinal cord'],
+  },
+  {
+    icd10_cm: 'G98',
+    name: 'Other disorders of nervous system, not elsewhere classified',
+    system: 'neurological',
+    synonyms: ['nervous system disorder'],
   },
 
   // ── Oncologic / hematologic ──
@@ -3696,7 +4314,15 @@ export const CANONICAL_CONDITIONS: CanonicalCondition[] = [
     icd10_cm: 'Z62.812',
     name: 'Personal history of neglect in childhood',
     system: 'psychosocial',
-    synonyms: ['neglected as a child', 'childhood neglect', 'history of childhood neglect'],
+    synonyms: [
+      'neglected as a child',
+      'childhood neglect',
+      'history of childhood neglect',
+      // The codebook's other lay order — the same both-orders shape the
+      // sibling abuse row carries ("child abuse" and "childhood abuse").
+      'child neglect',
+      'history of child neglect',
+    ],
   },
   {
     icd10_cm: 'Z62.819',
@@ -4046,6 +4672,48 @@ function variantTokens(token: string): readonly string[] {
     if (variants) return variants.map((word) => `${word}s`);
   }
   return [];
+}
+
+/**
+ * The declared alternative spellings of one word — the resolver's own rule,
+ * exported. The health gate consumes this instead of hand-writing British
+ * spellings a second time, so one declaration serves both consumers: an alias
+ * resolves in every declared spelling of its words, and the gate watches a
+ * word in every declared spelling of it.
+ *
+ * A trailing "s" is carried across, so a declared singular spelling covers its
+ * plural — that is how `haemorrhoid`/`hemorrhoid` reaches "haemorrhoids"
+ * without declaring the plural as its own word.
+ */
+export function spellingVariantsOfWord(word: string): readonly string[] {
+  return variantTokens(word);
+}
+
+/**
+ * The declared alternative spellings of a stem — how the gate derives the
+ * British form of a prefixed-compound stem like `ischem` without the
+ * declaration growing stem entries. The stem must be a proper prefix of a
+ * declared spelling; each matching member contributes its siblings trimmed by
+ * the same amount (`ischemic` − 3 → `ischaem`), and a derivation is emitted
+ * only when every contribution agrees and both sides stay at least four
+ * characters, so a group whose members do not share a common ending — or a
+ * stem too short to be meaningful — derives nothing rather than guessing.
+ */
+export function spellingVariantsOfStem(stem: string): readonly string[] {
+  if (!/^[a-z]{4,}$/.test(stem)) return [];
+  const candidates = new Set<string>();
+  for (const group of SPELLING_VARIANT_GROUPS) {
+    for (const member of group) {
+      if (member === stem || !member.startsWith(stem)) continue;
+      const trim = member.length - stem.length;
+      for (const other of group) {
+        if (other === member) continue;
+        const derived = other.slice(0, other.length - trim);
+        if (derived.length >= 4 && derived !== stem) candidates.add(derived);
+      }
+    }
+  }
+  return candidates.size === 1 ? [...candidates] : [];
 }
 
 /**

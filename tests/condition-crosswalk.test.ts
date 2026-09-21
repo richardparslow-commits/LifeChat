@@ -509,6 +509,10 @@ describe('Condition crosswalk — the Chapter XXI closure (1.13.0)', () => {
       ['emotional abuse as a child', 'Z62.811'],
       ['neglected as a child', 'Z62.812'],
       ['childhood neglect', 'Z62.812'],
+      // 1.18.0: the codebook's other lay order — the same both-orders shape
+      // the sibling abuse row carries.
+      ['child neglect', 'Z62.812'],
+      ['history of child neglect', 'Z62.812'],
       ['abused as an adult', 'Z91.419'],
       ['history of abuse as an adult', 'Z91.419'],
       ['domestic violence', 'Z91.419'],

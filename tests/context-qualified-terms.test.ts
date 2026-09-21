@@ -55,7 +55,26 @@ describe('Context-qualified registry — the registry and the exclusion list agr
 
   test('the registry carries exactly the reviewed entries, with unique ids', () => {
     const ids = CONTEXT_QUALIFIED_TERMS.map((term) => term.id);
-    expect([...ids].sort()).toEqual(['lump', 'ms', 'piles', 'sle', 'stones', 'tb', 'tia']);
+    // The reviewed set, in the order the releases added them: the abbreviations
+    // and lay words through 1.8.0, the tumour marker and the two symptom words
+    // the Chapter XVIII closure measured in (1.11.0), the stomach-upset lay
+    // word the re-measurement closed from the deferral ledger (`bug`), and the
+    // hyperbole adjective whose disclosure form is a first-person state
+    // (`manic`) — the 1.16.0 boundary the measurement finally separated.
+    expect([...ids].sort()).toEqual([
+      'bug',
+      'lump',
+      'manic',
+      'ms',
+      'pain',
+      'piles',
+      'psa',
+      'rash',
+      'sle',
+      'stones',
+      'tb',
+      'tia',
+    ]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

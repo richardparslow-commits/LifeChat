@@ -1,0 +1,30 @@
+# The deferral ledger — the rows deliberately left open, each with the reason on
+# file. Unlike the six candidate corpora, this file is not a source of new
+# phrases: it is where a sweep's open rows stay visible instead of being dropped
+# (a forgotten gap) or counted as silent (a failing build on a decision that has
+# already been made).
+#
+# Provenance: the lay-word measurement of 2026-09-19 that chose `lump` for the
+# breast-history row. Six candidates were graded in both directions against
+# realistic messages. `lump` closed immediately (a registry entry with a
+# two-directional corpus). `rash` was deferred by that measurement and has since
+# closed — the Chapter XVIII release gated it — which is the worked example of
+# how a deferral ends: the row stops being silent, and the ledger entry goes.
+# `bug` closed the same way once the registry grew per-entry disclosure and
+# clinical word lists and the two-sided guard: the verbs the ledger said were
+# missing are declared per entry, and the software and pest frames are excluded
+# by shape rather than by a list of noun senses (10 of 10 medical phrasings
+# matched, 0 of 12 ordinary sentences leaked — see the `bug` describe in
+# tests/gate-road-test.test.ts).
+# The three rows below remain open, because each one's ordinary sense has no
+# guard that does not also silence a real phrasing.
+#
+# Format: `? <phrase> :: <reason>`. Every sweep re-asks each row and reports it
+# as `deferred` with this reason; it is never counted as a silent gap, and the
+# reason is required rather than optional. The sweep fails the moment one of
+# these rows is no longer silent, because then this ledger is stale: either
+# close the row properly or remove the declaration.
+
+? fit :: the fitness sense and the medical readings share every frame a guard could use ("get fit", "keep fit", "I am not fit"), so no measured guard separates them without silencing the ordinary one
+? mole :: "we have moles in the garden" uses the same "have" frame as "I have a mole", and bare "mole" is the animal/garden sense as often as the skin finding; its guard would be an open list of noun senses
+? cold :: its guard would be an open list of noun senses ("cold weather", "a cold call", "the trail went cold") with no measured boundary between the senses

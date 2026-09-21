@@ -39,6 +39,8 @@ import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
 import {
   detectSensitiveData,
   detectHealthTopicQuestion,
+  ALL_CONDITION_GATE_TERMS,
+  ALL_CONDITION_GATE_WORD_TERMS,
   HEALTH_CONDITION_TERMS,
   HEALTH_CONDITION_WORD_TERMS,
   GATE_EXCLUDED_TERMS,
@@ -49,6 +51,9 @@ import {
   CANONICAL_CONDITIONS,
   CONDITION_VOCABULARY_CHANGELOG,
   findCanonicalCondition,
+  spellingVariantKeys,
+  spellingVariantsOfStem,
+  spellingVariantsOfWord,
 } from '../src/medical/condition-crosswalk';
 
 /**
@@ -160,6 +165,181 @@ const DESCRIPTIVE_GATE_TERMS: readonly string[] = [
   'sexual dysfunction', // functional-state category; erectile dysfunction is coded
   'artificial fertilization', // procedure construct: complications of IVF
   'genitourinary', // "complications … of genitourinary system" — anatomy
+  // The British spellings are no longer listed here: since 1.17.0 the gate
+  // derives them from the declared spelling table and the accounting below
+  // checks every spelling of an alias, so a derived spelling is accounted by
+  // the same canonical alias its sibling is — a grandfathered exemption would
+  // only have hidden a vocabulary that stopped carrying the word.
+  'serum enzyme', // R74 category title — a laboratory report, not a diagnosis
+  // Chapter XVIII R00–R99 (1.11.0): the descriptive findings and examination
+  // categories the sweep surfaced. Each is health data the gate protects, and
+  // each is deliberately without a canonical code — the stateable findings the
+  // same sweep named discretely are in the scope ledger instead.
+  'numbness', // the complaint the codebook splits finer than the words do (R20.1 vs R20.2)
+  'tingling', // paresthesia wording, same split
+  'breathing', // abnormal breathing findings (R06) — category, not a diagnosis
+  'throat', // throat findings (R07.0) — anatomy in a symptom category
+  'chest pain', // R07.x — the person's complaint; the causes are coded
+  'nausea', // R11.0 — symptom
+  'vomiting', // R11.x — symptom
+  'flatulence', // R14 — symptom
+  'skin sensation', // R20.x category — examination language
+  'skin eruption', // R21 — examination language
+  'skin changes', // R22.x category
+  'subcutaneous', // R22.1 granularity — anatomy in a category title
+  'involuntary movements', // R25.x category — descriptive
+  'gait', // R26.x category — descriptive
+  'debility', // R53.x category — malaise and fatigue family
+  'cachexia', // R64 — clinical state
+  'hyperhidrosis', // R61 — excessive sweating; stateable but uncoded by scope
+  'malaise', // R53 — symptom
+  'red blood cell', // R71 category — laboratory report
+  'immunological', // R76.x category — laboratory report
+  'plasma protein', // R77.x category — laboratory report
+  'blood chemistry', // R79.x category — laboratory report
+  'cerebrospinal', // R83 category — laboratory report
+  'diagnostic imaging', // R90-R93 categories — report language
+  'physiological', // R94 category — report language
+  'smell and taste', // R43 category — descriptive
+  'speech disturbance', // R47.x — descriptive
+  'function studies', // R94.8 wording — report language
+  // Misc measured terms, each with its reason.
+  'blood-pressure', // hyphenated spelling; the spaced form is a captured field
+  'dyslexia', // R48.8 wording — stateable but uncoded by the sweep's scope
+  'ataxia', // R27.0 — descriptive
+  'anaphylactic', // T78.2 adjective — 'anaphylaxis' would be the coded noun
+  'cardiogenic', // R57.0 adjective — shock qualifier
+  'hypovolemic', // R57.1 adjective — shock qualifier
+  // Status and history words the Chapter XXI and abuse-family releases made
+  // the gate watch; the disclosure is protected, and no code is invented.
+  'blood type', // "my blood type is O positive" — a captured field, not a condition
+  'asbestos', // Z77 exposure row — exposure status, not a diagnosis
+  'was abused', // the Z62/Z91.4 rows are split by setting; the bare shape gates uncoded
+  'kill myself', // watched as a statement in its own right ("I tried to kill myself")
+  'overdose', // an overdose is a medical event; "an overdose of caffeine" is the accepted cost
+  'self-mutilation', // hyphenated spelling of Z91.52's inclusion term; a visitor types both
+  'self-injury', // hyphenated spelling of "self injury" (Z91.52), same reason
+  'self-poisoning', // the spaced spelling is Z91.51's own inclusion term; both spellings watched
+  // ('forced labour' and 'forced into labour' are derived from the declared
+  // labour/labor group and accounted through their American siblings.)
+  // The Z93-Z99 status rows and the medication-status phrase: the gate
+  // protects the state a person reports, and the vocabulary does not invent
+  // a condition for an organ's absence or a device's presence.
+  'amputat', // Z89 — amputation status (amputated, amputation)
+  'amputee', // Z89.8 stateable form ("I am an amputee")
+  'colostomy', // Z93.2 — artificial opening status
+  'ileostomy', // Z93.2 — artificial opening status
+  'tracheostomy', // Z93.0 — artificial opening status
+  'feeding tube', // Z95.8 device dependency
+  'ventilator', // Z99.1 — device dependency; "the office ventilator" is the accepted cost
+  'prosthetic', // Z96 — implant/prosthetic status
+  'implant', // Z95/Z96 — implant status; "dental implant" is the accepted cost
+  'artificial opening', // Z93 category wording
+  'foreign body', // Z18 — retained foreign body status
+  'on the pill', // Z79.3 — contraception medication status
+  // ICD-10 Chapter VI G00–G99 (1.17.0): the organ and residual constructs the
+  // sweep surfaced. Each is health data the gate protects, and each is
+  // deliberately without a canonical code — the ten named diagnoses the same
+  // sweep surfaced are in the 1.17.0 release entry instead. The three codebook
+  // category-title forms sit beside the person's wording for the same organ.
+  'cranial nerve', // G50–G52 category — anatomy a diagnosis would name
+  'autonomic nervous system', // G90 category — the dysautonomia family is clinical language
+  'basal ganglia', // G23 category — the named degenerations are clinical constructs
+  'demyelinat', // G35–G37 category — 'sclerosis' stays unwatched (atherosclerosis)
+  'extrapyramidal', // G20–G26 category — movement-disorder language
+  'movement disorder', // G20–G26 stateable category
+  'disorders of nervous system', // the G98 residual's category-title form — qualified,
+  'disease of nervous system', // not a bare stem, so "the central nervous system controls…"
+  'diseases of nervous system', // stays silent (measured)
+  'peripheral nervous system', // the G60–G65 category form
+  'disorders of brain', // the G93 category-title form; a person says "brain disorder"
+  'disorders of muscle', // the G71 category-title form; a person says "muscle disorder"
+  'muscle disorder', // the person's wording for the G71 category
+  'paresis', // hemiparesis, paraparesis — the weakness family beside hemiplegia
+  'paralyt', // paralytic — the G83 category wording; 'paralys' beside it covers the noun
+  // ICD-10 Chapter X J00–J99 (1.19.0): the anatomy and residual stems the sweep
+  // surfaced. Each is health data the gate protects, and each is deliberately
+  // without a canonical code — the named diagnoses the same sweep surfaced are
+  // in the 1.19.0 release entry instead.
+  'lower respiratory infection', // the J20–J22 category — an acute, self-limited family
+  'lower respiratory tract infection', // the longer form of the same
+  'upper respiratory tract', // the J39 residual's anatomy — inherently medical phrasing
+  'nasal sinuses', // the J34 residual's anatomy
+  'tonsils and adenoids', // the J35 category-title form; the chronic disease is mapped
+  'pleural plaque', // the J92 family — bare wording gates rather than misstating the asbestos split
+  // ICD-10 Chapter XI K00–K95 (1.20.0): the anatomy, residual and dental stems
+  // the sweep surfaced. Each is health data the gate protects, and each is
+  // deliberately without a canonical code — the named diagnoses the same sweep
+  // surfaced are in the 1.20.0 release entry instead.
+  'hepatic', // the adjective of the liver family; the coded row is cirrhosis or fatty liver
+  'stomatitis', // the K12 category — the recurrent-aphthae member is mapped
+  'tongue disease', // the K14 residual's person wording
+  'diseases of tongue', // the K14 category-title form
+  'abscess', // an acute suppurative state — the anal/rectal/salivary/dental abscesses
+  'intestine', // the K63 residual's anatomy
+  'peritoneum', // the K65–K68 category anatomy (covers retroperitoneum)
+  'diseases of liver', // the K76 category-title form; the stateable members are mapped
+  'digestive system', // the K92 residual's category noun
+  'tooth development', // K00 — dental residual, gated not coded
+  'impacted teeth', // K01 — dental residual
+  'hard tissues of teeth', // K03 — dental residual
+  'periapical', // K04 — dental residual
+  'gingiva', // K06 — dental residual ('gingivitis' is already descriptive)
+  'teeth and supporting structures', // K08 — dental residual
+  'cysts of oral region', // K09 — dental residual
+  'diseases of appendix', // the K38 category-title form; bare 'appendix' is a document's appendix
+  'disease of appendix',
+  // ICD-10 Chapter XII L00-L99 (1.21.0): the residual and anatomy stems the
+  // sweep surfaced. Each is health data the gate protects, and each is
+  // deliberately without a canonical code - the named diagnoses the same
+  // sweep surfaced are in the 1.21.0 release entry instead. Bare
+  // "pigmentation", "corns" and "exfoliation" stay unwatched for their
+  // ordinary cosmetics and food senses; the category-title wordings below
+  // carry the residuals instead.
+  'pilonidal', // L05 - gated without a code (the with/without-abscess split is not carried by the bare words)
+  'pruritus', // L29 - the itch category
+  'prurigo', // L28's title residual
+  'exfoliation due to', // the L49 title shape - bare 'exfoliation' is skincare
+  'nonscarring hair loss', // the L65 title form
+  'hair shaft', // the L67 title fragment
+  'disorders of pigmentation', // the L81 title form
+  'callosities', // the L84 title form - bare 'corns' is food
+  'epidermal thickening', // the L85 title form
+  'atrophic disorders of skin', // the L90 category-title form
+  'hypertrophic disorders of skin', // the L91 category-title form
+  'polyosteoarthritis', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'acquired deformities', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'patella', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'internal derangement', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'joint derangement', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'dentofacial', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'malocclusion', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'diseases of jaws', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'autoinflammatory', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'necrotizing vasculopath', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'polymyositis', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'involvement of connective tissue', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'connective tissue disease', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'lordosis', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'spinal osteochondrosis', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'osteochondrosis', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'deforming dorsopathies', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'dorsopath', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'dorsalgia', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'synovitis', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'tenosynovitis', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'synovium', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'enthesopath', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'fibroblastic', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'calcification of muscle', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'ossification of muscle', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'myositis ossificans', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'shoulder lesion', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'soft tissue disorder', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'overuse and pressure', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'osteochondropath', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'disorders of cartilage', // ICD-10 Chapter XIII (1.22.0) descriptive residual
+  'biomechanical lesion', // ICD-10 Chapter XIII (1.22.0) descriptive residual
 ];
 
 /**
@@ -472,7 +652,9 @@ describe('Health-data gate — conditions named in the PTSD literature', () => {
   test('the gate vocabulary is documented and reviewable', () => {
     expect(HEALTH_CONDITION_TERMS.length).toBeGreaterThan(40);
     expect(HEALTH_CONDITION_WORD_TERMS.length).toBeGreaterThan(10);
-    for (const term of [...HEALTH_CONDITION_TERMS, ...HEALTH_CONDITION_WORD_TERMS]) {
+    // Hygiene over the combined lists — a derived spelling is a term like any
+    // other, so it must be reviewable and unique within its bucket too.
+    for (const term of [...ALL_CONDITION_GATE_TERMS, ...ALL_CONDITION_GATE_WORD_TERMS]) {
       expect(term.trim().toLowerCase()).toBe(term);
       expect(term.length).toBeGreaterThan(2);
     }
@@ -482,6 +664,11 @@ describe('Health-data gate — conditions named in the PTSD literature', () => {
       (HEALTH_CONDITION_WORD_TERMS as readonly string[]).includes(term),
     );
     expect(overlap).toEqual([]);
+    // No bucket duplicates itself through derivation: every derived spelling
+    // is genuinely new, and the derivation never collapses a hand-written term.
+    expect(new Set(ALL_CONDITION_GATE_TERMS).size).toBe(ALL_CONDITION_GATE_TERMS.length);
+    expect(new Set(ALL_CONDITION_GATE_WORD_TERMS).size).toBe(ALL_CONDITION_GATE_WORD_TERMS.length);
+    expect(ALL_CONDITION_GATE_TERMS.length).toBeGreaterThan(HEALTH_CONDITION_TERMS.length);
   });
 
   test('documented exclusions are deliberate (tradeoff, not an accident)', () => {
@@ -492,8 +679,8 @@ describe('Health-data gate — conditions named in the PTSD literature', () => {
       expect.arrayContaining(['ms', 'ra', 'mi', 'uc', 'oa', 'pad', 'panic']),
     );
     for (const excluded of GATE_EXCLUDED_TERMS) {
-      expect(HEALTH_CONDITION_TERMS).not.toContain(excluded);
-      expect(HEALTH_CONDITION_WORD_TERMS).not.toContain(excluded);
+      expect(ALL_CONDITION_GATE_TERMS).not.toContain(excluded);
+      expect(ALL_CONDITION_GATE_WORD_TERMS).not.toContain(excluded);
       // And the gate genuinely does not trip on the excluded term alone.
       expect(isHealthConditionTerm(`I have ${excluded}`)).toBe(false);
     }
@@ -620,11 +807,18 @@ describe('Health-data gate — parity with the canonical condition vocabulary', 
     // is on the documented descriptive list. This is what makes the vocabulary
     // auditable for "nothing left to map" — add a condition term to the gate and
     // the build fails until the crosswalk carries it.
-    const accounted = CANONICAL_CONDITIONS.map((condition) =>
-      `${condition.name} | ${condition.synonyms.join(' | ')}`.toLowerCase(),
-    );
+    const accounted = CANONICAL_CONDITIONS.map((condition) => {
+      // Every spelling the mechanism claims, not just the curated wording —
+      // since 1.15.0 an alias reaches its code in its declared spellings, so
+      // a derived gate spelling is accounted by the same alias its sibling is.
+      const spellings = [condition.name, ...condition.synonyms].flatMap((alias) => [
+        alias.toLowerCase(),
+        ...spellingVariantKeys(alias),
+      ]);
+      return spellings.join(' | ');
+    });
     const unaccounted: string[] = [];
-    for (const term of [...HEALTH_CONDITION_TERMS, ...HEALTH_CONDITION_WORD_TERMS]) {
+    for (const term of [...ALL_CONDITION_GATE_TERMS, ...ALL_CONDITION_GATE_WORD_TERMS]) {
       if (DESCRIPTIVE_GATE_TERMS.includes(term)) continue;
       if (!accounted.some((haystack) => haystack.includes(term))) unaccounted.push(term);
     }
@@ -1961,5 +2155,175 @@ describe('Health-data gate — the declared capture scope is closed', () => {
       }
     }
     expect(deferred).toEqual([]);
+  });
+});
+
+describe('Health-data gate — the Chapter V mental-health vocabulary', () => {
+  test('the release rows are gated through their gate terms', () => {
+    for (const message of [
+      'I have a manic episode',
+      'my depressive episode lasted weeks',
+      'I have a paraphilia',
+      'I have an intellectual disability',
+      'my son has mild intellectual disability',
+      'I have severe intellectual disability',
+      'history of moderate intellectual disability',
+      'I was diagnosed with profound intellectual disability',
+      'my mania is managed with medication',
+    ]) {
+      expect(detectSensitiveData(message)).toBe('health_data');
+    }
+  });
+
+  test('mania is word-matched, so the country stays clear', () => {
+    expect(detectSensitiveData('do you insure people in Romania?')).toBeNull();
+  });
+
+  test('bare manic separated after the 1.16.0 deferral: the disclosure gates, the hyperbole does not', () => {
+    // The 1.16.0 record deferred the adjective because both readings share the
+    // copula and the adjectival slot. The re-measurement found the separator in
+    // the compound: the ordinary sense nearly always names its noun (week,
+    // Monday, laughter, energy), so those compounds are stripped and the
+    // first-person state with no compound behind it is the disclosure. Pinned
+    // here at the classifier and in the registry corpus in the road test.
+    expect(detectSensitiveData('I am manic')).toBe('health_data');
+    expect(detectSensitiveData('I am manic before deadlines')).toBe('health_data');
+    expect(detectSensitiveData('a manic week at work')).toBeNull();
+    expect(detectSensitiveData('manic laughter filled the room')).toBeNull();
+    expect(detectSensitiveData('the manic pace of the city')).toBeNull();
+    expect(detectSensitiveData('he got manic at the party')).toBeNull();
+  });
+
+  test('every F-code alias added by the release is gated when stated', () => {
+    const fCodes = CANONICAL_CONDITIONS.filter((c) => c.icd10_cm.startsWith('F'));
+    expect(fCodes.length).toBeGreaterThanOrEqual(7);
+    for (const condition of fCodes) {
+      const stated = condition.synonyms[0] ?? condition.name;
+      expect(detectSensitiveData(`I have ${stated}`)).toBe('health_data');
+    }
+  });
+});
+
+describe('Health-data gate — spelling derivation from the declared table', () => {
+  // The gate no longer hand-writes the British side of a declared pair: the
+  // spelling table in the crosswalk is the one declaration, the resolver claims
+  // aliases in every declared spelling, and the gate watches words in every
+  // declared spelling. These tests pin the two invariants the hand-written
+  // copies used to satisfy silently.
+
+  test('the watched set is the hand-written set plus exactly the declared spellings', () => {
+    // Every derived spelling is a real alternative of a watched word — and the
+    // sample below is the complete delta as shipped, so a change here is a
+    // reviewed decision, not a silent widening.
+    const hand = HEALTH_CONDITION_TERMS.length;
+    expect(ALL_CONDITION_GATE_TERMS.slice(hand).sort()).toEqual(
+      [
+        'coeliac',
+        'apnoea',
+        'ischaem',
+        'leukaemia',
+        'tumour',
+        'anaemia',
+        'haemorrhoid',
+        'thalassaemia',
+        'haemophilia',
+        'hyperkalaemia',
+        'haemochromatosis',
+        'haemangioma',
+        'goitre',
+        'dysmenorrhoea',
+        'seborrhoe',
+        'hyponatraem',
+        'hypercalcaem',
+        'hyperuricaem',
+        'polycythaem',
+        'lymphoedema',
+        'haemorrhage',
+        'oedema',
+        'oesophag',
+        'forced labour',
+        'forced into labour',
+      ].sort(),
+    );
+    // The short-token bucket derives nothing: its entries are acronyms and
+    // word-matched nouns with no declared spelling.
+    expect(ALL_CONDITION_GATE_WORD_TERMS.length).toBe(HEALTH_CONDITION_WORD_TERMS.length);
+  });
+
+  test('every spelling of a watched word is watched — no half-pairs', () => {
+    // For each declared word that the gate watches in one spelling, the other
+    // spellings must be watched too (in the matching mode: a whole word stays a
+    // whole word, a stem stays a substring stem).
+    const watchedLong = new Set(ALL_CONDITION_GATE_TERMS);
+    const watchedWord = new Set(ALL_CONDITION_GATE_WORD_TERMS);
+    const gaps: string[] = [];
+    for (const term of ALL_CONDITION_GATE_TERMS) {
+      for (const token of term.split(' ')) {
+        for (const variant of spellingVariantsOfWord(token)) {
+          const rewritten = term.split(token).join(variant);
+          if (!watchedLong.has(rewritten) && !watchedWord.has(rewritten)) {
+            gaps.push(`${term} -> ${rewritten}`);
+          }
+        }
+      }
+    }
+    for (const term of ALL_CONDITION_GATE_WORD_TERMS) {
+      for (const variant of spellingVariantsOfWord(term)) {
+        if (!watchedWord.has(variant) && !watchedLong.has(variant)) {
+          gaps.push(`${term} -> ${variant}`);
+        }
+      }
+    }
+    expect(gaps).toEqual([]);
+  });
+
+  test('derived stems come from the equal-trim rule and nothing else', () => {
+    // The stem rule: a proper prefix of one spelling derives its sibling
+    // trimmed by the same amount — and a group without a common ending
+    // derives nothing rather than guessing.
+    expect(spellingVariantsOfStem('ischem')).toEqual(['ischaem']);
+    expect(spellingVariantsOfStem('ischaem')).toEqual(['ischem']);
+    expect(spellingVariantsOfStem('esophag')).toEqual(['oesophag']);
+    expect(spellingVariantsOfStem('polycythem')).toEqual(['polycythaem']);
+    expect(spellingVariantsOfStem('seborrhe')).toEqual(['seborrhoe']);
+    // The resolver's real shared stem derives across, at the rule's floor.
+    expect(spellingVariantsOfStem('anaem')).toEqual(['anem']);
+    // Short fragments and unknowable shapes are refused.
+    expect(spellingVariantsOfStem('hem')).toEqual([]);
+    expect(spellingVariantsOfStem('is')).toEqual([]);
+    // A whole word is not a stem case.
+    expect(spellingVariantsOfStem('anemia')).toEqual([]);
+  });
+
+  test('the disclosure classifications the derivation must protect are pinned', () => {
+    // Both spellings of every derived pair gate a plain disclosure; the
+    // ordinary senses the resolver's word-declared rule never rewrites stay
+    // silent; and the accepted labour/tumour trades are unchanged.
+    for (const [american, british] of [
+      ['anemia', 'anaemia'],
+      ['sleep apnea', 'sleep apnoea'],
+      ['leukemia', 'leukaemia'],
+      ['tumor', 'tumour'],
+      ['goiter', 'goitre'],
+      ['edema', 'oedema'],
+      ['ischemic heart disease', 'ischaemic heart disease'],
+      ['esophageal reflux', 'oesophageal reflux'],
+      ['forced labor', 'forced labour'],
+    ]) {
+      expect(detectSensitiveData(`I was treated for ${american}`)).toBe('health_data');
+      expect(detectSensitiveData(`I was treated for ${british}`)).toBe('health_data');
+    }
+    for (const ordinary of [
+      'the labor union went on strike',
+      'labor day traffic was terrible',
+      'she went into labor at the birthing center',
+    ]) {
+      expect(detectSensitiveData(ordinary)).toBeNull();
+    }
+    // The one deliberate exception: gonorrhoea stays hand-written because the
+    // vocabulary gates it descriptively, and declaring the group would be dead
+    // data — both spellings still gate.
+    expect(detectSensitiveData('I was treated for gonorrhea')).toBe('health_data');
+    expect(detectSensitiveData('I was treated for gonorrhoea')).toBe('health_data');
   });
 });

@@ -726,6 +726,21 @@ const MALTREATMENT_TOPIC_COMPOUNDS: GateCase[] = [
     expected: 'not_health_data',
     why: 'the blank form is a document, not a disclosure',
   },
+  {
+    message: 'child neglect policy for our staff',
+    expected: 'not_health_data',
+    why: 'the compound frame — the term as a modifier, the organisation’s possessive',
+  },
+  {
+    message: 'the child neglect report form',
+    expected: 'not_health_data',
+    why: 'the report-form artifact, strippable since the reach-guard closure',
+  },
+  {
+    message: 'a study of child neglect',
+    expected: 'not_health_data',
+    why: 'the mention frame — the study is the subject, not the visitor',
+  },
 ];
 
 const MALTREATMENT_DISCLOSURES_KEPT: GateCase[] = [
@@ -781,6 +796,16 @@ const MALTREATMENT_DISCLOSURES_KEPT: GateCase[] = [
     message: 'I have a history of childhood neglect',
     expected: 'health_data',
     why: 'the neglect row’s wording',
+  },
+  {
+    message: 'I have a history of child neglect',
+    expected: 'health_data',
+    why: 'the 1.18.0 wording — the codebook’s other lay order',
+  },
+  {
+    message: 'child neglect happened to me',
+    expected: 'health_data',
+    why: 'the same phrase in a personal frame',
   },
   {
     message: 'I am a survivor of elder abuse',
@@ -919,6 +944,36 @@ const TOPIC_QUESTIONS: GateCase[] = [
     message: 'is illness covered?',
     expected: 'health_topic_question',
     why: 'bare "illness" with no first person is a topic; the PRODUCT phrase "critical illness cover" is carved out instead, because that one is a pricing question',
+  },
+  {
+    message: 'If someone takes their own life, does the policy pay out?',
+    expected: 'health_topic_question',
+    why: 'the act-as-subject payout question: it names no condition, so only the question opener\u2019s conditional branch reaches it \u2014 silent before the three-reading audit; the act\u2019s generic pronoun keeps it impersonal',
+  },
+  {
+    message: 'If I kill myself, does the policy pay out?',
+    expected: 'health_data',
+    why: 'the act\u2019s pronoun decides the person: first person is a disclosure, not a topic question',
+  },
+  {
+    message: 'If my husband takes his own life, does the policy pay out?',
+    expected: 'health_data',
+    why: 'family framing inside the conditional stays a disclosure',
+  },
+  {
+    message: 'does child abuse affect premiums?',
+    expected: 'health_topic_question',
+    why: '"child" inside the compound is the condition\u2019s modifier, not a family frame \u2014 the compound is blanked before the personal test',
+  },
+  {
+    message: 'What does child neglect mean?',
+    expected: 'health_topic_question',
+    why: 'the same compound blanking on the terminology question',
+  },
+  {
+    message: 'does child abuse affect my premium?',
+    expected: 'health_data',
+    why: 'the possessive outside the compound is still the visitor\u2019s own',
   },
   {
     message: 'is tuberculosis contagious?',
@@ -2688,8 +2743,8 @@ describe('Gate road test — the product/topic compound sense of the maltreatmen
     // sentences gated, one recorded trade and two recorded boundaries. A later
     // change that widens the strip turns rows of the second list red, which is
     // the direction that matters.
-    expect(MALTREATMENT_TOPIC_COMPOUNDS.length).toBe(24);
-    expect(MALTREATMENT_DISCLOSURES_KEPT.length).toBe(25);
+    expect(MALTREATMENT_TOPIC_COMPOUNDS.length).toBe(27);
+    expect(MALTREATMENT_DISCLOSURES_KEPT.length).toBe(27);
     expect(MALTREATMENT_DISCLOSURES_KEPT.filter((c) => c.expected !== 'health_data')).toEqual([]);
     expect(MALTREATMENT_TOPIC_TRADES.length).toBe(1);
     expect(MALTREATMENT_RECORDED_BOUNDARY.length).toBe(2);
@@ -3470,6 +3525,21 @@ const CONTRACT_QUESTIONS: GateCase[] = [
     expected: 'not_health_data',
     why: 'plural coverage question; was a topic question',
   },
+  {
+    message: 'does the policy have a child abuse exclusion?',
+    expected: 'not_health_data',
+    why: 'the maltreatment compound follows the same provision path as its cancer sibling — DATA before the compound blanking',
+  },
+  {
+    message: 'does the application ask about child abuse?',
+    expected: 'not_health_data',
+    why: 'the application-form verb is the coverage frame — the compound\u2019s modifier word is not a family frame',
+  },
+  {
+    message: 'does the policy pay out for child abuse claims?',
+    expected: 'not_health_data',
+    why: 'a payout question about the provision\u2019s subject, not anybody\u2019s health',
+  },
 ];
 
 /**
@@ -3742,7 +3812,10 @@ describe('Gate road test — contract questions about the policy\u2019s own word
   test('the tables are the measured ones, and the flag reaches every health branch', () => {
     // Pinned counts: the measurement in the header comment. A later change that
     // moves a row without recording the decision fails here.
-    expect(CONTRACT_QUESTIONS.length).toBe(32);
+    // 1.19.0's three-reading audit extended the contract table with the
+    // maltreatment compounds (32 + 3) and the topic table with the act-as-subject
+    // payout question and the compound's topic questions.
+    expect(CONTRACT_QUESTIONS.length).toBe(35);
     expect(CONTRACT_QUESTION_DISCLOSURES.length).toBe(23);
     expect(CONTRACT_QUESTION_GUARD.length).toBe(5);
     expect(CONTRACT_QUESTION_TRADES.length).toBe(10);
@@ -4283,6 +4356,354 @@ describe('Gate road test — the ICD-10 Chapter VI sweep', () => {
   );
 
   test.each(CHAPTER_VI_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+});
+
+/**
+ * The ICD-10 Chapter X sweep (1.19.0) — J00-J99, diseases of the respiratory
+ * system. The chapter's strong block (asthma, COPD, pneumonia, OSA, sinusitis,
+ * sarcoidosis) arrived from the carrier sources long ago; its blind spot sat
+ * exactly where Chapter XXI's exposure row pointed: the occupational-lung
+ * diagnoses that follow asbestos were silent. The named diagnoses are canonical
+ * rows now; the headers and descriptive residuals gate without codes.
+ *
+ * The boundary corpus pins both directions of the wordings whose ordinary life
+ * is bigger than the diagnosis:
+ *
+ * - `flu` is a word token because its letters sit inside "influenza" and
+ *   "fluid"; `ards` for the same reason ("standards"). The full word
+ *   "influenza" rides its own substring stem.
+ * - "cold" is deliberately unwatched — the deferred "cold" row records why —
+ *   so the J00 row is reached by "common cold" and "head cold" instead.
+ * - "coal worker"/"coalworker" gate the J60 family, not bare "coal": mining
+ *   life is a job, not a diagnosis.
+ * - "pleural plaque" gates without a code: J92.9 is the negative member of the
+ *   asbestos split, and coding bare wording would misstate the exposure.
+ */
+const CHAPTER_X_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
+  { message: 'I have asbestosis', expected: 'health_data', why: 'J61, mapped' },
+  { message: 'I have silicosis', expected: 'health_data', why: 'J62.8, mapped' },
+  { message: 'I was diagnosed with black lung disease', expected: 'health_data', why: 'J60, mapped' },
+  { message: 'I worked in the mines and got coal workers pneumoconiosis', expected: 'health_data', why: 'J60, mapped' },
+  { message: 'I have berylliosis', expected: 'health_data', why: 'J63.2, mapped' },
+  { message: 'I was diagnosed with byssinosis', expected: 'health_data', why: 'J66.0, mapped' },
+  { message: 'I have farmers lung', expected: 'health_data', why: 'J67.0, mapped' },
+  { message: 'I keep pigeons and was diagnosed with bird fanciers lung', expected: 'health_data', why: 'J67.2, mapped' },
+  { message: 'my hypersensitivity pneumonitis is worsening', expected: 'health_data', why: 'J67.9, mapped' },
+  { message: 'I was exposed to asbestos', expected: 'health_data', why: 'the Z77 exposure row, watched since Chapter XXI' },
+  { message: 'I have the flu', expected: 'health_data', why: 'J11.1, mapped' },
+  { message: 'I have influenza', expected: 'health_data', why: 'the full word stem' },
+  { message: 'my influenza A test came back positive', expected: 'health_data', why: 'J10.1, mapped' },
+  { message: 'I have a common cold', expected: 'health_data', why: 'J00, mapped' },
+  { message: 'I have a head cold', expected: 'health_data', why: 'J00, mapped' },
+  { message: 'I have strep throat', expected: 'health_data', why: 'J02.0, mapped' },
+  { message: 'I have a sore throat', expected: 'health_data', why: 'J02.9, mapped' },
+  { message: 'I was diagnosed with an upper respiratory infection', expected: 'health_data', why: 'J06.9, mapped' },
+  { message: 'my baby has bronchiolitis', expected: 'health_data', why: 'J21.9, mapped' },
+  { message: 'I had croup as a child', expected: 'health_data', why: 'J05.0, mapped' },
+  { message: 'my son has croup', expected: 'health_data', why: 'J05.0, mapped' },
+  { message: 'I had acute tracheitis last winter', expected: 'health_data', why: 'J04.9, mapped' },
+  { message: 'I get laryngitis every winter', expected: 'health_data', why: 'J04.9, mapped' },
+  { message: 'I had a peritonsillar abscess', expected: 'health_data', why: 'J36, mapped' },
+  { message: 'I have vocal cord paralysis', expected: 'health_data', why: 'J38.00, mapped' },
+  { message: 'I have chronic tonsillitis', expected: 'health_data', why: 'J35.9, mapped' },
+  { message: 'I have acute respiratory distress syndrome', expected: 'health_data', why: 'J80, mapped' },
+  { message: 'I have pleural effusion', expected: 'health_data', why: 'J90, mapped' },
+  { message: 'I have water on the lung', expected: 'health_data', why: 'J90, mapped' },
+  { message: 'I went into respiratory failure', expected: 'health_data', why: 'J96.90, mapped' },
+  { message: 'I have pleural plaque', expected: 'health_data', why: 'gated without a code — the J92 exposure split must not be misstated' },
+];
+
+const CHAPTER_X_COLLISIONS: readonly { message: string; expected: string; why: string }[] = [
+  {
+    message: 'the new safety standards apply from January',
+    expected: 'not_health_data',
+    why: 'ards is word-matched so "standards" is not caught',
+  },
+  {
+    message: 'the fluid reservation was cancelled',
+    expected: 'not_health_data',
+    why: 'flu is word-matched so "fluid" is not caught',
+  },
+  {
+    message: 'I have a cold',
+    expected: 'not_health_data',
+    why: 'the deferred cold row: bare "cold" stays unwatched — "common cold" is the mapped wording',
+  },
+  {
+    message: 'the office is cold in winter',
+    expected: 'not_health_data',
+    why: 'the temperature sense, same deferral',
+  },
+  {
+    message: 'my brother works in the coal industry',
+    expected: 'not_health_data',
+    why: 'the job, not the diagnosis — coal worker gates the compound only',
+  },
+  {
+    message: 'we sell coal and timber',
+    expected: 'not_health_data',
+    why: 'bare coal is commerce, not J60',
+  },
+  {
+    message: 'the flu shot clinic opens Monday',
+    expected: 'health_data',
+    why: 'accepted trade: flu in a health context gates even in a service announcement',
+  },
+];
+
+describe('Gate road test — the ICD-10 Chapter X sweep', () => {
+  test.each(CHAPTER_X_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test.each(CHAPTER_X_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+});
+
+/**
+ * The ICD-10 Chapter XI sweep (1.20.0) - K00-K95, diseases of the digestive
+ * system. The chapter's centre (IBS, GERD, gastritis, cirrhosis, pancreatitis,
+ * Crohn's, colitis, diverticular disease, gallstones, hernia, hemorrhoids)
+ * arrived from the carrier sources long ago; 1.20.0 mapped its named edges:
+ * the appendiceal rows, dyspepsia, peritonitis, fatty liver, the salivary and
+ * oral rows, the anorectal and obstruction rows, and malabsorption.
+ *
+ * The boundary corpus pins the deliberate anatomy choices:
+ *
+ * - bare `appendix` stays unwatched - a policy document's appendix is an
+ *   ordinary sense, so the K38 residual closes through its category-title
+ *   stems (`diseases of appendix`, `disease of appendix`) instead.
+ * - bare `liver` stays unwatched - `fatty liver` and `hepatic` carry the
+ *   diagnoses; the organ in isolation is education, not disclosure.
+ * - `pancreatic` is the gated adjective; the noun `pancreas` in an
+ *   educational sentence is not a disclosure.
+ */
+const CHAPTER_XI_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
+  { message: 'I have appendicitis', expected: 'health_data', why: 'K37, mapped - the codebook unspecified home of the bare word' },
+  { message: 'I was diagnosed with acute appendicitis', expected: 'health_data', why: 'K35.80, mapped' },
+  { message: 'I have chronic appendicitis', expected: 'health_data', why: 'K36, mapped' },
+  { message: 'I get indigestion after every meal', expected: 'health_data', why: 'K30, mapped' },
+  { message: 'I have dyspepsia', expected: 'health_data', why: 'K30, mapped' },
+  { message: 'I had peritonitis', expected: 'health_data', why: 'K65.9, mapped' },
+  { message: 'I have fatty liver disease', expected: 'health_data', why: 'K76.0, mapped' },
+  { message: 'my hepatic steatosis was found on a scan', expected: 'health_data', why: 'K76.0, mapped' },
+  { message: 'I have salivary gland disease', expected: 'health_data', why: 'K11.9, mapped' },
+  { message: 'I get canker sores every month', expected: 'health_data', why: 'K12.0, mapped' },
+  { message: 'I have a mouth ulcer', expected: 'health_data', why: 'K12.0, mapped' },
+  { message: 'I was diagnosed with leukoplakia', expected: 'health_data', why: 'K13.21, mapped' },
+  { message: 'I have rectal prolapse', expected: 'health_data', why: 'K62.3, mapped' },
+  { message: 'I have biliary disease', expected: 'health_data', why: 'K83.9, mapped' },
+  { message: 'I have pancreatic disease', expected: 'health_data', why: 'K86.9, mapped' },
+  { message: 'I was diagnosed with disease of tongue', expected: 'health_data', why: 'K14.9, mapped' },
+  { message: 'I have an anorectal ulcer', expected: 'health_data', why: 'K62.6, mapped' },
+  { message: 'I had paralytic ileus after surgery', expected: 'health_data', why: 'K56.0, mapped' },
+  { message: 'I have an ileus', expected: 'health_data', why: 'K56.7, mapped' },
+  { message: 'I have malabsorption', expected: 'health_data', why: 'K90.9, mapped' },
+];
+
+const CHAPTER_XI_COLLISIONS: readonly { message: string; expected: string; why: string }[] = [
+  {
+    message: 'the data tables are in the report appendix',
+    expected: 'not_health_data',
+    why: 'bare appendix is a document part - the K38 residual closes through its category-title stems',
+  },
+  {
+    message: 'the policy appendix lists the exclusions',
+    expected: 'not_health_data',
+    why: 'same document sense',
+  },
+  {
+    message: 'the pancreas is part of the digestive tract',
+    expected: 'not_health_data',
+    why: 'educational anatomy - pancreatic is the gated adjective, the bare noun in an educational sentence is not a disclosure',
+  },
+  {
+    message: 'the liver filters your blood',
+    expected: 'not_health_data',
+    why: 'bare liver stays unwatched - fatty liver and hepatic carry the diagnoses',
+  },
+];
+
+describe('Gate road test - the ICD-10 Chapter XI sweep', () => {
+  test.each(CHAPTER_XI_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test.each(CHAPTER_XI_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+});
+
+/**
+ * The ICD-10 Chapter XII sweep (1.21.0) - L00-L99, diseases of the skin and
+ * subcutaneous tissue. The chapter's centre (atopic dermatitis, eczema,
+ * psoriasis, urticaria, rosacea, acne, vitiligo, alopecia areata, melanoma,
+ * the non-melanoma skin cancers) arrived from the carrier sources long ago;
+ * 1.21.0 mapped its named edges: the bullous disorders, the erythemas, the
+ * hair and pigmentation rows, and the autoimmune-skin rarities.
+ *
+ * The boundary corpus pins the deliberate ordinary-sense trades:
+ *
+ * - bare `pigmentation` stays unwatched - the cosmetics sense is as ordinary
+ *   as the medical one, so the L81 residual closes through "disorders of
+ *   pigmentation" instead.
+ * - bare `corns` stays unwatched - the food sense ("corns and grits") is the
+ *   same recorded trade as bare "coal"; "callosities" carries the L84 title.
+ * - bare `exfoliation` stays unwatched - the skincare sense is the word's
+ *   ordinary life; the L49 title closes through "exfoliation due to".
+ * - `sunburn` gates - the word's ordinary sense is the medical one, the same
+ *   direction as `hives`.
+ */
+const CHAPTER_XII_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
+  { message: 'my baby was diagnosed with staphylococcal scalded skin syndrome', expected: 'health_data', why: 'L00, mapped' },
+  { message: 'I have SSSS', expected: 'health_data', why: 'L00, mapped - the acronym, word-matched' },
+  { message: 'my son has impetigo', expected: 'health_data', why: 'L01.00, mapped' },
+  { message: 'I have pemphigus', expected: 'health_data', why: 'L10.9, mapped' },
+  { message: 'I was diagnosed with pemphigoid', expected: 'health_data', why: 'L12.9, mapped' },
+  { message: 'I have lichen simplex chronicus', expected: 'health_data', why: 'L28.0, mapped' },
+  { message: 'my neurodermatitis is flaring', expected: 'health_data', why: 'L28.0, mapped' },
+  { message: 'I have pityriasis rosea', expected: 'health_data', why: 'L42, mapped' },
+  { message: 'I have erythema multiforme', expected: 'health_data', why: 'L51.9, mapped' },
+  { message: 'I was diagnosed with erythema nodosum', expected: 'health_data', why: 'L52, mapped' },
+  { message: 'I have a bad sunburn', expected: 'health_data', why: 'L55.9, mapped' },
+  { message: 'I was diagnosed with hypertrichosis', expected: 'health_data', why: 'L68.9, mapped' },
+  { message: 'I have excessive hair growth on my face', expected: 'health_data', why: 'L68.9, mapped' },
+  { message: 'I have acanthosis nigricans', expected: 'health_data', why: 'L83, mapped' },
+  { message: 'I have pyoderma gangrenosum', expected: 'health_data', why: 'L88, mapped' },
+  { message: 'I have lichen sclerosus', expected: 'health_data', why: 'L90.0, mapped' },
+  { message: 'I have a pilonidal cyst', expected: 'health_data', why: 'L05 - gated without a code, the split is not carried by the bare words' },
+  { message: 'my pruritus keeps me up at night', expected: 'health_data', why: 'L29, gated descriptive' },
+];
+
+const CHAPTER_XII_COLLISIONS: readonly { message: string; expected: string; why: string }[] = [
+  {
+    message: 'this serum is for pigmentation correction',
+    expected: 'not_health_data',
+    why: 'bare pigmentation is cosmetics - the L81 residual closes through its category-title wording',
+  },
+  {
+    message: 'we grilled corns and peppers',
+    expected: 'not_health_data',
+    why: 'bare corns is food - the same recorded trade as bare coal',
+  },
+  {
+    message: 'the exfoliation step comes after cleansing',
+    expected: 'not_health_data',
+    why: 'bare exfoliation is skincare - the L49 title closes through "exfoliation due to"',
+  },
+  {
+    message: 'the hair shaft is dead keratin',
+    expected: 'health_data',
+    why: 'accepted trade: hair shaft in a health context gates even in an educational sentence',
+  },
+];
+
+describe('Gate road test - the ICD-10 Chapter XII sweep', () => {
+  test.each(CHAPTER_XII_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test.each(CHAPTER_XII_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
+    'collision "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+});
+
+/**
+ * The ICD-10 Chapter XIII sweep (1.22.0) - M00-M99, diseases of the
+ * musculoskeletal system and connective tissue. The chapter's centre (gout,
+ * rheumatoid arthritis, SLE, psoriatic arthritis, ankylosing spondylitis,
+ * scleroderma, fibromyalgia, osteoarthritis, osteoporosis, scoliosis, disc
+ * disorders, spinal stenosis, sciatica, carpal tunnel, Ehlers-Danlos, Marfan)
+ * arrived from the carrier sources long ago; 1.22.0 mapped its named edges:
+ * the vasculitides, the myositides, the shoulder and bone residuals.
+ *
+ * The boundary corpus pins the deliberate ordinary-sense trades:
+ *
+ * - bare `joints` and bare `spine` stay unwatched - the educational anatomy
+ *   sense is ordinary, exactly as bare `liver` and bare `pancreas`.
+ * - bare `fracture` stays unwatched - a broken bone from injury is the S
+ *   chapter; `stress fracture` carries the M84 wording instead.
+ * - `connective tissue` gates only inside "connective tissue disease" - the
+ *   biology-classroom noun phrase is ordinary.
+ * - `paget` gates - the surname has no competing ordinary sense, and the bare
+ *   stem is what lets "Paget's disease" resolve.
+ */
+const CHAPTER_XIII_DISCLOSURES: readonly { message: string; expected: string; why: string }[] = [
+  { message: 'I have osteomalacia', expected: 'health_data', why: 'M83.9, mapped' },
+  { message: 'I have polymyalgia rheumatica', expected: 'health_data', why: 'M35.3, mapped' },
+  { message: 'I have a stress fracture in my foot', expected: 'health_data', why: 'M84.9, mapped - bare fracture stays unwatched' },
+  { message: 'myositis runs in our family', expected: 'health_data', why: 'M60.9, mapped' },
+  { message: 'I was diagnosed with polyarteritis nodosa', expected: 'health_data', why: 'M30.0, mapped' },
+  { message: 'I have giant cell arteritis', expected: 'health_data', why: 'M31.6, mapped' },
+  { message: 'my frozen shoulder is back', expected: 'health_data', why: 'M75.00, carried from the carrier sources' },
+  { message: 'I have Dupuytren contracture', expected: 'health_data', why: 'M72.0, mapped' },
+  { message: 'I have osteonecrosis', expected: 'health_data', why: 'M87.9, mapped' },
+  { message: 'I have Paget disease of bone', expected: 'health_data', why: 'M88.9, mapped' },
+  { message: 'I have temporal arteritis', expected: 'health_data', why: 'M31.6, mapped' },
+  { message: 'I have a heel spur', expected: 'health_data', why: 'M77.30, mapped' },
+];
+
+const CHAPTER_XIII_COLLISIONS: readonly { message: string; expected: string; why: string }[] = [
+  {
+    message: 'the spine of the report lists the exhibits',
+    expected: 'not_health_data',
+    why: 'bare spine is the book sense - the dorsopathy titles close through their own wordings',
+  },
+  {
+    message: 'a biomechanical analysis of the golf swing',
+    expected: 'not_health_data',
+    why: 'biomechanical alone is engineering - the M99 residual closes through biomechanical lesion',
+  },
+  {
+    message: 'collagen supports the connective tissue',
+    expected: 'not_health_data',
+    why: 'connective tissue alone is biology-classroom - connective tissue disease is the gate phrase',
+  },
+  {
+    message: 'the joint venture closed last week',
+    expected: 'not_health_data',
+    why: 'bare joints stay unwatched for their ordinary senses',
+  },
+  {
+    message: 'myalgia after the workout',
+    expected: 'not_health_data',
+    why: 'bare myalgia is the ordinary post-exercise ache - polymyalgia is the gated stem',
+  },
+];
+
+describe('Gate road test - the ICD-10 Chapter XIII sweep', () => {
+  test.each(CHAPTER_XIII_DISCLOSURES.map((c) => [c.message, c.expected, c.why] as const))(
+    'disclosure "%s" classifies as %s (%s)',
+    (message, expected) => {
+      expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });
+    },
+  );
+
+  test.each(CHAPTER_XIII_COLLISIONS.map((c) => [c.message, c.expected, c.why] as const))(
     'collision "%s" classifies as %s (%s)',
     (message, expected) => {
       expect({ message, actual: classify(message) }).toEqual({ message, actual: expected });

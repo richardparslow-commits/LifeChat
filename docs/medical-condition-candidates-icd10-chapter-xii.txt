@@ -1,0 +1,140 @@
+# ICD-10-CM Chapter XII (L00–L99), the three-character category titles of the
+# whole chapter, verbatim FY 2026 — the eleventh coverage-sweep corpus and the
+# ninth codebook enumeration. Written down from the codebook enumeration before
+# any Chapter XII row was mapped (2026-09-20): the chapter spans 100
+# three-character slots and the FY 2026 codebook leaves L06, L07, L61, L69 and
+# L96 unused, so it carries 74 titled categories, of which 67 are candidates
+# here. The titles are listed in code order without their code prefixes (the
+# same convention as every earlier chapter corpus), so each line is the exact
+# wording the sweep measures: L00 Staphylococcal scalded skin syndrome, L01
+# Impetigo, L02 Cutaneous abscess, furuncle and carbuncle, L03 Cellulitis and
+# acute lymphangitis, L04 Acute lymphadenitis, L05 Pilonidal cyst and sinus,
+# L08 Other local infections of skin and subcutaneous tissue, L10 Pemphigus,
+# L11 Other acantholytic disorders, L12 Pemphigoid, L13 Other bullous
+# disorders, L14 Bullous disorders in diseases classified elsewhere, L20 Atopic
+# dermatitis, L21 Seborrheic dermatitis, L22 Diaper dermatitis, L23 Allergic
+# contact dermatitis, L24 Irritant contact dermatitis, L25 Unspecified contact
+# dermatitis, L26 Exfoliative dermatitis, L27 Dermatitis due to substances
+# taken internally, L28 Lichen simplex chronicus and prurigo, L29 Pruritus,
+# L30 Other and unspecified dermatitis, L40 Psoriasis, L41 Parapsoriasis, L42
+# Pityriasis rosea, L43 Lichen planus, L44 Other papulosquamous disorders, L45
+# Papulosquamous disorders in diseases classified elsewhere, L49 Exfoliation
+# due to erythematous condition, L50 Urticaria, L51 Erythema multiforme, L52
+# Erythema nodosum, L53 Other erythematous conditions, L54 Erythema in
+# diseases classified elsewhere, L55 Sunburn, L56 Other acute skin changes due
+# to ultraviolet radiation, L57 Skin changes due to chronic exposure to
+# nonionizing radiation, L58 Radiodermatitis, L59 Other disorders of skin and
+# subcutaneous tissue related to radiation, L60 Nail disorders, L62 Nail
+# disorders in diseases classified elsewhere, L63 Alopecia areata, L64
+# Androgenic alopecia, L65 Other nonscarring hair loss, L66 Cicatricial
+# alopecia [scarring hair loss], L67 Hair color and hair shaft abnormalities,
+# L68 Hypertrichosis, L70 Acne, L71 Rosacea, L72 Follicular cysts of skin and
+# subcutaneous tissue, L73 Other follicular disorders, L74 Eccrine sweat
+# disorders, L75 Apocrine sweat disorders, L76 Intraoperative and
+# postprocedural complications of skin and subcutaneous tissue, L80 Vitiligo,
+# L81 Other disorders of pigmentation, L82 Seborrheic keratosis, L83
+# Acanthosis nigricans, L84 Corns and callosities, L85 Other epidermal
+# thickening, L86 Keratoderma in diseases classified elsewhere, L87
+# Transepidermal elimination disorders, L88 Pyoderma gangrenosum, L89 Pressure
+# ulcer, L90 Atrophic disorders of skin, L91 Hypertrophic disorders of skin,
+# L92 Granulomatous disorders of skin and subcutaneous tissue, L93 Lupus
+# erythematosus, L94 Other localized connective tissue disorders, L95
+# Vasculitis limited to skin, not elsewhere classified, L97 Non-pressure
+# chronic ulcer of lower limb, L98 Other disorders of skin and subcutaneous
+# tissue, L99 Other disorders of skin and subcutaneous tissue in diseases
+# classified elsewhere.
+#
+# The chapter centre is carrier strength: atopic dermatitis, eczema,
+# psoriasis, urticaria, rosacea, acne, vitiligo, alopecia areata, melanoma and
+# the non-melanoma skin cancers arrived from the carrier and PTSD-phenome
+# sources long ago, and the 1.15.0 spelling-variant work and the boundary
+# probes already watch rash, hives and mole. The sweep's job here is the same
+# one every chapter posed: find the named diagnoses the centre left silent —
+# the bullous and papulosquamous rarities, the erythemas, the radiation rows,
+# the follicular and sweat disorders, the chronic-wound and autoimmune-skin
+# residuals.
+#
+# ── Group A: in-diseases-classified-elsewhere routing. A title whose place
+# tells the coder the condition belongs to another chapter, not something a
+# person reports — the person names the underlying disease or the finding,
+# which is watched or mapped on its own row. Declared here: L14 Bullous
+# disorders in diseases classified elsewhere; L45 Papulosquamous disorders in
+# diseases classified elsewhere; L54 Erythema in diseases classified
+# elsewhere; L62 Nail disorders in diseases classified elsewhere; L86
+# Keratoderma in diseases classified elsewhere; and L99 Other disorders of
+# skin and subcutaneous tissue in diseases classified elsewhere.
+#
+# ── Group B: postprocedural constructs. A postprocedural disorder is coded
+# from the procedure, and is not a statement a visitor makes. Declared here:
+# L76 Intraoperative and postprocedural complications of skin and
+# subcutaneous tissue.
+#
+# Measure it with:
+#   npm run conditions:sweep -- docs/medical-condition-candidates-icd10-chapter-xii.txt
+Staphylococcal scalded skin syndrome
+Impetigo
+Cutaneous abscess, furuncle and carbuncle
+Cellulitis and acute lymphangitis
+Acute lymphadenitis
+Pilonidal cyst and sinus
+Other local infections of skin and subcutaneous tissue
+Pemphigus
+Other acantholytic disorders
+Pemphigoid
+Other bullous disorders
+Atopic dermatitis
+Seborrheic dermatitis
+Diaper dermatitis
+Allergic contact dermatitis
+Irritant contact dermatitis
+Unspecified contact dermatitis
+Exfoliative dermatitis
+Dermatitis due to substances taken internally
+Lichen simplex chronicus and prurigo
+Pruritus
+Other and unspecified dermatitis
+Psoriasis
+Parapsoriasis
+Pityriasis rosea
+Lichen planus
+Other papulosquamous disorders
+Exfoliation due to erythematous condition
+Urticaria
+Erythema multiforme
+Erythema nodosum
+Other erythematous conditions
+Sunburn
+Other acute skin changes due to ultraviolet radiation
+Skin changes due to chronic exposure to nonionizing radiation
+Radiodermatitis
+Other disorders of skin and subcutaneous tissue related to radiation
+Nail disorders
+Alopecia areata
+Androgenic alopecia
+Other nonscarring hair loss
+Cicatricial alopecia [scarring hair loss]
+Hair color and hair shaft abnormalities
+Hypertrichosis
+Acne
+Rosacea
+Follicular cysts of skin and subcutaneous tissue
+Other follicular disorders
+Eccrine sweat disorders
+Apocrine sweat disorders
+Vitiligo
+Other disorders of pigmentation
+Seborrheic keratosis
+Acanthosis nigricans
+Corns and callosities
+Other epidermal thickening
+Transepidermal elimination disorders
+Pyoderma gangrenosum
+Pressure ulcer
+Atrophic disorders of skin
+Hypertrophic disorders of skin
+Granulomatous disorders of skin and subcutaneous tissue
+Lupus erythematosus
+Other localized connective tissue disorders
+Vasculitis limited to skin, not elsewhere classified
+Non-pressure chronic ulcer of lower limb
+Other disorders of skin and subcutaneous tissue

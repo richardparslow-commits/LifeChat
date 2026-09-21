@@ -13,6 +13,8 @@
     "format": "prettier --write src/ tests/",
     "format:check": "prettier --check src/ tests/",
     "test": "jest",
+    "a11y:checklist": "ts-node src/accessibility/accessibility-checklist-cli.ts",
+    "conditions:sweep": "ts-node src/medical/condition-coverage-sweep-cli.ts",
     "test:guardrails:golden": "ts-node src/evaluation/persona-guardrail-gate.ts",
     "test:verdicts": "ts-node src/evaluation/verdict-gate.ts",
     "test:persona": "npm run test:guardrails:golden && jest tests/persona-guardrails.test.ts tests/persona-guardrail-gate.test.ts"

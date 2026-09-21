@@ -1,0 +1,112 @@
+# ICD-10-CM Chapter V (F00–F99), the three-character category titles of the
+# whole chapter, verbatim FY 2026 — the seventh coverage-sweep corpus and the
+# fifth codebook enumeration. Written down from the codebook enumeration before
+# any Chapter V row was mapped (2026-09-19): 72 titles, of which 62 are
+# candidates.
+#
+# This is the first chapter whose rows are mostly *stateable*: a mental and
+# behavioural disorder is something a person can say about themselves, so the
+# corpus asks the opposite question from Chapter XIV's. There, almost every row
+# was a construct and the sweep measured whether a construct ever closes;
+# here a bare title like "manic episode" is close to what a visitor types, and
+# the sweep measures whether a vocabulary grown from physical-condition sources
+# sees what a person says about their mind. It found the vocabulary looking
+# straight through mania, paraphilia and intellectual disability, and the
+# release that closed the sweep mapped them.
+#
+# The ten titles that are not candidates are declared here rather than dropped,
+# because "this row cannot be a disclosure" is a finding the next sweep should
+# re-read rather than rediscover. Each block names the rows it covers and the
+# reason, and each covered row's *stateable* form — the sentence a person would
+# actually write — is watched by a gate term or mapped as a canonical
+# condition, which is why the declarations are safe: the chapter's content is
+# covered, its navigation is not pretended to be a statement.
+#
+# ── Group A: coder-routing constructs. A title whose distinguishing words tell
+# a coder where the code lives rather than what the person has. Declared here:
+# Dementia in other diseases classified elsewhere (the stateable form is
+# "dementia", mapped since 1.7.0); Psychological and behavioral factors
+# associated with disorders or diseases classified elsewhere (the person's own
+# words name the disease, watched on its own row); Specific developmental
+# disorders of speech and language, of scholastic skills, and of motor function
+# (the stateable forms are the named diagnoses the chapter files inside them —
+# childhood onset fluency disorder, specific reading disorder, mathematics
+# disorder, developmental coordination disorder — each watched or mapped on its
+# own row); Other disorders of psychological development and Unspecified
+# disorder of psychological development (same: the named developmental
+# diagnoses carry the stateable forms, and a person who names none of them is
+# not describable by this residual either); Disorders of social functioning
+# with onset specific to childhood and adolescence (the chapter's own named rows
+# for it — selective mutism, reactive attachment disorder, disinhibited social
+# engagement disorder — are the stateable forms).
+#
+# ── Group B: residual adult-personality categories. Other disorders of adult
+# personality and behavior and Unspecified disorder of adult personality and
+# behavior are coder residuals: what a person says is the specific personality
+# disorder, the impulse disorder, or factitious disorder — each watched or
+# mapped on its own row.
+#
+# Measure it with:
+#   npm run conditions:sweep -- docs/medical-condition-candidates-icd10-chapter-v.txt
+vascular dementia
+unspecified dementia
+amnestic disorder due to known physiological condition
+delirium due to known physiological condition
+other mental disorders due to known physiological condition
+personality and behavioral disorders due to known physiological condition
+unspecified mental disorder due to known physiological condition
+alcohol related disorders
+opioid related disorders
+cannabis related disorders
+sedative, hypnotic, or anxiolytic related disorders
+cocaine related disorders
+other stimulant related disorders
+hallucinogen related disorders
+nicotine dependence
+inhalant related disorders
+other psychoactive substance related disorders
+schizophrenia
+schizotypal disorder
+delusional disorders
+brief psychotic disorder
+shared psychotic disorder
+schizoaffective disorders
+other psychotic disorder not due to a substance or known physiological condition
+unspecified psychosis not due to a substance or known physiological condition
+manic episode
+bipolar disorder
+depressive episode
+major depressive disorder, recurrent
+persistent mood [affective] disorders
+unspecified mood [affective] disorder
+phobic anxiety disorders
+other anxiety disorders
+obsessive-compulsive disorder
+reaction to severe stress, and adjustment disorders
+dissociative and conversion disorders
+somatoform disorders
+other nonpsychotic mental disorders
+eating disorders
+sleep disorders not due to a substance or known physiological condition
+sexual dysfunction not due to a substance or known physiological condition
+mental and behavioral disorders associated with the puerperium, not elsewhere classified
+abuse of non-psychoactive substances
+unspecified behavioral syndromes associated with physiological disturbances and physical factors
+specific personality disorders
+impulse disorders
+gender identity disorders
+paraphilias
+other sexual disorders
+mild intellectual disabilities
+moderate intellectual disabilities
+severe intellectual disabilities
+profound intellectual disabilities
+other intellectual disabilities
+unspecified intellectual disabilities
+pervasive developmental disorders
+attention-deficit hyperactivity disorders
+conduct disorders
+emotional disorders with onset specific to childhood
+tic disorder
+other behavioral and emotional disorders with onset usually occurring in childhood and adolescence
+mental disorder, not otherwise specified

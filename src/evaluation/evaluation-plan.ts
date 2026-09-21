@@ -275,7 +275,13 @@ export const GOVERNANCE_MATRIX = [
     control: 'Accessibility audit',
     owner: 'Accessibility owner',
     frequency: 'Prelaunch and major UI change',
-    evidence: 'Test matrix and defects',
+    // The manual review record, the machine-readable findings, the suite that
+    // executes the shipped widget, and the runnable walkthrough with its
+    // recorded receipt — see docs/section-508-accessibility-review.md.
+    evidence:
+      'Section 508 review record (SECTION_508_REVIEW / SECTION_508_FINDINGS), ' +
+      'tests/widget-accessibility.test.ts, and the five-row assistive-technology walkthrough ' +
+      '(npm run a11y:checklist, receipt in docs/accessibility-matrix-receipt.json)',
   },
 ] as const;
 

@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
 import { dirname } from 'path';
 import { config } from '../config/app-config';
+import type { CanonicalConditionRef } from '../medical/condition-crosswalk';
 import {
   encryptRecordLine,
   decryptRecordLine,
@@ -76,8 +77,17 @@ export interface MedicalProfile {
   weight_lbs: number | null;
   tobacco_nicotine_use:
     'none' | 'cigarettes' | 'vaping' | 'other_nicotine' | 'prefer_not_to_say' | null;
-  /** Diagnosed by a doctor, as stated by the user */
+  /** Diagnosed by a doctor, as stated by the user — kept verbatim */
   medical_conditions: string[];
+  /**
+   * Canonical crosswalk of `medical_conditions` (Phase 2) — ICD-10-CM refs
+   * resolved against a versioned vocabulary so a profile can be matched and
+   * queried. Additive only: it never rewrites the user's stated wording, and
+   * conditions with no exact match stay in `medical_conditions` unmatched
+   * rather than being guessed onto a code. Empty until the crosswalk runs, and
+   * only ever populated alongside explicit, current, versioned medical consent.
+   */
+  canonical_conditions: CanonicalConditionRef[];
   /** Prescribed by a doctor, as stated by the user */
   medications: string[];
   /** Only populated when the user reports diabetes; null until then (matches the response schema) */

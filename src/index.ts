@@ -19,6 +19,7 @@
 import 'dotenv/config';
 
 import { timingSafeEqual } from 'crypto';
+import { accessSync, constants, existsSync, mkdirSync } from 'fs';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import {
@@ -27,6 +28,7 @@ import {
   isLicenseNumberConfigured,
   isAdminApiKeyConfigured,
   isRecordEncryptionKeyConfigured,
+  isAllowedOrigin,
 } from './config/app-config';
 import {
   SYSTEM_PROMPT,
@@ -36,7 +38,17 @@ import {
   BEFORE_CHAT_BANNER,
   ABSTENTION_SENTENCE,
 } from './prompts/system-prompt';
-import { STATIC_SAFE_FALLBACK, type AssistantResponse } from './schema/response-schema';
+import {
+  STATIC_SAFE_FALLBACK,
+  MedicalProfileSchema,
+  type MedicalProfilePayload,
+  type AssistantResponse,
+} from './schema/response-schema';
+import {
+  conditionSexFromGender,
+  mapConsentedMedicalConditions,
+  type ConditionMappingResult,
+} from './medical/condition-crosswalk';
 import { generateResponse } from './llm/orchestrator';
 import { retrieveFromCorpus } from './rag/retrieval';
 import { validateCard } from './cards/card-validation';
@@ -77,8 +89,11 @@ import {
   detectPromptInjection,
   detectSensitiveData,
   checkRateLimit,
+  checkWriteRateLimit,
   incrementTokenCount,
   isKillSwitchActive,
+  activateKillSwitch,
+  deactivateKillSwitch,
   startRateLimitCleanup,
 } from './security/security-controls';
 import { getStaffAvailabilityMessage } from './handoff/human-escalation';
@@ -94,10 +109,81 @@ import {
 import { sanitizeUrl, generateDataLayerSnippet, type AnalyticsEvent } from './analytics/analytics';
 
 const app = express();
+
+/**
+ * Set by the startup preflight (see the bottom of this module) and reported on
+ * /health. False means a record log's directory could not be created or written
+ * to — the app still starts (fail-closed writes already surface per request),
+ * but an operator should see it immediately rather than on first submission.
+ */
+let dataPathsWritable = true;
+
+// Do not advertise the framework on every response.
+app.disable('x-powered-by');
+
 app.use(express.json());
 
+/**
+ * Baseline response headers.
+ *
+ * Deliberately a small, dependency-free set rather than a full CSP: the server
+ * returns JSON plus two static assets, and the widget is designed to be
+ * embedded in third-party pages, so a restrictive frame/CSP policy here would
+ * break the documented embed pattern for no gain. These three headers harden
+ * the cases that are strictly ours — stop MIME sniffing, do not leak the
+ * referring URL, and never let a CDN or proxy cache API responses (several
+ * carry consent or medical artifacts).
+ */
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+app.use('/api', (_req: Request, res: Response, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
+/**
+ * CORS for the widget's cross-origin embed.
+ *
+ * The widget is served from this app but intended to run inside the blog page
+ * (see `data-server-url` in public/widget.js), which is a different origin. The
+ * allowlist is opt-in via ALLOWED_ORIGINS and empty by default, so the shipped
+ * posture is same-origin only (the bundled demo page) and nothing else can call
+ * the API from a browser until the embed origin is named explicitly.
+ *
+ * A disallowed origin gets no Access-Control-* headers (the browser blocks the
+ * response) rather than a 403: same-origin and non-browser callers send no
+ * Origin header at all, and a hard failure would make a misconfigured embed
+ * look like an outage instead of a policy decision.
+ */
+app.use((req: Request, res: Response, next) => {
+  const origin = req.headers.origin;
+  if (typeof origin === 'string' && origin.length > 0) {
+    // Vary regardless of the outcome so caches never serve one origin's
+    // CORS decision to another.
+    res.setHeader('Vary', 'Origin');
+    if (isAllowedOrigin(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-key');
+      res.setHeader('Access-Control-Max-Age', '600');
+    }
+  }
+  if (req.method === 'OPTIONS') {
+    // Preflight: answer without running any route logic. Allowed origins get
+    // the headers above; others get an empty 204 the browser will reject.
+    res.status(204).end();
+    return;
+  }
+  next();
+});
+
 // Serve the widget static files
-app.use(express.static(path.join(__dirname, '..', 'public')));
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+app.use(express.static(PUBLIC_DIR));
 
 /**
  * Admin auth middleware — protects internal/debug endpoints that expose the
@@ -154,6 +240,10 @@ function requireAdminAuth(req: Request, res: Response): boolean {
  * @param handoffReason - the machine-readable reason (e.g. health_data_disclosed)
  * @param summary - the PII-minimized handoff summary
  * @param topicCategory - optional topic category for the analytics event
+ * @param riskFlags - the risk flags to set; the default records a health-data
+ *   disclosure. A health TOPIC question uses its own flag, because nothing
+ *   about the visitor's own health was disclosed and the compliance record has
+ *   to say so accurately.
  */
 function buildSensitiveDataRefusalResponse(
   assistantMessage: string,
@@ -161,6 +251,7 @@ function buildSensitiveDataRefusalResponse(
   summary: string,
   topicCategory: string | null | undefined,
   originatingStage: string,
+  riskFlags: string[] = ['sensitive_data_disclosed'],
 ): AssistantResponse {
   return {
     assistant_message: assistantMessage,
@@ -205,7 +296,7 @@ function buildSensitiveDataRefusalResponse(
       summary,
     },
     visual_card: null,
-    risk_flags: ['sensitive_data_disclosed'],
+    risk_flags: riskFlags,
     analytics: {
       event_name: 'ai_handoff_request',
       topic_category: topicCategory ?? null,
@@ -246,8 +337,66 @@ app.get('/', (_req: Request, res: Response) => {
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
+    uptimeSeconds: Math.round(process.uptime()),
     killSwitch: isKillSwitchActive(),
+    // Readiness facts an operator or sandbox can check without reading logs.
+    // Booleans and non-secret identifiers only — never the key, never a path.
+    llm: {
+      configured: config.llmApiKey.trim().length > 0,
+      model: config.llmModel,
+      baseUrl: config.llmApiBaseUrl,
+    },
+    dataPathsWritable,
+    recordEncryptionConfigured: isRecordEncryptionKeyConfigured(),
+    adminApiKeyConfigured: isAdminApiKeyConfigured(),
+    licenseNumberConfigured: isLicenseNumberConfigured(),
     compliance: getComplianceOverview(),
+  });
+});
+
+/**
+ * POST /api/admin/kill-switch — stop the assistant immediately.
+ *
+ * Admin-only (x-admin-key whenever ADMIN_API_KEY is configured, mandatory in
+ * production). The kill switch previously had no runtime control: an operator
+ * had to redeploy to stop the bot. Activation makes /api/chat return the
+ * static safe fallback and reports staffed:false on /api/availability; the
+ * model is never called while it is active.
+ *
+ * The optional reason is logged server-side (truncated) for the audit trail.
+ * It is never echoed back or persisted to a record log.
+ */
+app.post('/api/admin/kill-switch', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
+  const alreadyActive = isKillSwitchActive();
+  const rawReason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+  const reason = rawReason.replace(/[\r\n]+/g, ' ').slice(0, 200);
+  if (!alreadyActive) {
+    activateKillSwitch();
+    console.warn(`[kill-switch] ACTIVATED${reason ? ` — reason: ${reason}` : ''}`);
+  }
+  res.json({
+    killSwitch: true,
+    changed: !alreadyActive,
+    message: alreadyActive ? 'Kill switch was already active' : 'Kill switch activated',
+  });
+});
+
+/**
+ * DELETE /api/admin/kill-switch — clear the kill switch and resume normal
+ * responses. Admin-only, same enforcement as activation.
+ */
+app.delete('/api/admin/kill-switch', (req: Request, res: Response) => {
+  if (!requireAdminAuth(req, res)) return;
+  const wasActive = isKillSwitchActive();
+  if (wasActive) {
+    deactivateKillSwitch();
+    console.warn('[kill-switch] CLEARED');
+  }
+  res.json({
+    killSwitch: false,
+    changed: wasActive,
+    message: wasActive ? 'Kill switch cleared' : 'Kill switch was not active',
   });
 });
 
@@ -510,6 +659,36 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     }
   }
 
+  // A health TOPIC question — an impersonal question about a condition ("Is TB
+  // curable?", "What does TIA stand for?", "How is cancer treated?") — is
+  // blocked and handed off like a disclosure, because the answer is clinical or
+  // underwriting guidance, but it is NOT recorded or described as one. Nothing
+  // about the visitor's health was disclosed, so telling them "don't share
+  // diagnoses here" would be inaccurate, and flagging a health-data event would
+  // overstate what the record contains. Message omitted from history for the
+  // same reason as a disclosure: a later turn must not put a condition in front
+  // of the model. Consented medical_review remains the only surface that
+  // accepts either.
+  if (sensitiveDataCategory === 'health_topic_question') {
+    if (!medicalCaptureEnabled || currentState !== 'medical_review') {
+      addUserMessage(
+        sessionId,
+        '[USER MESSAGE OMITTED — health topic, no health data recorded]',
+        true,
+      );
+      const response = buildSensitiveDataRefusalResponse(
+        `That's a health topic, and I can't give medical or underwriting guidance on a condition in this chat. I can share approved general information about how life insurance works, and for case-specific answers Richard Parslow, a licensed Texas broker, can help through a secure process. ${ABSTENTION_SENTENCE}`,
+        'health_topic_question',
+        'Visitor asked about a health condition; no health data disclosed',
+        topicCategory,
+        currentState,
+        ['health_topic_question'],
+      );
+      addAssistantMessage(sessionId, response.assistant_message);
+      return res.json(response);
+    }
+  }
+
   // Financial-account data (bank routing/account numbers) is never needed for
   // general life-insurance education, so it is blocked the same way as health
   // data: redacted from history, deterministic licensed-broker handoff, no LLM
@@ -728,6 +907,17 @@ app.post('/api/chat', async (req: Request, res: Response) => {
  * (Phase 2 — consented lead capture)
  */
 app.post('/api/consent', (req: Request, res: Response) => {
+  // Bounded per client: this endpoint is unauthenticated by design and each
+  // accepted request appends a record to disk.
+  const writeLimit = checkWriteRateLimit(req.ip || 'unknown');
+  if (!writeLimit.allowed) {
+    return res.status(429).json({
+      error: 'Too many requests',
+      message: 'Please wait a moment before submitting again.',
+      reason: writeLimit.reason,
+    });
+  }
+
   const { contactConsentAffirmed, contactChannel, email, phone, firstName } = req.body;
 
   if (!contactConsentAffirmed) {
@@ -747,6 +937,77 @@ app.post('/api/consent', (req: Request, res: Response) => {
     if (!validatePhone(phone)) {
       return res.status(400).json({ error: 'Invalid phone format' });
     }
+  }
+
+  // Phase 2 — consented medical profile (optional). The medical facts the user
+  // provided inside the chat's consented medical_review flow are submitted
+  // here, alongside the consent control they affirmed. Every rule that governs
+  // medical data is applied before anything is created, and every failure
+  // returns WITHOUT saving a lead, so an unconsented profile can never reach
+  // storage:
+  //   1. the flow must be enabled (HEALTH_DATA_COLLECTION_DISABLED=false);
+  //   2. consent must be affirmative AND versioned (an unversioned or missing
+  //      version is not consent);
+  //   3. the profile must match the approved field set exactly.
+  // The stated conditions are then canonicalized through the ICD-10-CM
+  // crosswalk so the broker can match and query the profile. The user's own
+  // wording is preserved verbatim; unmatched conditions are left un-mapped
+  // rather than guessed onto a code.
+  const medicalCapturable = !config.healthDataCollectionDisabled;
+  const medicalProfileInput: unknown = req.body.medicalProfile ?? null;
+  const medicalConsentAffirmed = req.body.medicalConsentAffirmed === true;
+  const rawMedicalConsentVersion = req.body.medicalConsentVersion;
+  const medicalConsentVersion =
+    typeof rawMedicalConsentVersion === 'string' ? rawMedicalConsentVersion : null;
+  const medicalPayloadPresent = medicalProfileInput !== null || medicalConsentAffirmed;
+
+  // Consented medical data, resolved and crosswalked — persisted with the lead
+  // record below. Null when the request carried no medical payload.
+  let consentedMedical: {
+    profile: MedicalProfilePayload;
+    mapping: ConditionMappingResult;
+    consentVersion: string;
+  } | null = null;
+
+  if (medicalPayloadPresent) {
+    if (!medicalCapturable) {
+      return res.status(400).json({
+        error: 'Medical capture is disabled',
+        message:
+          'Medical information cannot be collected right now. Please contact Richard Parslow, a licensed Texas broker, to share it through a secure process.',
+      });
+    }
+
+    const parsedMedical = MedicalProfileSchema.safeParse(medicalProfileInput);
+    if (!parsedMedical.success) {
+      return res.status(400).json({ error: 'Invalid medical profile' });
+    }
+
+    const mapping = mapConsentedMedicalConditions({
+      medicalConditions: parsedMedical.data.medical_conditions,
+      consent: {
+        medical_consent_affirmed: medicalConsentAffirmed,
+        medical_consent_version: medicalConsentVersion,
+      },
+      healthDataCollectionDisabled: config.healthDataCollectionDisabled,
+      // Sex comes from the profile the person filled in — "other",
+      // "prefer_not_to_say" and an absent answer are all unknown, which defers
+      // the codebook's split rows rather than inferring one.
+      sex: conditionSexFromGender(parsedMedical.data.gender),
+    });
+    if (mapping === null || medicalConsentVersion === null) {
+      return res.status(400).json({
+        error: 'Affirmative current medical consent required',
+        message:
+          'Optional medical information was not stored because medical consent was not affirmed with a current consent version.',
+      });
+    }
+
+    consentedMedical = {
+      profile: parsedMedical.data,
+      mapping,
+      consentVersion: medicalConsentVersion,
+    };
   }
 
   // Prefer the sanitized canonical path already stored on the session by
@@ -773,6 +1034,18 @@ app.post('/api/consent', (req: Request, res: Response) => {
   lead.contact_channel = contactChannel;
   lead.contact_consent_version = config.contactConsentVersion;
   lead.consent_timestamp = new Date().toISOString();
+
+  // Phase 2 medical profile — stored only on the consented path resolved above.
+  // Canonical refs are additive (the stated conditions stay verbatim) and are
+  // TDPSA sensitive health data: operational record only, never analytics.
+  if (consentedMedical !== null) {
+    lead.medical_profile = {
+      ...consentedMedical.profile,
+      canonical_conditions: consentedMedical.mapping.canonical,
+    };
+    lead.medical_consent_version = consentedMedical.consentVersion;
+    lead.medical_consent_timestamp = new Date().toISOString();
+  }
 
   // Persist the lead record (with its consent artifact) so the broker can
   // retrieve it and the record survives for the TDPSA retention window.
@@ -801,6 +1074,17 @@ app.post('/api/consent', (req: Request, res: Response) => {
  * operational system (in-memory for the pilot).
  */
 app.post('/api/dsr', (req: Request, res: Response) => {
+  // Bounded per client, same reasoning as /api/consent: unauthenticated, and
+  // each accepted request appends a durable record.
+  const writeLimit = checkWriteRateLimit(req.ip || 'unknown');
+  if (!writeLimit.allowed) {
+    return res.status(429).json({
+      error: 'Too many requests',
+      message: 'Please wait a moment before submitting again.',
+      reason: writeLimit.reason,
+    });
+  }
+
   const result = submitDsr({
     requestType: req.body.requestType,
     contactEmail: req.body.contactEmail,
@@ -919,6 +1203,127 @@ app.get('/api/sessions', (req: Request, res: Response) => {
 });
 
 /**
+ * JSON 404 for unknown routes.
+ *
+ * Express's default 404 is an HTML page ("Cannot GET /api/nope"), which the
+ * widget and any API client cannot parse — a sandbox probe or a mistyped path
+ * showed up as an opaque HTML body. API paths always answer in JSON; other
+ * paths get a plain-text line (no HTML, nothing to misrender).
+ */
+app.use((req: Request, res: Response) => {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ error: 'Not found', path: req.path });
+    return;
+  }
+  res.status(404).type('text/plain').send('Not found');
+});
+
+/**
+ * Terminal error handler — the last middleware in the stack.
+ *
+ * Three things this fixes over Express's default handler: malformed JSON in a
+ * request body is answered with a small JSON 400 instead of an HTML page (the
+ * default error page embeds the parser message and, outside production, a stack
+ * trace with absolute paths); every other failure is answered 500 with a stable
+ * JSON shape and no internal detail; and the full error is logged server-side,
+ * where an operator can see it, instead of being shipped to the caller.
+ */
+app.use((err: unknown, _req: Request, res: Response, next: (error?: unknown) => void) => {
+  // Headers already sent: hand back to Express, which will destroy the socket.
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
+  const anyErr = err as {
+    status?: unknown;
+    statusCode?: unknown;
+    type?: unknown;
+    message?: unknown;
+  };
+  const candidate =
+    typeof anyErr?.status === 'number'
+      ? anyErr.status
+      : typeof anyErr?.statusCode === 'number'
+        ? anyErr.statusCode
+        : undefined;
+  const isBodyParseError = anyErr?.type === 'entity.parse.failed';
+  const status = isBodyParseError
+    ? 400
+    : candidate && candidate >= 400 && candidate < 600
+      ? candidate
+      : 500;
+
+  if (status >= 500) {
+    console.error('Unhandled request error:', err);
+  }
+
+  res.status(status).json({
+    error: isBodyParseError
+      ? 'Invalid JSON body'
+      : status === 413
+        ? 'Payload too large'
+        : status >= 500
+          ? 'Internal server error'
+          : 'Request could not be processed',
+  });
+});
+
+/**
+ * Startup preflight — report the environment the process actually resolved,
+ * before it accepts traffic.
+ *
+ * Everything here is a warning, never a fatal: the production gates below are
+ * the only conditions that refuse to start. The point is that a sandbox
+ * operator can see, in the boot log, whether the static assets were found,
+ * where records will be written, whether those directories are writable, and
+ * whether an LLM key is configured — instead of inferring it from a failed
+ * request later.
+ */
+function runStartupPreflight(): void {
+  // Static assets resolve relative to the compiled file (dist/../public).
+  if (!existsSync(PUBLIC_DIR)) {
+    console.warn(
+      `WARN: static asset directory not found at ${PUBLIC_DIR} — /demo.html and /widget.js will 404. ` +
+        'Run the server from a full checkout (public/ beside dist/).',
+    );
+  }
+
+  // Record logs: report resolved paths, and verify (creating if needed) that
+  // each parent directory is writable. Same directories the writers create on
+  // demand, so this only makes a failure visible earlier.
+  const logPaths = [config.leadLogPath, config.dsrLogPath, config.abstentionLogPath];
+  const unwritable: string[] = [];
+  for (const logPath of new Set(logPaths)) {
+    const dir = path.dirname(path.resolve(logPath));
+    try {
+      mkdirSync(dir, { recursive: true });
+      accessSync(dir, constants.W_OK);
+    } catch {
+      unwritable.push(dir);
+    }
+    console.log(
+      `  Records: ${logPath}${unwritable.includes(dir) ? '  (DIRECTORY NOT WRITABLE)' : ''}`,
+    );
+  }
+  dataPathsWritable = unwritable.length === 0;
+  if (!dataPathsWritable) {
+    console.warn(
+      `WARN: record directories are not writable (${unwritable.join(', ')}). ` +
+        'Lead, DSR, and abstention writes will fail closed until this is fixed.',
+    );
+  }
+
+  console.log(
+    `  LLM: ${config.llmApiKey.trim().length > 0 ? 'key configured' : 'NO API KEY — responses fall back to the static safe message'}`,
+  );
+  console.log(`  LLM endpoint: ${config.llmApiBaseUrl} (${config.llmModel})`);
+  console.log(
+    `  Cross-origin embed: ${config.allowedOrigins.length > 0 ? config.allowedOrigins.join(', ') : 'same-origin only (ALLOWED_ORIGINS unset)'}`,
+  );
+}
+
+/**
  * Production gate: a verified Texas license number is required before going
  * live (Texas Insurance Code §541.003 / TAC §19.1004). In pilot mode the app
  * may run without it (fail-closed disclosure); outside pilot mode it refuses
@@ -961,6 +1366,9 @@ if (!config.pilotMode && !isRecordEncryptionKeyConfigured()) {
   process.exit(1);
 }
 
+// Report the resolved environment before serving anything.
+runStartupPreflight();
+
 /**
  * Start the server
  */
@@ -984,5 +1392,31 @@ const server = app.listen(config.port, () => {
   console.log(`  Session history: max 20 turns, 30-min TTL`);
   console.log('');
 });
+
+/**
+ * Graceful shutdown.
+ *
+ * Managed sandboxes, container platforms, and process supervisors stop an app
+ * with SIGTERM (Ctrl-C sends SIGINT). Without a handler the process dies
+ * mid-request and, when the supervisor expects a clean exit, the port can look
+ * occupied on restart. This closes the listener — letting in-flight requests
+ * finish — then exits, with a bounded wait so a hung keep-alive connection can
+ * never wedge a restart.
+ */
+function shutdown(signal: string): void {
+  console.log(`\n  ${signal} received — closing the server (in-flight requests may finish)...`);
+  const forceExit = setTimeout(() => {
+    console.warn('  Shutdown timed out after 5s — exiting anyway.');
+    process.exit(0);
+  }, 5000);
+  forceExit.unref();
+  server.close(() => {
+    clearTimeout(forceExit);
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export { server, app };

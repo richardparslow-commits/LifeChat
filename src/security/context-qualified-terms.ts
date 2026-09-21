@@ -369,6 +369,72 @@ export const CONTEXT_QUALIFIED_TERMS: readonly ContextQualifiedTerm[] = [
     clinicalWords: ['found', 'noticed', 'seen', 'saw', 'removed', String.raw`biops\w*`],
   },
   {
+    // The prostate tumour marker, stated by its abbreviation far more often than
+    // by its name ("my PSA came back high"). Its rival reading is the
+    // announcement — "PSA: check your beneficiaries", "a PSA campaign" — which
+    // is why it is gated in context like every other three-letter abbreviation
+    // here, and why the announcement frames are stripped outright.
+    id: 'psa',
+    spellings: ['psa'],
+    possessives: POSSESSIVE_MY,
+    qualifiers: ['elevated', 'raised', 'high', 'prostate', 'blood'],
+    clinicalWords: [String.raw`test|level|reading|result|came back|score|screening|check`],
+    strips: [
+      { pattern: /\bpublic service announcement\b/gi, replacement: ' ' },
+      { pattern: /\bpsa\s*:\s*/gi, replacement: ' ' },
+      { pattern: /\bpsa\s+(?:campaign|video|post|announcement|message)\b/gi, replacement: ' ' },
+    ],
+  },
+  {
+    // The skin symptom a person describes, and the codebook's own word for it.
+    // Its ordinary sense is adjectival and always takes a noun of judgment
+    // ("a rash decision", "a rash promise"), which is what the guard excludes —
+    // so "I have a rash", "my rash" and "a rash on my arm" gate, while the
+    // decision-making sense does not. The possessive rule has to be the full
+    // determiner set: "my rash decision" would otherwise read as a symptom, and
+    // the guard is what makes the wider set safe here.
+    id: 'rash',
+    spellings: ['rash', 'rashes'],
+    guard: String.raw`(?!\s+(?:decision|choice|promise|move|act|actions?|words?|judgment|judgement|assumption|bet)\b)`,
+    possessives: POSSESSIVE_DETERMINERS,
+    qualifiers: ['skin', 'itchy', 'red', 'allergic', 'nappy', 'diaper', 'heat'],
+    // Where a rash is: "a rash on my arm", "a rash on her chest". Without this
+    // the body-site phrasing has no anchor at all, since it carries no
+    // disclosure verb and often no possessive.
+    clinicalWords: [
+      String.raw`on\s+(?:my|his|her|their|our|your|the)\s+(?:arm|arms|leg|legs|chest|back|face|neck|hand|hands|torso|stomach|abdomen|skin)`,
+    ],
+  },
+  {
+    // Pain stated as the thing a person has, rather than as a qualifier of a
+    // body part ("chest pain" and "back pain" are gated as phrases in their own
+    // right). Its ordinary senses are the business frames — the product's own
+    // "pain points", and the idiom "a pain in the neck" — so it is gated in
+    // context only, and those frames are stripped before matching because both
+    // carry a determiner the possessive rule would otherwise accept.
+    id: 'pain',
+    spellings: ['pain', 'pains'],
+    possessives: POSSESSIVE_DETERMINERS,
+    qualifiers: ['chronic', 'severe', 'constant', 'sharp', 'dull', 'throbbing', 'nerve'],
+    // Bodily locations, so "pain in my knee" and "pains in my legs" gate without
+    // a disclosure word — the phrasings a person actually uses.
+    clinicalWords: [
+      // With an optional side or level between the determiner and the site: "the
+      // pain is in my lower back" is how the complaint is stated, and the
+      // descriptor is measured here rather than guessed at (the same list the
+      // site words come from, so an undeclared organ still cannot reach it).
+      String.raw`(?:is\s+)?in\s+(?:my|his|her|their|our|your|the)\s+(?:(?:lower|upper|mid|middle|left|right)\s+)?(?:back|neck|knee|knees|hip|hips|leg|legs|arm|arms|hand|hands|foot|feet|abdomen|stomach|chest|shoulder|shoulders|joint|joints|side|head)`,
+    ],
+    strips: [
+      // The business frame, not a symptom: "the pain points of the process".
+      { pattern: /\bpain\s+points?\b/g, replacement: ' ' },
+      // The idiom keeps the definite article; the medical phrase keeps the
+      // possessive ("a pain in my neck"), which is why only this form is
+      // stripped.
+      { pattern: /\bpains?\s+in\s+the\s+neck\b/g, replacement: ' ' },
+    ],
+  },
+  {
     // The lay synonym for a calculus: "I have stones" is how a person states
     // kidney stones. The vocabulary carries the anatomical phrases ("kidney
     // stones", "gallstones") but not the bare word.
@@ -398,6 +464,117 @@ export const CONTEXT_QUALIFIED_TERMS: readonly ContextQualifiedTerm[] = [
       'gall',
     ],
     namedSpellings: ['stones'],
+  },
+  {
+    // The lay word for a stomach upset — "I have a stomach bug", "there's a bug
+    // going around". The 2026-09-19 lay-word measurement deferred it: half its
+    // medical phrasings ("I caught a bug") need verbs the shared disclosure list
+    // does not carry, and the ordinary sense ("a bug in the app") is the
+    // product's own vocabulary. Re-measured after the registry grew per-entry
+    // word lists and the two-sided guard, and the measurement now separates it
+    // completely — 10 of 10 medical phrasings matched, 0 of 12 ordinary sentences
+    // leaked, so the ledger row retired.
+    //
+    // The shapes:
+    //
+    //   illness verbs      caught / picked up / shaking off / getting over /
+    //                      coming down with — how the illness is stated (the
+    //                      verbs the ledger said were missing)
+    //   going around       the epidemic frame, in either direction ("a bug that
+    //                      is going around", "a bug going around the office")
+    //   qualifiers         stomach, tummy, flu, vomiting, diarrhea — the compound
+    //                      nouns the illness is named with
+    //   clinical words     sick, fever, contagious, vomiting, symptoms
+    //
+    // The software and pest senses are excluded by shape, not by a list of noun
+    // senses: the software bug sits in a technical frame ("a bug in the app",
+    // "bug report/fix/tracker", "bug bounty"), and the pest bug in a control
+    // frame ("bug spray", "bug zapper", "bug net", "bug-resistant"). The guard
+    // is a lookahead for both frame families, and a lookbehind excludes the
+    // compounds that hide the word ("debugging", "bed bug"). Both frames are
+    // the product's own vocabulary or outdoor talk — no personal or clinical
+    // reading shares them, which is what makes a shape guard sufficient where
+    // the ledger assumed only an open list could work.
+    id: 'bug',
+    spellings: ['bug', 'bugs'],
+    guard: String.raw`(?!\s+(?:in|reports?|fix\w*|tracker|tracking|squash\w*|repellent|repellant|spray|zapper|net|screen|bounty)\b)`,
+    precedingGuard: String.raw`(?<!\b(?:debug|bed)\w*)`,
+    possessives: [],
+    qualifiers: ['stomach', 'tummy', 'flu', 'vomiting', 'diarrhea', 'diarrhoea'],
+    disclosureWords: [
+      'caught',
+      'picked up',
+      'shaking off',
+      'getting over',
+      'coming down with',
+      String.raw`going around`,
+    ],
+    clinicalWords: [
+      String.raw`going around`,
+      'sick',
+      String.raw`vomit\w*`,
+      'diarrhea',
+      'diarrhoea',
+      'fever',
+      'contagious',
+      String.raw`quee\w*`,
+    ],
+  },
+  {
+    // The adjective whose disclosure form is a first-person state — "I am
+    // manic", "I feel manic" — and whose ordinary sense is hyperbole with a
+    // noun after it. The 1.16.0 record deferred it because every frame a guard
+    // could use (copula, adjectival position) is shared by both readings; the
+    // measurement that closed it found the separator is not the frame but the
+    // COMPOUND: the ordinary sense nearly always names its noun (week, Monday,
+    // laughter, pace, energy, the trope and the dye brand), so those compounds
+    // are stripped, and what remains in an adjectival slot with a first-person
+    // state in front of it is the disclosure.
+    //
+    //   strips        the measured compounds — "a manic week", "manic Monday",
+    //                 "manic laughter", "manic pixie", "Manic Panic", "manic
+    //                 energy/pace/schedule" — plus the television sense of
+    //                 "episode" ("a manic episode of ..."): a medical episode
+    //                 never takes 'of'. The strips run before every shape, so
+    //                 a possessive cannot resurrect them ("my manic Monday").
+    //   preceding     the hyperbolic verbs ("he got manic at the party", "the
+    //                 crowd went manic") — the shared list would otherwise
+    //                 read 'got' as a disclosure.
+    //   disclosure    am / I'm / feel / feeling — per entry, because 'am' on
+    //                 the shared list would gate "the problem is X" for every
+    //                 other term.
+    //   clinical      episode(s) and depression — "manic depression" is the
+    //                 codebook's own wording, and the episode noun is what the
+    //                 F30 row is titled with.
+    //
+    // The question path stays open ("Is manic depression treatable?", "Is a
+    // manic episode dangerous?"), with the TV strip protecting it there too;
+    // "Is he manic?" is a third-person question about a person's state and
+    // takes the topic answer, which is where a question with no first-person
+    // framing goes.
+    id: 'manic',
+    spellings: ['manic'],
+    precedingGuard: String.raw`(?<!\b(?:got|went)\s)`,
+    possessives: POSSESSIVE_DETERMINERS,
+    qualifiers: [],
+    namedSpellings: ['manic'],
+    // `feel\w*` rather than the bare verb: the structural scoping test works on
+    // raw fragments, and `lump`'s own "can feel" contains "feel" — the bounded
+    // stem is both precise and the only form that cannot leak.
+    disclosureWords: [String.raw`\bam\b`, String.raw`i'm`, String.raw`feel\w*`],
+    clinicalWords: [String.raw`episodes?`, 'depression'],
+    strips: [
+      {
+        pattern:
+          /\bmanic\s+(?:mondays?|mornings?|days?|weeks?|pace|schedule|energy|spree|cleaning|laughter)\b/gi,
+        replacement: ' ',
+      },
+      { pattern: /\bmanic\s+pixie\b/gi, replacement: ' ' },
+      { pattern: /\bmanic\s+panic\b/gi, replacement: ' ' },
+      // The television sense: "a manic episode of ..." — the medical phrase
+      // never takes 'of', so removing the frame removes the reading.
+      { pattern: /\bmanic\s+episodes?\s+of\b/gi, replacement: ' ' },
+    ],
   },
 ];
 

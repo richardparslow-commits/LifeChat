@@ -274,6 +274,7 @@ export const AssistantResponseSchema = z.object({
  */
 
 export type Citation = z.infer<typeof CitationSchema>;
+export type MedicalProfilePayload = z.infer<typeof MedicalProfileSchema>;
 export type LeadData = z.infer<typeof LeadDataSchema>;
 export type Consent = z.infer<typeof ConsentSchema>;
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
@@ -337,6 +338,18 @@ export function validateSchemaRules(response: AssistantResponse): string[] {
   ) {
     errors.push(
       'sensitive_data_disclosed risk flag requires proposed_action=request_human_handoff or none',
+    );
+  }
+
+  // A health topic question carries the same constraint as a disclosure: the
+  // answer needs a licensed human, so it may not push any other action.
+  if (
+    response.risk_flags.includes('health_topic_question') &&
+    response.proposed_action !== 'request_human_handoff' &&
+    response.proposed_action !== 'none'
+  ) {
+    errors.push(
+      'health_topic_question risk flag requires proposed_action=request_human_handoff or none',
     );
   }
 

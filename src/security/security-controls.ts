@@ -11,6 +11,7 @@ import {
   namesContextQualifiedTerm,
   withoutAmbiguousSpellings,
 } from './context-qualified-terms';
+import { MALTREATMENT_TERMS, stripOrdinarySenseShapes } from './ordinary-sense-shapes';
 import {
   BODY_OR_SYSTEM,
   CONTEXT_FAMILY_PATTERNS,
@@ -951,7 +952,7 @@ export const HEALTH_CONDITION_TERMS = [
   // disclosures whether or not the sentence names a history.
   'suicid', // "history of suicidal behavior", "attempted suicide", "parasuicide";
   // the product-provision shape ("the suicide clause") is stripped before this
-  // term is matched — see PRODUCT_PROVISION_PATTERNS
+  // term is matched — the ordinary-sense registry's product-provision entry
   'kill myself', // watched as a statement in its own right, not only as a row's wording
   'overdose',
   // The hyphenated forms of the self-harm family's own row wordings: the gate
@@ -970,6 +971,9 @@ export const HEALTH_CONDITION_TERMS = [
   'psychological abuse',
   'neglected as a child',
   'childhood neglect',
+  // The codebook's other lay order — Z62.812's row declares it beside
+  // "childhood neglect", the same both-orders shape the abuse row carries.
+  'child neglect',
   'neglected as an adult',
   'adult neglect',
   'neglected by my', // "neglected by my partner", "neglected by my carer"
@@ -1029,6 +1033,190 @@ export const HEALTH_CONDITION_TERMS = [
   'artificial opening',
   'foreign body', // retained fragments — the Z18 row
   'on the pill', // "I am on the pill" was silent; contraception is a health fact
+  // ICD-10 Chapter X (1.19.0): the occupational-lung, infection and pleural
+  // residuals the sweep surfaced silent. Multi-word stems ride the substring
+  // list; the two collision-prone short forms are word tokens below.
+  'pneumoconios',
+  'silicosis',
+  'berylliosis',
+  'beryllium disease',
+  'byssinosis',
+  'brown lung',
+  'farmer lung', // the spelling-variant mechanism carries 'farmers lung' and the plural
+  'bird fancier', // covers fanciers/fancier's; the lay name is not a plain English word
+  'black lung',
+  'coal worker', // the compound, not bare 'coal' (mining life is a job, not a diagnosis)
+  'coalworker',
+  'hypersensitivity pneumonitis',
+  'chemical inhalation',
+  'bronchiolitis',
+  'influenza', // the full word — \bflu\b cannot match inside it
+  'pneumonitis', // bare: covers the hypersensitivity compound and the J69 inhalation family
+  'respiratory distress',
+  'lower respiratory infection',
+  'lower respiratory tract infection',
+  'upper respiratory tract', // covers the J39 residual title; inherently medical
+  'nasal sinuses', // the J34 residual title; inherently medical
+  'tonsils and adenoids', // the J35 category-title phrasing
+  'pharyngitis', // strep throat is reached by its own phrase below
+  'strep throat',
+  'sore throat',
+  'common cold',
+  'head cold',
+  'croup',
+  'epiglottitis',
+  'tracheitis',
+  'peritonsillar',
+  'quinsy',
+  'vocal cord',
+  'chronic tonsillitis',
+  'chronic adenoid disease',
+  'adenoids', // the plural is the lay form; bare 'adenoid' sits inside 'adenoidectomy'
+  'pleural effusion',
+  'pleural plaque', // the J92 family — bare wording gates without a code rather than misstating the asbestos split
+  'water on the lung',
+  'respiratory failure',
+  'acute upper respiratory infection',
+  'upper respiratory infection',
+  'upper respiratory tract infection',
+  // ICD-10 Chapter XI (1.20.0): the digestive wordings the rows are reached by
+  // and the dental/anatomy residuals the sweep surfaced. The mapped-row stems
+  // are exact enough to be unambiguous; the anatomy stems ('biliary', 'pancrea',
+  // 'hepatic', 'intestinal', 'peritoneum') have no ordinary sense to collide
+  // with, and 'digestive system' follows the 'nervous system' precedent.
+  'appendicitis',
+  'dyspepsi',
+  'indigestion',
+  'peritonit',
+  'hepatic', // hepatic failure, hepatic steatosis — the adjective is medical only
+  'salivary gland',
+  'stomatitis',
+  'canker sore',
+  'mouth ulcer',
+  'leukoplaki',
+  'leucoplaki', // the British spelling
+  'fistula', // bare: no ordinary sense; covers the K60 category title and every member
+  'rectal prolapse',
+  'biliary',
+  'pancreati', // pancreatic disease; pancreatitis (carried). The bare noun 'pancreas' is educational anatomy, unwatched like 'liver'
+  'disease of pancreas', // the K86.9 row's noun-form wording
+  'diseases of pancreas', // the K86 category-title form (the sweep's corpus line)
+  // ICD-10 Chapter XII (1.21.0): the skin wordings the rows are reached by.
+  // Bare "pigmentation" stays unwatched for its cosmetics sense (the L81
+  // residual closes through "disorders of pigmentation"), bare "corns" for its
+  // food sense ("callosities" carries the L84 title), and bare "exfoliation"
+  // for its skincare sense (the L49 title closes through "exfoliation due to")
+  // — the same ordinary-sense trades as bare "coal" and bare "appendix".
+  'scalded skin syndrome', // L00 — the staphylococcal form is the diagnosis
+  'impetigo', // L01.00
+  'pemphigus', // L10.9
+  'pemphigoid', // L12.9
+  'lichen simplex', // L28.0
+  'pityriasis', // L42 rosea — covers parapsoriasis (L41) and the L44 residual too
+  'neurodermatitis', // L28.0's codebook synonym
+  'erythema', // covers multiforme (L51.9), nodosum (L52) and the L53 residual — medical Latin only
+  'sunburn', // L55.9 — the word's ordinary sense is the medical one
+  'hypertrichosis', // L68.9
+  'excessive hair growth', // L68.9's lay wording
+  'acanthosis nigricans', // L83
+  'pyoderma gangrenosum', // L88
+  'lichen sclerosus', // L90.0
+  'pilonidal', // L05 — gated without a code: the with/without-abscess split is not carried by the bare words
+  'pruritus', // L29 — the itch category
+  'prurigo', // L28's title residual
+  'exfoliation due to', // the L49 title shape — bare "exfoliation" is skincare
+  'nonscarring hair loss', // the L65 title form
+  'hair shaft', // the L67 title fragment
+  'disorders of pigmentation', // the L81 title form
+  'callosities', // the L84 title form — bare "corns" is food
+  'epidermal thickening', // the L85 title form
+  'atrophic disorders of skin', // the L90 category-title form
+  'hypertrophic disorders of skin', // the L91 category-title form
+  // ICD-10 Chapter XIII (1.22.0): the musculoskeletal wordings the rows are
+  // reached by. Bare "joints" and bare "spine" stay unwatched - the
+  // educational anatomy sense is ordinary, exactly as bare "liver". Bare
+  // "fracture" stays unwatched because a broken bone from injury is the S
+  // chapter; "stress fracture" carries the M84 wording instead.
+  'arthropath', // the reactive/enteropathic/crystal/unspecified arthropathy titles; gouty and psoriatic arthritis carry their rows
+  'polyosteoarthritis', // the M15 title form (osteoarthritis cannot match inside it)
+  'acquired deformities', // the M20/M21/M95 deformity-title form
+  'patella', // the M22 knee category - medical Latin only
+  'internal derangement', // the M23 knee title form
+  'joint derangement', // the M24 title form
+  'dentofacial', // the M26 category - medical only
+  'malocclusion', // the M26.3 orthodontic residual
+  'diseases of jaws', // the M27 title form
+  'polyarteritis', // M30.0, mapped
+  'autoinflammatory', // the M04 category title (periodic fever syndromes)
+  'necrotizing vasculopath', // the M31 residual-title form (PAN and GCA carry their rows)
+  'giant cell arteritis', // M31.6, mapped
+  'temporal arteritis', // the M31.6 lay-clinician wording
+  'dermatomyositis', // M33.10, mapped - covers the dermatopolymyositis title
+  'polymyositis', // the M33.2 member the dermatopolymyositis title needs
+  'polymyalgia', // M35.3, mapped
+  'sicca syndrome', // the Sjogren wording (the row is carried)
+  'involvement of connective tissue', // the M35 title fragment
+  'connective tissue disease', // the M35 family's clinical phrase
+  'lordosis', // the M40 category
+  'spinal osteochondrosis', // the M42 title form
+  'osteochondrosis', // the M91/M92 juvenile titles
+  'deforming dorsopathies', // the M43 title form
+  'dorsopath', // the M53 residual title form
+  'dorsalgia', // M54 - low back pain's codebook title
+  'low back pain', // the M54.5 lay-clinician wording
+  'synovitis', // the M65 category
+  'tenosynovitis', // the M65 category
+  'synovium', // the M66/M67 title form
+  'enthesopath', // the M76/M77 title form
+  'calcaneal spur', // the M77.3 title form (heel spur is the mapped wording)
+  'heel spur', // M77.30, mapped
+  'dupuytren', // M72.0 - the bare stem so the apostrophe forms resolve
+  'fibroblastic', // the M72 category
+  'myositis', // M60.9, mapped - also reaches polymyositis and dermatomyositis
+  'calcification of muscle', // the M61 title form
+  'ossification of muscle', // the M61 title form
+  'myositis ossificans', // the M61 lay-clinician wording
+  'shoulder lesion', // the M75 title form
+  'bursopath', // the M71 title form
+  'soft tissue disorder', // the M70/M79 title form
+  'overuse and pressure', // the M70 title fragment
+  'osteomalacia', // M83.9, mapped
+  'disorder of continuity of bone', // the M84 title form (stress fracture is the mapped wording)
+  'stress fracture', // M84.9, mapped - bare 'fracture' stays unwatched (injury is the S chapter)
+  'disorders of bone density', // the M85 title form
+  'osteonecrosis', // M87.9, mapped
+  'avascular necrosis', // the M87 lay-clinician wording
+  'paget', // M88.9 - the bare stem so the apostrophe forms resolve
+  'osteitis deformans', // the M88 codebook title
+  'disorders of bone', // the M89 title form
+  'osteochondropath', // the M93 title form
+  'disorders of cartilage', // the M94 title form
+  'biomechanical lesion', // the M99 title form
+  'tongue disease',
+  'diseases of tongue', // the K14 category-title form
+  'ileus',
+  'malabsorption',
+  'abscess', // bare: covers anal/rectal/salivary/dental abscesses — all health data
+  'intestinal',
+  'intestine',
+  'peritoneum', // covers retroperitoneum by substring
+  'liver disease',
+  'diseases of liver', // the K76 category-title form
+  'oral mucosa',
+  'anus and rectum', // the K62 category-title form; the K62.6 name also carries it
+  'digestive system', // the K92 residual's title fragment — the category noun
+  'tooth development', // K00 — dental residual, gated not coded
+  'impacted teeth', // K01 — dental residual
+  'hard tissues of teeth', // K03 — dental residual
+  'periapical', // K04 — dental residual
+  'gingiva', // K06 — dental residual ('gingivitis' already descriptive)
+  'teeth and supporting structures', // K08 — dental residual
+  'cysts of oral region', // K09 — dental residual
+  'aphthae', // K12.0's codebook synonym — canker sores is the mapped lay form
+  'disease of tongue', // K14.9's title word order
+  'disorder of tongue', // K14.9's sibling wording
+  'diseases of appendix', // the K38 category-title form — bare 'appendix' stays unwatched (a document's appendix)
+  'disease of appendix',
 ] as const;
 
 /**
@@ -1098,6 +1286,14 @@ export const HEALTH_CONDITION_WORD_TERMS = [
   // here — "DNR" and "MRSA" must not be found inside a longer word.
   'dnr',
   'mrsa',
+  // ICD-10 Chapter X (1.19.0): two acronyms whose letters sit inside ordinary
+  // words — 'ards' is a substring of 'standards', 'flu' of 'fluid' and 'influenza'.
+  'ards',
+  'flu',
+  // ICD-10 Chapter XII (1.21.0): 'ssss' — the acronym of staphylococcal
+  // scalded skin syndrome, word-matched so a run of sibilants in an ordinary
+  // word can never match it.
+  'ssss',
 ] as const;
 
 /**
@@ -1688,223 +1884,17 @@ const HEALTH_CONDITION_WORD_PATTERN = new RegExp(
 );
 
 /**
- * The product-provision reading of the suicide words.
- *
- * "The suicide clause", "suicide exclusion" and "suicide rider" are the
- * product's own vocabulary — a contract term a visitor asks about — but they
- * share the `suicid` stem with the disclosure, so 1.13.0 accepted them as
- * measured false positives. The shape that tells them apart is a provision noun
- * sitting directly after the word, and only that shape is removed before the
- * condition vocabulary is matched: "I have thought about suicide", "my suicide
- * attempt" and "history of suicidal behavior" name no provision and are
- * untouched, and a sentence naming both ("I have thought about suicide and the
- * policy's suicide clause") keeps the disclosure, because the disclosure's own
- * words survive the strip.
- *
- * The question form is deliberately not covered here: "does the suicide
- * exclusion apply after two years" is caught by the health-topic-question path
- * above, which is its own documented decision — a question about a condition,
- * not a disclosure of one. This strip exists so the *statement* form of a
- * provision sentence does not gate.
+ * The gate's ordinary-sense strips — the product-provision reading of the
+ * suicide words ("the suicide clause" is the contract's vocabulary), the
+ * topic-mention frames ("the report mentions forced labor" is the report's
+ * subject), the maltreatment artefact compounds ("child abuse policy for our
+ * staff") and their measured collocations — are declared data in
+ * ./ordinary-sense-shapes.ts, whose entries carry the terms, the shapes and
+ * the guards that keep the disclosure direction alive. The composed sources
+ * are pinned byte-exact against the last hand-written generation in
+ * tests/ordinary-sense-shapes.test.ts, so this call site is the whole
+ * hand-written surface: one strip, in declaration order.
  */
-const PRODUCT_PROVISION_PATTERNS: readonly RegExp[] = [
-  /\bsuicid\w*\s+(?:clauses?|exclusions?|riders?|provisions?|waiting\s+periods?|exclusion\s+periods?)\b/gi,
-];
-
-/** The input with any product-provision phrases removed (a space each). */
-function withoutProductProvisions(userInput: string): string {
-  return PRODUCT_PROVISION_PATTERNS.reduce(
-    (text, pattern) => text.replace(pattern, ' '),
-    userInput,
-  );
-}
-
-/**
- * The topic-mention reading of the abuse and exploitation words (gate change
- * only — no vocabulary change).
- *
- * 1.14.0 pinned eight ordinary senses as accepted trades — "the supply chain
- * report mentions forced labor", "the documentary is about trafficking", "the
- * film examines sexual exploitation" among them — on the measurement's finding
- * that every guard which separated them would also silence a real disclosure.
- * Re-measuring that finding against a wider corpus showed it held only for the
- * *personal clause inside a mention*, not for the mention itself: when one of
- * these words is the object of a reporting or documentary act by an artefact, an
- * organisation or an investigation — a report, article, film, charity, audit,
- * supplier, supply chain — the sentence is about the document, not about the
- * person. That shape is declared here and removed before the condition
- * vocabulary is matched.
- *
- * Two shapes are stripped, and nothing else:
- *
- *   1. <subject> of|on|about <the> <term> — "a study of forced labor", "the
- *      article about trafficking";
- *   2. <subject> … <reporting verb> <the> <term> — "the report describes forced
- *      labour in the supply chain", "our supplier was accused of forced
- *      labour", "the audit found no forced labour".
- *
- * A personal clause inside the mention survives both, because the term has to
- * be the direct object: "the report mentions that I was trafficked as a child",
- * "the documentary is about my trafficking experience" and "the report mentions
- * my forced labor" keep their words and still gate. So does a possessive
- * followed by a personal noun right after the term ("forced labor in my
- * family", "at my workplace", "trafficking in my community") and a
- * first-person singular within two words of it ("the trafficking I
- * experienced") — while "in our supply chain" is business talk and stays
- * strippable. The bare terms are untouched: "forced labor", "sex trafficking"
- * and "I was a victim of trafficking" name no frame and gate exactly as
- * before, which is what keeps the 1.14.0 scope ledger honest.
- *
- * Three ordinary collocations are removed for the same measured reason, in the
- * shape the `lump` entry uses — the compound, and nothing around it:
- * "trafficking of illegal goods", "financial abuse of the system" and "forced to
- * work overtime/late/weekends/nights/shifts" (unless the same sentence places it
- * in childhood, which is the disclosure). What no declared shape separates stays
- * a recorded trade at the endpoint: "the charity's anti-trafficking campaign",
- * "sex trafficking awareness training", "the film is a trafficking drama", a
- * subject the list does not carry ("the blog post mentions forced labor") and
- * "trafficking of stolen goods".
- *
- * The same measurement closed the next pinned trade — "child abuse policy for
- * our staff", 1.13.0's accepted false positive — because that sentence is the
- * third shape: a maltreatment term directly modifying an artefact noun (see
- * `TOPIC_MENTION_ARTEFACT_NOUNS`). A policy, a training course, an awareness
- * campaign, a hotline, a law or a statistic is a thing rather than a person, and
- * the term is the modifier. Only the compound is removed, so every disclosure
- * form keeps its words: "child abuse by my father", "the child abuse I
- * experienced", "my child abuse history", "I was a victim of child abuse" and
- * "I witnessed child abuse" all still gate. The hotline, helpline and report
- * form artefacts join the list only behind the reach-guard below, and what the
- * shapes still do not separate — a charity's name ("the child abuse charity")
- * — stays a recorded trade rather than an implied closure.
- */
-const TOPIC_MENTION_SUBJECTS =
-  `(?:reports?|articles?|documentar(?:y|ies)|films?|books?|podcasts?|studies|study|research|` +
-  `charit(?:y|ies)|news|briefings?|audits?|investigations?|regulators?|reviews?|` +
-  `suppliers?|supply\\s+chains?|polic(?:y|ies)|practices|campaigns?)`;
-const TOPIC_MENTION_VERBS =
-  `(?:mentions?|describes?|documents?|details?|covers?|discusses?|examines?|highlights?|fights?|` +
-  `addresses?|is\\s+about|was\\s+about|accused\\s+of|found)`;
-const TOPIC_MENTION_CONNECTOR = `(?:of|on|about)`;
-/**
- * The words a document can be *about* as well as a person can disclose them.
- *
- * The 1.14.0 release declared this reading for the exploitation terms; the same
- * reading is the right one for the maltreatment vocabulary the abuse-family rows
- * are reached by, because an awareness campaign, a training course, a policy and
- * a study are about child abuse, elder abuse and self-harm exactly the way they
- * are about trafficking. Bare "abuse" stays out for the reason 1.14.0 gave: it
- * collides with the product's own vocabulary ("abuse of the system").
- */
-const TOPIC_MENTION_TERMS =
-  `(?:forced\\s+labo[u]?r|human\\s+trafficking|sex\\s+trafficking|trafficking|trafficked|` +
-  `sexual\\s+exploitation|sexually\\s+exploited|financial\\s+abuse|financial\\s+exploitation|` +
-  `child\\s+abuse|childhood\\s+abuse|child\\s+neglect|childhood\\s+neglect|domestic\\s+abuse|` +
-  `domestic\\s+violence|elder\\s+abuse|intimate\\s+partner\\s+abuse|physical\\s+abuse|` +
-  `sexual\\s+abuse|emotional\\s+abuse|psychological\\s+abuse|verbal\\s+abuse|abused|neglect|` +
-  `self[-\\s]?harm|overdos\\w*|self[-\\s]?poison\\w*|self[-\\s]?mutilation\\w*|` +
-  `(?:para)?suicid\\w*)`;
-// The self-harm family above is measured, not assumed: `self[-\\s]?harm` was the
-// 1.14.0 declaration and separates both directions on its own (a film examining
-// self-harm is silent; "I have a history of self-harm" gates), but the suicide
-// and overdose words sat outside the list until the topic-shape measurement
-// found a documentary about suicide gating 10 of 11 topical forms. The stems
-// are the same ones the gate watches ("suicid", "overdose", "self poisoning",
-// "self mutilation") — with the `(?:para)?` declared because the strip matches
-// at a word boundary and must reach "parasuicide" the way the gate's substring
-// stem does — and the personal guards below are what keep "my suicide attempt",
-// "I survived an overdose" and "my suicide prevention plan" gating after the
-// strip.
-
-/**
- * The artefact nouns a maltreatment term modifies when the sentence is about a
- * document or a programme rather than about a person — the shape the 1.13.0
- * suicide-clause fix used for provision nouns, applied to the maltreatment
- * vocabulary. "child abuse policy for our staff", "elder abuse training" and
- * "self harm awareness training" are one class: the term is the *modifier*, and
- * what it modifies is a thing the reader can read, attend or run.
- *
- * The list is deliberately tight, and "history" stays out — "my child abuse
- * history" is a disclosure frame, and what a person *files* is measured now
- * rather than assumed: "hotline", "helpline" and "report (ing) form" joined
- * the artefact nouns only once the reach-guard below existed, because the bare
- * artifacts ("the child abuse hotline", "child abuse report form") are things
- * a person reads or fills in, while the personal forms ("I called the child
- * abuse hotline", "the child abuse report form I filed") are the fail-safe
- * direction 1.13.0 recorded and must keep their words. Nothing else is
- * removed — only the compound.
- */
-const TOPIC_MENTION_ARTEFACT_NOUNS =
-  `polic(?:y|ies)|procedures?|protocols?|guidelines?|guidance|training|awareness|prevention|` +
-  `campaigns?|strateg(?:y|ies)|frameworks?|programmes?|programs?|laws?|legislation|` +
-  `statistics|stats|courses?|charters?|workshops?|seminars?|leaflets?|posters?|` +
-  `hotlines?|helplines?|report(?:ing)?\\s+forms?`;
-const TOPIC_MENTION_ARTICLE = `(?:the\\s+|no\\s+|any\\s+)?`;
-const TOPIC_MENTION_NOT_PERSONAL =
-  // A possessive followed by a personal noun ("in my family") ...
-  `(?!\\s+(?:of|in|at|by|for|to|against)\\s+(?:my|our|his|her|their|them|us)\\s+` +
-  `(?:famil(?:y|ies)|homes?|households?|childhoods?|experiences?|lives?|story|stories|` +
-  `histories|history|abuse|trafficking|health|bodies?|workplaces?|communit(?:y|ies))\\b)` +
-  // ... or a first-person singular within two words ("the trafficking I
-  // experienced", "trafficking that I went through").
-  `(?!\\s+(?:\\w+\\s+){0,1}(?:i|me|my|mine)\\b)`;
-const TOPIC_MENTION_PATTERNS: readonly RegExp[] = [
-  new RegExp(
-    `\\b${TOPIC_MENTION_SUBJECTS}\\b(?:\\s+${TOPIC_MENTION_CONNECTOR}\\s+${TOPIC_MENTION_ARTICLE}${TOPIC_MENTION_TERMS}\\b${TOPIC_MENTION_NOT_PERSONAL}` +
-      `|[^.!?]{0,40}?\\b${TOPIC_MENTION_VERBS}\\b\\s+${TOPIC_MENTION_ARTICLE}${TOPIC_MENTION_TERMS}\\b${TOPIC_MENTION_NOT_PERSONAL})`,
-    'gi',
-  ),
-  // The compound: a maltreatment term directly modifying an artefact noun
-  // ("child abuse policy for our staff", "elder abuse training", "child abuse
-  // statistics"). The term has to be the modifier and only the compound is
-  // removed, so "child abuse by my father", "the child abuse I experienced" and
-  // "my child abuse history" keep their words and still gate.
-  //
-  // The measured guard is a first-person singular *after* the compound, which is
-  // what makes the sentence personal rather than topical: "the domestic abuse
-  // policy did not help me" and "the child abuse awareness training I attended
-  // after my own abuse" keep their words and gate, while "child abuse policy for
-  // our staff" (the pinned trade this closes) and "our child abuse policy" — an
-  // organisation's possessive, not a person's — are stripped. The cost is
-  // fail-safe: a topical sentence that happens to say "the policy I signed".
-  //
-  // A possessive *before* the term is the same personal voice with the opposite
-  // word order — "my suicide prevention plan", "my overdose prevention plan" —
-  // and it is measured to gate: a person's own safety plan is a disclosure
-  // frame, not a programme. The variable-length lookbehind asserts the message
-  // does not BEGIN "my" before the compound (a fixed `^\s*my\s` cannot work
-  // here: inside a lookbehind `^` anchors the sub-match to the string start, so
-  // it can only ever end right after "my", never at the noun); "our" stays
-  // strippable because an organisation speaks through it.
-  new RegExp(
-    `\\b${TOPIC_MENTION_TERMS}\\b\\s+(?:${TOPIC_MENTION_ARTEFACT_NOUNS})\\b` +
-      // The reach-guard: a personal pronoun reaching for the thing ("I called
-      // the child abuse hotline", "she called the domestic abuse hotline", "I
-      // filled out the child abuse report form") keeps the term — the
-      // fail-safe direction 1.13.0 recorded, now enforced by shape rather than
-      // by leaving the reach nouns off the list. The lookbehind sits after the
-      // compound, so it must assert the whole reach-parse *including the
-      // compound as its tail* ending there: pronoun, reach verb, up to three
-      // filler words, the article, then the same term-plus-artefact shape the
-      // pattern matched. A pronoun-plus-reach-verb clause whose object is not
-      // the compound ("I called the office and asked about the child abuse
-      // policy") has no parse — the filler budget cannot reach the article —
-      // and strips; an imperative ("call the child abuse hotline") names no
-      // person and stays strippable.
-      `(?<!\\b(?:i|we|she|he|they|you)\\b[^.!?]{0,40}?\\b(?:calle?d|phon?ed|rang|used|contacted|reached|fil(?:le)?d)\\b(?:\\s+\\w+){0,3}\\s+(?:the|a|an|their|his|her|our)?\\s+${TOPIC_MENTION_TERMS}\\b\\s+(?:${TOPIC_MENTION_ARTEFACT_NOUNS})\\b)` +
-      `(?<!^my\\s.{0,80})(?![^.!?]*\\b(?:i|me|my|mine)\\b)`,
-    'gi',
-  ),
-  // The collocations, one shape each.
-  /\btrafficking\s+of\s+(?:illegal\s+)?goods\b/gi,
-  /\bfinancial\s+abuse\s+of\s+the\s+(?:system|process|trust)\b/gi,
-  /\bforced\s+to\s+work\s+(?:overtime|late|weekends?|nights?|shifts?)\b(?!\s+(?:as\s+a\s+child|in\s+childhood|when\s+i\s+was\s+(?:a\s+)?(?:child|young)))/gi,
-];
-
-/** The input with any topic-mention phrases removed (a space each). */
-function withoutTopicMentions(userInput: string): string {
-  return TOPIC_MENTION_PATTERNS.reduce((text, pattern) => text.replace(pattern, ' '), userInput);
-}
 
 /**
  * True when the text names a condition from THIS condition vocabulary,
@@ -1944,9 +1934,16 @@ export function isHealthConditionTerm(userInput: string): boolean {
  *
  * A trailing "?" alone is not enough: a disclosure fragment can end in one
  * ("history of SLE?"), and that belongs in the stricter disclosure path.
+ *
+ * The conditional branch ("If someone takes their own life, does the policy
+ * pay out?") was, until the three-reading audit, **inert**: it sat inside the
+ * shared group ahead of the trailing `\b`, and a word boundary can never
+ * follow the branch's sentence-final `?` — so no conditional-shaped sentence
+ * ever opened a question path. The branch now stands on its own; the word
+ * alternatives keep the `\b` that stops "island" opening with "is".
  */
 const QUESTION_OPENER =
-  /^\s*(?!(?:do|does|did)\s+not\b)(?:what|how|why|when|where|which|who|whose|does|do|is|are|was|were|can|could|should|would|will|am|may|might)\b/i;
+  /^\s*(?!(?:do|does|did)\s+not\b)(?:if\s+[^.!?\n]{0,80}\?|(?:what|how|why|when|where|which|who|whose|does|do|is|are|was|were|can|could|should|would|will|am|may|might)\b)/i;
 
 /**
  * The contract vocabulary a *product* question is built from — the nouns a
@@ -2006,6 +2003,42 @@ const SELF_HARM_ACT_PATTERN =
  * the visitor's contract; "my cancer" is the visitor's health, and the rule
  * below is built on that difference.
  */
+/**
+ * The verbs of a payout question — "does the policy pay out?", "is there a
+ * claim?" — which mark the conditional act question the contract rule must
+ * not claim (see the guard in `detectContractQuestion`).
+ */
+/**
+ * The **act-as-subject payout question** — "If someone takes their own life,
+ * does the policy pay out?" — which names the act and **no condition**, the
+ * one shape the three-reading split left silent. The act is not a topic; the
+ * payout verbs make it a question about the product. Shared by the caller's
+ * topic branch (which must consult it before the condition test, since no
+ * condition is named) and `detectHealthTopicQuestion` (which still applies
+ * its personal-framing guard first, so "If I kill myself, does the policy pay
+ * out?" stays on the disclosure path).
+ */
+function isSelfHarmActPayoutQuestion(userInput: string): boolean {
+  return (
+    SELF_HARM_ACT_PATTERN.test(userInput) &&
+    !PROVISION_NOUN_PATTERN.test(userInput) &&
+    PAYMENT_VERB_PATTERN.test(userInput)
+  );
+}
+
+/**
+ * First-person wording — the person test for the act-as-subject payout
+ * question, whose act carries its own pronoun: "someone takes their own life"
+ * is a generic third person (the act, not a topic, is the subject), while
+ * "if I kill myself" and "if my husband takes his own life" are the visitor
+ * or their family and stay disclosures. The shared `PERSONAL_FRAMING` list
+ * would misread the act's generic "their" as family framing, so this shape
+ * decides its own person with the first-person words alone.
+ */
+const FIRST_PERSON_PATTERN = /\b(?:i|i'm|i've|i'd|i'll|me|my|mine|myself|we|we're|our|ours|us)\b/i;
+
+const PAYMENT_VERB_PATTERN = /\b(?:pays?|paid|paying|payouts?|claims?|benefits?)\b/i;
+
 const CONTRACT_PHRASE_PATTERN =
   /\b(?:my|our|your|his|her|their|its|the|a|an|this|that)\s+(?:polic(?:y|ies)|plans?|cover(?:age)?|applications?|underwriting|riders?)(?:'s)?\b/gi;
 
@@ -2024,6 +2057,29 @@ function withoutContractPhrases(userInput: string): string {
  */
 const PERSONAL_FRAMING =
   /\b(?:i|i'm|i've|i'd|i'll|me|my|mine|myself|we|we're|our|ours|us|father|mother|mom|mum|dad|parent|parents|brother|sister|sibling|spouse|wife|husband|partner|son|daughter|child|children|kid|kids|grandfather|grandmother|grandparent)\b/i;
+
+/**
+ * The question paths' personal-framing test: `PERSONAL_FRAMING` with `child`
+ * removed. Inside "child abuse" or "child neglect" the word "child" is the
+ * condition's modifier, not a person reference — but the same word in the
+ * same sentence is what a contract question uses ("does the policy have a
+ * child abuse exclusion?"), so the compound must be set aside before the test
+ * rather than the word removed from the list. Blanking the bare compound is
+ * safe in these paths because a personal frame always carries its own marker
+ * outside the compound: "does child abuse affect my premium?" still has "my",
+ * and "was my child abused?" still has "my" — only the impersonal question
+ * loses the false positive.
+ */
+const PERSONAL_FRAMING_FOR_QUESTIONS = new RegExp(
+  PERSONAL_FRAMING.source.replace('child|', ''),
+  'i',
+);
+
+/** The text with the maltreatment compounds removed, for the question paths. */
+function withoutQuestionCompounds(userInput: string): string {
+  const compound = new RegExp(`\\b${MALTREATMENT_TERMS}\\b`, 'gi');
+  return userInput.replace(compound, ' ');
+}
 
 /**
  * Conditions common enough to be named without the crosswalk vocabulary.
@@ -2080,7 +2136,18 @@ function namesCondition(userInput: string): boolean {
  */
 export function detectHealthTopicQuestion(userInput: string): boolean {
   if (!QUESTION_OPENER.test(userInput)) return false;
-  if (PERSONAL_FRAMING.test(userInput)) return false;
+  // The act-as-subject payout question decides its own person (see
+  // FIRST_PERSON_PATTERN): first-person wording makes it the visitor's own
+  // act — a disclosure, refused here so the caller keeps it on the health-data
+  // path — while the generic form ("If someone takes their own life, does the
+  // policy pay out?") is a question about the product, caught even though it
+  // names no condition. When the act sits beside an explicit provision ("does
+  // the suicide exclusion apply if someone takes their own life?") the
+  // contract rule is consulted first in the caller and its own act guard
+  // refuses it — this branch never runs there, and the road test's pinned
+  // rows hold.
+  if (isSelfHarmActPayoutQuestion(userInput)) return !FIRST_PERSON_PATTERN.test(userInput);
+  if (PERSONAL_FRAMING_FOR_QUESTIONS.test(withoutQuestionCompounds(userInput))) return false;
   return namesCondition(userInput);
 }
 
@@ -2111,7 +2178,7 @@ export function detectHealthTopicQuestion(userInput: string): boolean {
  * It is a classification, not a permission granted here: the caller answers it
  * like any other product question, because what was asked is about the policy.
  * What it deliberately does **not** cover is the suicide wording's statement
- * form (that is `withoutProductProvisions`), any personally-framed question, and
+ * form (the registry's product-provision entry), any personally-framed question, and
  * any sentence describing an act of self-harm (`SELF_HARM_ACT_PATTERN`) — those
  * three keep the health-topic or health-data handoff.
  *
@@ -2131,7 +2198,15 @@ export function detectContractQuestion(userInput: string): boolean {
   // An act of self-harm described in *any* person is not a contract question:
   // it keeps the health-topic handoff rather than a policy answer.
   if (SELF_HARM_ACT_PATTERN.test(userInput)) return false;
-  return !PERSONAL_FRAMING.test(withoutContractPhrases(userInput));
+  // (The earlier PAYMENT_VERB guard's second branch is folded into the act
+  // guard above: an act question in conditional form fails the same test —
+  // `SELF_HARM_ACT_PATTERN` matches the act whether or not a payout verb
+  // follows, so the second `if` could never run. The conditional payout
+  // question is caught by the topic predicate's act branch instead, and the
+  // road test's pinned rows hold.)
+  return !PERSONAL_FRAMING_FOR_QUESTIONS.test(
+    withoutQuestionCompounds(withoutContractPhrases(userInput)),
+  );
 }
 
 /**
@@ -2204,7 +2279,15 @@ export function detectSensitiveData(
   // an account number is still caught by the financial and PII checks below.
   const contractQuestion = detectContractQuestion(userInput);
 
-  if (!contractQuestion && QUESTION_OPENER.test(userInput) && namesCondition(userInput)) {
+  // The act-as-subject payout question names no condition, so it is consulted
+  // before (and independently of) the condition test — the predicate applies
+  // its personal-framing guard, keeping the first-person form on the
+  // disclosure path below.
+  if (
+    !contractQuestion &&
+    QUESTION_OPENER.test(userInput) &&
+    (isSelfHarmActPayoutQuestion(userInput) || namesCondition(userInput))
+  ) {
     return detectHealthTopicQuestion(userInput) ? 'health_topic_question' : 'health_data';
   }
 
@@ -2267,18 +2350,14 @@ export function detectSensitiveData(
   // apnea") — see HEALTH_CONDITION_TERMS / HEALTH_CONDITION_WORD_TERMS.
   // Without these, a visitor who names a condition without using a disclosure
   // word (diagnosed/medication/...) is not classified as health data at all.
-  // Matched against a copy of the text with the product's own provision
-  // phrasing removed (`withoutProductProvisions`), so "the suicide clause in
-  // the policy" is what it is — a product question — while the disclosure
-  // forms name no provision and cannot be silenced by the strip — and with the
-  // topic-mention frames removed too (`withoutTopicMentions`), because the
-  // 1.14.0 abuse and exploitation terms are what a document is about as well as
-  // what a disclosure names. Both strips remove a frame, never a term on its
-  // own: "forced labor" and "I was trafficked as a child" are untouched.
-  if (
-    !contractQuestion &&
-    isHealthConditionTerm(withoutTopicMentions(withoutProductProvisions(userInput)))
-  ) {
+  // Matched against a copy of the text with the ordinary-sense shapes
+  // removed (`stripOrdinarySenseShapes`), so "the suicide clause in the
+  // policy" is what it is — a product question — "the report mentions forced
+  // labor" is the report's subject, and "child abuse policy for our staff" is
+  // a policy topic, while the disclosure forms name no frame and cannot be
+  // silenced by the strips. They remove a frame, never a term on its own:
+  // "forced labor" and "I was trafficked as a child" are untouched.
+  if (!contractQuestion && isHealthConditionTerm(stripOrdinarySenseShapes(userInput))) {
     return 'health_data';
   }
 

@@ -1,0 +1,109 @@
+# ICD-10-CM Chapter XXI (Z00–Z99), the three-character category titles of the
+# whole chapter, verbatim FY 2026 — the sixth coverage-sweep corpus and the
+# fourth codebook enumeration. Written down before any of its rows were mapped
+# (2026-09-19): 90 titles, of which 42 are candidates.
+#
+# The 48 titles that are not candidates are declared here rather than dropped,
+# because "this row cannot be a disclosure" is a finding the next sweep should
+# re-read rather than rediscover. Each block names the rows it covers and the
+# reason, and each row's *stateable* form — the sentence a person would actually
+# write — is watched by a gate term or mapped as a canonical condition, which is
+# why the declarations are safe: the chapter's content is covered, its
+# navigation is not pretended to be a statement.
+#
+# ── Group A: encounter constructs. An encounter code records why a visit
+# happened, not something the person reports, so no visitor sentence contains
+# one. Declared here: Encounter for general examination without complaint,
+# suspected or reported diagnosis; Encounter for other special examination
+# without complaint, suspected or reported diagnosis; Encounter for
+# administrative examination; Encounter for examination and observation for
+# other reasons; Encounter for immunization; Immunization not carried out and
+# underimmunization status; Encounter for other prophylactic measures; Encounter
+# for contraceptive management; Encounter for procreative management; Encounter
+# for antenatal screening of mother; Outcome of delivery; Liveborn infants
+# according to place of birth and type of delivery; Encounter for maternal
+# postpartum care and examination; Encounter for prophylactic surgery; Encounter
+# for procedures for purposes other than remedying health state; Encounter for
+# plastic and reconstructive surgery following medical procedure or healed
+# injury; Encounter for fitting and adjustment of other devices; Orthopedic
+# aftercare; Encounter for other postprocedural aftercare; Encounter for other
+# aftercare and medical care; Persons encountering health services for specific
+# procedures and health care, not carried out; Encounter for mental health
+# services for victim and perpetrator of abuse (the disclosure itself — "I was
+# abused", "childhood abuse" — is gated by its own terms); Counseling related to
+# sexual attitude, behavior and orientation; Persons encountering health
+# services for other counseling and medical advice, not elsewhere classified.
+#
+# ── Group B: socioeconomic and psychosocial circumstances. A circumstance the
+# codebook files as a problem — unemployment, housing, schooling, life
+# management — is not a health condition and is not this product's subject
+# matter either, so gating the words would only catch the product's own copy.
+# Declared here: Problems related to education and literacy; Problems related to
+# employment and unemployment; Occupational exposure to risk factors (the
+# substances a person names — asbestos — are gated instead); Problems related to
+# physical environment; Problems related to housing and economic circumstances;
+# Problems related to social environment; Problems related to upbringing; Other
+# problems related to primary support group, including family circumstances;
+# Problems related to certain psychosocial circumstances; Problems related to
+# other psychosocial circumstances; Problems related to lifestyle (each
+# lifestyle fact is watched by its own field rule); Problems related to life
+# management difficulty; Problems related to care provider dependency; Problems
+# related to medical facilities and other health care; Persons encountering
+# health services in other circumstances.
+#
+# ── Group C: report and risk-factor constructs. A resistance pattern belongs to
+# an organism, a receptor status to a pathology report, and "other specified
+# health status" to a coder with more information than a visitor has. Declared
+# here: Resistance to antimicrobial drugs; Estrogen, and other hormones and
+# factors receptor status; Other specified health status; Other contact with and
+# (suspected) exposures hazardous to health (the exposure words — asbestos,
+# lead — are gated); Personal risk factors, not elsewhere classified.
+#
+# ── Group D: device, prosthesis and machine states. The stateable form is the
+# thing a person names — "I am an amputee", "I have a prosthetic leg", "I am on
+# a ventilator", "I have a colostomy" — and each of those is gated; the category
+# wording ("Presence of other devices") is not a sentence anyone writes.
+# Declared here: Acquired absence of limb; Presence of other devices; Other
+# postprocedural states; Dependence on enabling machines and devices, not
+# elsewhere classified.
+Encounter for medical observation for suspected diseases and conditions ruled out
+Encounter for observation and evaluation of newborn for suspected diseases and conditions ruled out
+Encounter for follow-up examination after completed treatment for malignant neoplasm
+Encounter for follow-up examination after completed treatment for conditions other than malignant neoplasm
+Encounter for screening for infectious and parasitic diseases
+Encounter for screening for malignant neoplasms
+Encounter for screening for other diseases and disorders
+Genetic carrier
+Genetic susceptibility to disease
+Hormone sensitivity malignancy status
+Contact with and (suspected) exposure to communicable diseases
+Asymptomatic human immunodeficiency virus [HIV] infection status
+Carrier of infectious disease
+Encounter for pregnancy test and childbirth and childcare instruction
+Pregnant state
+Encounter for supervision of normal pregnancy
+Weeks of gestation
+Encounter for attention to artificial openings
+Encounter for fitting and adjustment of external prosthetic device
+Encounter for adjustment and management of implanted device
+Encounter for care involving renal dialysis
+Donors of organs and tissues
+Do not resuscitate
+Blood type
+Body mass index [BMI]
+Long term (current) drug therapy
+Family history of primary malignant neoplasm
+Family history of mental and behavioral disorders
+Family history of certain disabilities and chronic diseases (leading to disablement)
+Family history of other specific disorders
+Family history of other conditions
+Personal history of malignant neoplasm
+Personal history of certain other diseases
+Personal history of other diseases and conditions
+Allergy status to drugs, medicaments and biological substances
+Acquired absence of organs, not elsewhere classified
+Personal history of medical treatment
+Artificial opening status
+Transplanted organ and tissue status
+Presence of cardiac and vascular implants and grafts
+Presence of other functional implants

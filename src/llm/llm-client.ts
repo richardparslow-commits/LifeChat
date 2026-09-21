@@ -173,9 +173,10 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMCallResult> {
     response_format: { type: 'json_object' },
   };
 
-  // Determine API base URL (OpenAI-compatible)
-  const apiBaseUrl = process.env.LLM_API_BASE_URL || 'https://api.openai.com/v1';
-  const endpoint = `${apiBaseUrl}/chat/completions`;
+  // Determine API base URL (OpenAI-compatible). Read from config, not the
+  // environment directly, so startup, /health, and the client cannot disagree
+  // about which provider the app is pointed at.
+  const endpoint = `${config.llmApiBaseUrl}/chat/completions`;
 
   // Attempt with retry (one retry for idempotent reads)
   const maxAttempts = 2;

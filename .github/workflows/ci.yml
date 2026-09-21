@@ -85,3 +85,6 @@ jobs:
 
       - name: Verdict gate (retrieval + policy regression)
         run: npm run test:verdicts
+
+      - name: Condition-coverage sweep (every candidate mapped or gated)
+        run: npm run conditions:sweep

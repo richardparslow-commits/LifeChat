@@ -7,9 +7,12 @@
  *   npm run conditions:sweep -- --json              machine-readable output
  *   npm run conditions:sweep -- --report-only       never fail the exit code
  *
- * Exits 1 when any candidate is silent (neither mapped nor gated) or mapped
- * without the gate watching for it. A gated-but-uncoded row is policy, not a
- * failure — it is listed so the next reviewer can see the decision.
+ * Exits 1 when any candidate is silent (neither mapped nor gated), mapped
+ * without the gate watching for it, or carrying a deferral that is no longer
+ * silent (a stale ledger entry). A gated-but-uncoded row is policy, not a
+ * failure — it is listed so the next reviewer can see the decision — and a
+ * declared deferral is a recorded decision, not a failure, so it does not
+ * affect the exit code while it is still silent.
  */
 
 import {
@@ -29,8 +32,13 @@ const USAGE = [
   '  npm run conditions:sweep -- --report-only       always exit 0',
   '',
   'Candidate list format: one phrase per line, `#` comments and blank lines ignored,',
-  'or a JSON array of strings.',
-  'Committed corpora:',
+  'or a JSON array of strings or deferred objects ({ "phrase", "deferred_reason" }).',
+  '',
+  '  ? <phrase> :: <reason>   declare a deliberate deferral — measured every run,',
+  '                           reported as `deferred`, never counted as a silent gap,',
+  '                           and a declaration whose row is no longer silent fails.',
+  '',
+  'Committed corpora and the deferral ledger:',
   ...COMMITTED_CANDIDATE_LIST_PATHS.map((listPath) => `  ${listPath}`),
 ].join('\n');
 
