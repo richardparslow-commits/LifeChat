@@ -19,6 +19,7 @@
 import 'dotenv/config';
 
 import { timingSafeEqual } from 'crypto';
+import type { Server } from 'http';
 import { accessSync, constants, existsSync, mkdirSync } from 'fs';
 import express, { Request, Response } from 'express';
 import path from 'path';
@@ -1370,28 +1371,43 @@ if (!config.pilotMode && !isRecordEncryptionKeyConfigured()) {
 runStartupPreflight();
 
 /**
- * Start the server
+ * Start the server — unless running serverless.
+ *
+ * On platforms whose runtime starts each invocation itself (Vercel's Node
+ * runtime), calling listen() during a cold start crashes the invocation with
+ * EADDRINUSE-style errors or a hung boot. SERVERLESS=true builds the same app
+ * but leaves the port alone: the platform owns the socket. The in-memory
+ * session and rate-limit stores do not outlive a warm instance there, so the
+ * periodic cleanup loops are skipped rather than scheduled — there is nothing
+ * long-lived for them to sweep.
  */
-const server = app.listen(config.port, () => {
-  // Start periodic cleanup of expired sessions (30-min TTL)
-  startSessionCleanup();
-  // Start periodic cleanup of stale rate-limit entries (prevents unbounded
-  // memory growth from unique session IDs and clears expired lockouts)
-  startRateLimitCleanup();
+let server: Server | undefined;
+if (config.serverless) {
+  console.log('  Serverless mode: listening is owned by the platform (SERVERLESS=true).');
+} else {
+  server = app.listen(config.port, () => {
+    // Start periodic cleanup of expired sessions (30-min TTL)
+    startSessionCleanup();
+    // Start periodic cleanup of stale rate-limit entries (prevents unbounded
+    // memory growth from unique session IDs and clears expired lockouts)
+    startRateLimitCleanup();
 
-  console.log(`\n  ${PRODUCT_DEFINITION.name}`);
-  console.log(`  Owner: ${PRODUCT_DEFINITION.owner}`);
-  console.log(`  Jurisdiction: ${PRODUCT_DEFINITION.initialJurisdiction}`);
-  console.log(`  Pilot mode: ${config.pilotMode}`);
-  console.log(
-    `  Health data collection: ${config.healthDataCollectionDisabled ? 'DISABLED' : 'enabled'}`,
-  );
-  console.log(`  Outbound marketing: ${config.outboundMarketingDisabled ? 'DISABLED' : 'enabled'}`);
-  console.log(`\n  Server running at http://localhost:${config.port}`);
-  console.log(`  Widget at http://localhost:${config.port}/widget.js`);
-  console.log(`  Session history: max 20 turns, 30-min TTL`);
-  console.log('');
-});
+    console.log(`\n  ${PRODUCT_DEFINITION.name}`);
+    console.log(`  Owner: ${PRODUCT_DEFINITION.owner}`);
+    console.log(`  Jurisdiction: ${PRODUCT_DEFINITION.initialJurisdiction}`);
+    console.log(`  Pilot mode: ${config.pilotMode}`);
+    console.log(
+      `  Health data collection: ${config.healthDataCollectionDisabled ? 'DISABLED' : 'enabled'}`,
+    );
+    console.log(
+      `  Outbound marketing: ${config.outboundMarketingDisabled ? 'DISABLED' : 'enabled'}`,
+    );
+    console.log(`\n  Server running at http://localhost:${config.port}`);
+    console.log(`  Widget at http://localhost:${config.port}/widget.js`);
+    console.log(`  Session history: max 20 turns, 30-min TTL`);
+    console.log('');
+  });
+}
 
 /**
  * Graceful shutdown.
@@ -1410,13 +1426,15 @@ function shutdown(signal: string): void {
     process.exit(0);
   }, 5000);
   forceExit.unref();
-  server.close(() => {
+  server?.close(() => {
     clearTimeout(forceExit);
     process.exit(0);
   });
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+if (!config.serverless) {
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
 
 export { server, app };

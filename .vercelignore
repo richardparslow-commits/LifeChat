@@ -1,0 +1,13 @@
+# Keep the deploy payload to what the serverless function actually needs.
+# The function bundles api/ and dist/ (tsc output); tests, corpora, and CI
+# plumbing stay out of every deployment.
+.github
+tests
+coverage
+data
+*.log
+.env
+.env.*
+!.env.example
+docs/
+README.md

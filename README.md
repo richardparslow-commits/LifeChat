@@ -164,12 +164,28 @@ npm run a11y:checklist
 # deliberately deferred (exits 1 on a silent row). Sweeps all 13 committed
 # sources in one run: the carrier questionnaire and critical-illness lists,
 # ten ICD-10-CM chapter enumerations (V, VI, IX, X, XI, XII, XIII, XIV,
-# XVIII, XXI), and the deferral ledger, which is re-asked on every sweep.
-npm run conditions:sweep
+# XVIII, XXI), and the deferral ledger, which is re-asked on every sweep.npm run conditions:sweep
 
 # The sweep's machine-readable form (per-source totals and per-row status)
 npm run conditions:sweep -- --json
+
 ```
+
+## Deployment
+
+The app runs two ways, both documented in [docs/sandbox-deployment.md](docs/sandbox-deployment.md):
+
+- **Container / long-running** (§2–§9) — `npm run build && npm start` binds the
+  port itself (`LIFECHAT_PORT` wins, else the platform-injected `PORT`), with a
+  mounted `data/` volume for records. This remains the path where durable
+  record files matter.
+- **Vercel (serverless)** — merge to `main` and the `Deploy (Vercel)` workflow
+  deploys with the `VERCEL_KEY` repository secret, then smoke-checks `/health`
+  and the widget. The platform sets `VERCEL=1`, so the app builds without
+  binding a port (`api/index.ts` exports the Express app; `vercel.json` rewrites
+  `/api/*` to it and bundles `dist/` + `public/`). `tests/serverless-mode.test.ts`
+  pins the no-listen contract. Read §11's caveats on record persistence before
+  enabling consent capture there.
 
 ## Configuration
 
