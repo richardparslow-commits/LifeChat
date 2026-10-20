@@ -10,6 +10,10 @@
 import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
 
 process.env.DSR_LOG_PATH = tempLogPath('dsr-test');
+// dsr.ts imports validateEmail from consent-model, which loads the lead log.
+// Point that at a temp file too, so importing dsr never reads (or warns
+// about) the repo's data/ directory.
+process.env.LEAD_LOG_PATH = tempLogPath('dsr-lead');
 
 import {
   clearAllDsrRecords,
@@ -20,14 +24,14 @@ import {
   submitDsr,
 } from '../src/privacy/dsr';
 
-beforeEach(() => {
-  clearAllDsrRecords();
+beforeEach(async () => {
+  await clearAllDsrRecords();
 });
 
 describe('submitDsr — validation', () => {
-  test('accepts every TDPSA request type', () => {
+  test('accepts every TDPSA request type', async () => {
     for (const requestType of DSR_REQUEST_TYPES) {
-      const result = submitDsr({
+      const result = await submitDsr({
         requestType,
         contactEmail: 'user@example.com',
       });
@@ -35,8 +39,8 @@ describe('submitDsr — validation', () => {
     }
   });
 
-  test('rejects an unknown request type', () => {
-    const result = submitDsr({
+  test('rejects an unknown request type', async () => {
+    const result = await submitDsr({
       requestType: 'nuclear_option',
       contactEmail: 'user@example.com',
     });
@@ -46,8 +50,8 @@ describe('submitDsr — validation', () => {
     }
   });
 
-  test('rejects an invalid contact email', () => {
-    const result = submitDsr({
+  test('rejects an invalid contact email', async () => {
+    const result = await submitDsr({
       requestType: 'deletion',
       contactEmail: 'not-an-email',
     });
@@ -59,8 +63,8 @@ describe('submitDsr — validation', () => {
 });
 
 describe('submitDsr — record creation', () => {
-  test('creates a received record with id, timestamp, and status', () => {
-    const result = submitDsr({
+  test('creates a received record with id, timestamp, and status', async () => {
+    const result = await submitDsr({
       requestType: 'access',
       contactEmail: 'user@example.com',
     });
@@ -74,8 +78,8 @@ describe('submitDsr — record creation', () => {
     expect(result.record.detail).toBeNull();
   });
 
-  test('trims and stores the optional detail', () => {
-    const result = submitDsr({
+  test('trims and stores the optional detail', async () => {
+    const result = await submitDsr({
       requestType: 'correction',
       contactEmail: 'user@example.com',
       detail: '  my phone number changed  ',
@@ -85,35 +89,35 @@ describe('submitDsr — record creation', () => {
     expect(result.record.detail).toBe('my phone number changed');
   });
 
-  test('45-day TDPSA response SLA is exposed', () => {
+  test('45-day TDPSA response SLA is exposed', async () => {
     expect(DSR_RESPONSE_SLA_DAYS).toBe(45);
   });
 });
 
 describe('DSR store', () => {
-  test('getDsrRecord returns the record by id', () => {
-    const result = submitDsr({
+  test('getDsrRecord returns the record by id', async () => {
+    const result = await submitDsr({
       requestType: 'portability',
       contactEmail: 'user@example.com',
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(getDsrRecord(result.record.request_id)?.request_type).toBe('portability');
+    expect((await getDsrRecord(result.record.request_id))?.request_type).toBe('portability');
   });
 
-  test('getDsrRecord returns undefined for an unknown id', () => {
-    expect(getDsrRecord('does-not-exist')).toBeUndefined();
+  test('getDsrRecord returns undefined for an unknown id', async () => {
+    expect(await getDsrRecord('does-not-exist')).toBeUndefined();
   });
 
-  test('listDsrRecords returns all submitted records', () => {
-    submitDsr({ requestType: 'access', contactEmail: 'a@example.com' });
-    submitDsr({ requestType: 'deletion', contactEmail: 'b@example.com' });
+  test('listDsrRecords returns all submitted records', async () => {
+    await submitDsr({ requestType: 'access', contactEmail: 'a@example.com' });
+    await submitDsr({ requestType: 'deletion', contactEmail: 'b@example.com' });
     expect(listDsrRecords()).toHaveLength(2);
   });
 
-  test('clearAllDsrRecords empties the store', () => {
-    submitDsr({ requestType: 'access', contactEmail: 'a@example.com' });
-    clearAllDsrRecords();
+  test('clearAllDsrRecords empties the store', async () => {
+    await submitDsr({ requestType: 'access', contactEmail: 'a@example.com' });
+    await clearAllDsrRecords();
     expect(listDsrRecords()).toHaveLength(0);
   });
 });
@@ -131,7 +135,7 @@ describe('DSR store', () => {
 describe('DSR persistence across restarts', () => {
   test('a submitted record is loaded after a simulated restart', async () => {
     // 1. Submit a record (persists to JSONL)
-    const result = submitDsr({
+    const result = await submitDsr({
       requestType: 'access',
       contactEmail: 'persist@example.com',
       detail: 'please send my data',
@@ -144,9 +148,10 @@ describe('DSR persistence across restarts', () => {
     //    loadDsrRecordsFromDisk() runs at module init on the fresh import.
     jest.resetModules();
     const reloaded = await import('../src/privacy/dsr');
+    await reloaded.ensureDsrRecordsLoaded();
 
     // 3. The reloaded module should have the record in its in-memory store.
-    const found = reloaded.getDsrRecord(submittedId);
+    const found = await reloaded.getDsrRecord(submittedId);
     expect(found).toBeDefined();
     expect(found?.request_type).toBe('access');
     expect(found?.contact_email).toBe('persist@example.com');
@@ -154,14 +159,14 @@ describe('DSR persistence across restarts', () => {
     expect(found?.status).toBe('received');
 
     // Cleanup: delete the JSONL file so it doesn't leak into other tests.
-    reloaded.clearAllDsrRecords();
+    await reloaded.clearAllDsrRecords();
   });
 
   test('multiple submitted records are all loaded after a simulated restart', async () => {
     // Submit three records of different types
-    const r1 = submitDsr({ requestType: 'access', contactEmail: 'a@example.com' });
-    const r2 = submitDsr({ requestType: 'deletion', contactEmail: 'b@example.com' });
-    const r3 = submitDsr({
+    const r1 = await submitDsr({ requestType: 'access', contactEmail: 'a@example.com' });
+    const r2 = await submitDsr({ requestType: 'deletion', contactEmail: 'b@example.com' });
+    const r3 = await submitDsr({
       requestType: 'correction',
       contactEmail: 'c@example.com',
       detail: 'fix my name',
@@ -171,26 +176,28 @@ describe('DSR persistence across restarts', () => {
 
     jest.resetModules();
     const reloaded = await import('../src/privacy/dsr');
+    await reloaded.ensureDsrRecordsLoaded();
 
     expect(reloaded.listDsrRecords()).toHaveLength(3);
-    expect(reloaded.getDsrRecord(r1.record.request_id)?.request_type).toBe('access');
-    expect(reloaded.getDsrRecord(r2.record.request_id)?.request_type).toBe('deletion');
-    expect(reloaded.getDsrRecord(r3.record.request_id)?.detail).toBe('fix my name');
+    expect((await reloaded.getDsrRecord(r1.record.request_id))?.request_type).toBe('access');
+    expect((await reloaded.getDsrRecord(r2.record.request_id))?.request_type).toBe('deletion');
+    expect((await reloaded.getDsrRecord(r3.record.request_id))?.detail).toBe('fix my name');
 
-    reloaded.clearAllDsrRecords();
+    await reloaded.clearAllDsrRecords();
   });
 
   test('clearAllDsrRecords removes the JSONL file so a restart starts empty', async () => {
-    submitDsr({ requestType: 'access', contactEmail: 'clear@example.com' });
+    await submitDsr({ requestType: 'access', contactEmail: 'clear@example.com' });
     expect(listDsrRecords()).toHaveLength(1);
 
     // Clear both memory and disk
-    clearAllDsrRecords();
+    await clearAllDsrRecords();
     expect(listDsrRecords()).toHaveLength(0);
 
     // Simulate a restart — the reloaded module should find no records
     jest.resetModules();
     const reloaded = await import('../src/privacy/dsr');
+    await reloaded.ensureDsrRecordsLoaded();
     expect(reloaded.listDsrRecords()).toHaveLength(0);
   });
 });
@@ -202,7 +209,7 @@ describe('DSR persistence across restarts', () => {
  */
 describe('DSR at-rest encryption', () => {
   const encryptedLog = tempLogPath('dsr-enc');
-  const key = 'test-encryption-key-123';
+  const key = `test-encryption-key-${'d'.repeat(24)}`;
 
   afterAll(async () => {
     // Clean up the encrypted log file created during these tests
@@ -210,7 +217,8 @@ describe('DSR at-rest encryption', () => {
     process.env.DSR_LOG_PATH = encryptedLog;
     jest.resetModules();
     const mod = await import('../src/privacy/dsr');
-    mod.clearAllDsrRecords();
+    await mod.ensureDsrRecordsLoaded();
+    await mod.clearAllDsrRecords();
     delete process.env.RECORD_ENCRYPTION_KEY;
     delete process.env.DSR_LOG_PATH;
     jest.resetModules();
@@ -225,14 +233,14 @@ describe('DSR at-rest encryption', () => {
     return await import('../src/privacy/dsr');
   }
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.RECORD_ENCRYPTION_KEY;
     delete process.env.DSR_LOG_PATH;
   });
 
   test('writes an encrypted envelope, not plaintext, when a key is configured', async () => {
     const mod = await loadEncryptedModule();
-    const result = mod.submitDsr({
+    const result = await mod.submitDsr({
       requestType: 'access',
       contactEmail: 'encrypted@example.com',
       detail: 'sensitive PII detail',
@@ -253,7 +261,7 @@ describe('DSR at-rest encryption', () => {
 
   test('decrypts encrypted records on reload so in-memory lookup still works', async () => {
     const first = await loadEncryptedModule();
-    const result = first.submitDsr({
+    const result = await first.submitDsr({
       requestType: 'deletion',
       contactEmail: 'reencrypt@example.com',
     });
@@ -263,24 +271,26 @@ describe('DSR at-rest encryption', () => {
     // Simulate a restart — the reloaded module loads + decrypts from disk
     jest.resetModules();
     const reloaded = await import('../src/privacy/dsr');
-    const found = reloaded.getDsrRecord(result.record.request_id);
+    await reloaded.ensureDsrRecordsLoaded();
+    const found = await reloaded.getDsrRecord(result.record.request_id);
     expect(found).toBeDefined();
     expect(found?.contact_email).toBe('reencrypt@example.com');
     expect(found?.request_type).toBe('deletion');
 
-    reloaded.clearAllDsrRecords();
+    await reloaded.clearAllDsrRecords();
   });
 
   test('cannot decrypt encrypted records without the correct key', async () => {
     const first = await loadEncryptedModule();
-    first.submitDsr({ requestType: 'access', contactEmail: 'wrongkey@example.com' });
+    await first.submitDsr({ requestType: 'access', contactEmail: 'wrongkey@example.com' });
 
     // Reload with a DIFFERENT key — the auth-tag check fails and the line is
     // skipped (never silently misread).
-    process.env.RECORD_ENCRYPTION_KEY = 'a-different-key';
+    process.env.RECORD_ENCRYPTION_KEY = `a-different-key-${'e'.repeat(24)}`;
     process.env.DSR_LOG_PATH = encryptedLog;
     jest.resetModules();
     const reloaded = await import('../src/privacy/dsr');
+    await reloaded.ensureDsrRecordsLoaded();
     // No records load because the stored envelope can't be authenticated
     expect(reloaded.listDsrRecords()).toHaveLength(0);
   });
@@ -296,8 +306,9 @@ describe('DSR fail-closed persistence', () => {
     process.env.DSR_LOG_PATH = '/dev/null/records.jsonl';
     jest.resetModules();
     const mod = await import('../src/privacy/dsr');
+    await mod.ensureDsrRecordsLoaded();
 
-    const result = mod.submitDsr({
+    const result = await mod.submitDsr({
       requestType: 'deletion',
       contactEmail: 'user@example.com',
     });
@@ -314,10 +325,11 @@ describe('DSR fail-closed persistence', () => {
     process.env.DSR_LOG_PATH = '/dev/null/records.jsonl';
     jest.resetModules();
     const mod = await import('../src/privacy/dsr');
+    await mod.ensureDsrRecordsLoaded();
 
     // submit many — none should be stored or acknowledged
     for (let i = 0; i < 3; i++) {
-      const r = mod.submitDsr({
+      const r = await mod.submitDsr({
         requestType: 'access',
         contactEmail: 'u@example.com',
       });
@@ -339,7 +351,7 @@ describe('DSR keyless-startup warning', () => {
   // transitively — point it at an empty temp file so the real dev log's
   // encrypted records do not trigger a warning mid-test.
   const tempLeadLog = tempLogPath('dsr-keyless-lead');
-  const key = 'warning-test-key-123';
+  const key = `warning-test-key-${'f'.repeat(24)}`;
   const originalKey = process.env.RECORD_ENCRYPTION_KEY;
   const originalLog = process.env.DSR_LOG_PATH;
   const originalLeadLog = process.env.LEAD_LOG_PATH;
@@ -362,7 +374,7 @@ describe('DSR keyless-startup warning', () => {
     process.env.LEAD_LOG_PATH = tempLeadLog;
   }
 
-  afterEach(() => {
+  afterEach(async () => {
     restoreEnv();
   });
 
@@ -373,10 +385,11 @@ describe('DSR keyless-startup warning', () => {
     process.env.LEAD_LOG_PATH = tempLeadLog;
     jest.resetModules();
     const mod = await import('../src/privacy/dsr');
-    mod.clearAllDsrRecords();
+    await mod.ensureDsrRecordsLoaded();
+    await mod.clearAllDsrRecords();
     jest.resetModules();
     await import('../src/privacy/dsr');
-    // clearAllDsrRecords() removes the active log; these cover the others.
+    // await clearAllDsrRecords() removes the active log; these cover the others.
     cleanupTempLogs(encLog, plainLog, tempLeadLog);
     restoreEnv();
   });
@@ -388,7 +401,8 @@ describe('DSR keyless-startup warning', () => {
     useTempEnv();
     jest.resetModules();
     const withKey = await import('../src/privacy/dsr');
-    const created = withKey.submitDsr({
+    await withKey.ensureDsrRecordsLoaded();
+    const created = await withKey.submitDsr({
       requestType: 'access',
       contactEmail: 'keyless@example.com',
     });
@@ -400,6 +414,7 @@ describe('DSR keyless-startup warning', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const noKey = await import('../src/privacy/dsr');
+      await noKey.ensureDsrRecordsLoaded();
       expect(noKey.listDsrRecords()).toHaveLength(0);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('RECORD_ENCRYPTION_KEY'));
       expect(warnSpy.mock.calls[0][0]).toContain('skipped');
@@ -416,7 +431,8 @@ describe('DSR keyless-startup warning', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const mod = await import('../src/privacy/dsr');
-      const r = mod.submitDsr({
+      await mod.ensureDsrRecordsLoaded();
+      const r = await mod.submitDsr({
         requestType: 'access',
         contactEmail: 'plain@example.com',
       });
@@ -441,17 +457,19 @@ describe('DSR keyless-startup warning', () => {
     process.env.DSR_LOG_PATH = encLog;
     jest.resetModules();
     const withKey = await import('../src/privacy/dsr');
-    const created = withKey.submitDsr({
+    await withKey.ensureDsrRecordsLoaded();
+    const created = await withKey.submitDsr({
       requestType: 'access',
       contactEmail: 'wrongkey@example.com',
     });
     expect(created.ok).toBe(true);
 
-    process.env.RECORD_ENCRYPTION_KEY = 'a-different-key-456';
+    process.env.RECORD_ENCRYPTION_KEY = `a-different-key-${'g'.repeat(24)}`;
     jest.resetModules();
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const wrongKey = await import('../src/privacy/dsr');
+      await wrongKey.ensureDsrRecordsLoaded();
       expect(wrongKey.listDsrRecords()).toHaveLength(0);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('could not be decoded'));
     } finally {

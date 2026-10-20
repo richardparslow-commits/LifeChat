@@ -14,6 +14,8 @@
  */
 
 import request from 'supertest';
+
+import { seedSession, testSessionId } from './helpers/test-session';
 import type { Express } from 'express';
 import type { Server } from 'http';
 
@@ -142,11 +144,12 @@ describe('HEALTH_DATA_COLLECTION_DISABLED refused medical data when not "false"'
     });
 
     it('refuses health data shared in education with a gated licensed-broker handoff', async () => {
-      const res = await request(loaded.app).post('/api/chat').send({
-        sessionId: 'default-edu-health',
-        currentState: 'education',
-        message: 'I have diabetes and I take insulin',
-      });
+      const res = await request(loaded.app)
+        .post('/api/chat')
+        .send({
+          sessionId: testSessionId('default-edu-health'),
+          message: 'I have diabetes and I take insulin',
+        });
       expect(res.status).toBe(200);
       expect(res.body.state).toBe('handoff');
       expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
@@ -157,11 +160,12 @@ describe('HEALTH_DATA_COLLECTION_DISABLED refused medical data when not "false"'
     });
 
     it('refuses health data in medical_review even when the flag is not explicitly set', async () => {
-      // With the flag effectively off, even a request into the consented
-      // review state receives no health data — the gate applies.
+      // With the flag effectively off, even a server-authoritative review
+      // state with recorded consent receives no health data — the gate applies.
+      const sessionId = testSessionId('default-medreview-health');
+      await seedSession(sessionId, 'medical_review', true);
       const res = await request(loaded.app).post('/api/chat').send({
-        sessionId: 'default-medreview-health',
-        currentState: 'medical_review',
+        sessionId,
         message: 'I have diabetes and I take insulin',
       });
       expect(res.status).toBe(200);

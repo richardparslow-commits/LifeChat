@@ -93,15 +93,45 @@ readiness on `llm.configured === false` if you intend to demo the fallback path.
 
 ## 5. Secrets
 
-1. `ADMIN_API_KEY`, `RECORD_ENCRYPTION_KEY`, `LLM_API_KEY`, `TEXAS_LICENSE_NUMBER`
-   belong in the platform's secret store — not in an image, not in a committed
-   file. `.env` is gitignored and must never be shipped in an image:
-   add `.env` to `.dockerignore`.
+1. `ADMIN_API_KEY`, `RECORD_ENCRYPTION_KEY` and `LLM_API_KEY` belong in the
+   platform's secret store — not in an image, not in a committed file.
+   `TEXAS_LICENSE_NUMBER` is a public identifier, so a repository variable is
+   enough, but it belongs in configuration rather than in source. `.env` is
+   gitignored and must never be shipped in an image: add `.env` to
+   `.dockerignore`.
 2. Production (`PILOT_MODE=false`) **refuses to start** without
    `TEXAS_LICENSE_NUMBER`, `ADMIN_API_KEY`, and `RECORD_ENCRYPTION_KEY`. Treat a
    failed boot as the checklist telling you what is missing, not as an outage.
-3. Rotate `ADMIN_API_KEY` on staff change; it gates the system prompt, session
+3. The admin and record-encryption keys have a **32-character minimum**,
+   enforced at boot in every mode (pilot included). A shorter value is refused
+   rather than accepted as a weak setting — constant-time comparison cannot
+   protect a guessable secret. Generate them with `openssl rand -base64 48`.
+   The pre-deploy gate adds a **20-character floor** for `LLM_API_KEY`, below
+   the length of any managed provider's real key.
+4. Rotate `ADMIN_API_KEY` on staff change; it gates the system prompt, session
    history, DSR status, and the kill switch.
+5. Before shipping, run `npm run secrets:gate` (the Vercel deploy workflow runs
+   it automatically). For the secrets it rejects a missing key, one below the
+   length floor, a placeholder (including model-provider templates such as
+   `your-api-key-here`), a repeated or sequential value, a low-entropy value,
+   the same value used under two names, and accidental surrounding whitespace.
+   The license number is checked as an identifier rather than a secret: the
+   pending sentinel, templates, letters, a number shorter than five digits,
+   repeated digits (`0000000`) and straight runs (`1234567`) are all refused.
+   It reports only length and measured shape — never the values — so its output
+   is safe in CI.
+6. On the Vercel path, the deploy workflow then **writes the validated
+   `ADMIN_API_KEY` and `RECORD_ENCRYPTION_KEY` into the project's production
+   environment** (`scripts/sync-vercel-secrets.sh`) before deploying, from the
+   same repository secrets the gate checked. Vercel values are write-only, so
+   pushing the checked copy is the only way to guarantee the deployed value is
+   the checked value; rotating either key in GitHub and merging is enough to
+   update both copies. The sync addresses the project explicitly
+   (`--scope`/`--project`), which is why the two project IDs above are
+   mandatory: a secret written to the wrong project would leave the function
+   being deployed on a stale value. Other deployment paths (container, manual)
+   must supply those values from their own secret store — this sync is
+   Vercel-specific.
 
 ## 6. TLS and reverse proxy (required before any public URL)
 
@@ -130,9 +160,11 @@ Two details that matter here:
 
 - **`X-Real-IP` / `X-Forwarded-For`:** the write-endpoint limiter keys on
   `req.ip`. Behind a proxy without those headers every client looks like the
-  proxy, so one abuser exhausts the shared budget. If you set
-  `app.set('trust proxy', ...)`, do it deliberately and only for a proxy you
-  control.
+  proxy, so one abuser exhausts the shared budget. Proxy trust is off unless
+  `TRUST_PROXY` is set; enable it only for a proxy you control, as a hop count
+  (`TRUST_PROXY=1`), a keyword (`TRUST_PROXY=loopback`), or an explicit subnet
+  list. An unparseable value is ignored with a warning, so the process degrades
+  to trusting nothing rather than trusting everything.
 - **CORS:** the API's allowlist is the only browser gate. Keep
   `ALLOWED_ORIGINS` to the exact blog origin; do not use `*` — several endpoints
   carry consent artifacts.
@@ -179,8 +211,11 @@ User=lifechat
 - [ ] `HEALTH_DATA_COLLECTION_DISABLED=true` stays true until Texas counsel
       approves the Phase 2 flow (`docs/medical-lead-capture-phase2.md` §7). Live
       medical capture is a counsel decision, not a deployment one.
-- [ ] `ADMIN_API_KEY` set and stored as a secret.
-- [ ] `RECORD_ENCRYPTION_KEY` set before the first record is written.
+- [ ] `ADMIN_API_KEY` set (32+ characters), stored as a secret, and accepted by
+      `npm run secrets:gate`.
+- [ ] `TRUST_PROXY` set to the actual proxy hop count/keyword, or left unset.
+- [ ] `RECORD_ENCRYPTION_KEY` set before the first record is written, different
+      from `ADMIN_API_KEY`, and accepted by `npm run secrets:gate`.
 - [ ] `TEXAS_LICENSE_NUMBER` is the verified number (until set, `/api/disclosure`
       returns `null` and the disclosure omits the license line).
 - [ ] `ALLOWED_ORIGINS` is exactly the embed origin(s).
@@ -222,12 +257,16 @@ lint + typecheck + build again, deploys with the Vercel CLI
 must answer 200 and `/widget.js` must serve. A failed probe fails the deploy
 job visibly instead of shipping a broken URL.
 
-**Required repository secret.** `VERCEL_KEY` — a Vercel token scoped to the
+**Required repository secrets.** `VERCEL_KEY` — a Vercel token scoped to the
 project (Account Settings → Tokens, or per-project under Project Settings →
-Git Integration). Optional secrets: `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`
-pin the deploy to one project; without them the token's default scope decides.
-If `VERCEL_KEY` is unset the deploy job skips itself with an explanatory
-message, so forks and pre-secret states stay green.
+Git Integration) — plus `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`, which identify
+the team and the project. Both IDs are required whenever `VERCEL_KEY` is set:
+the secret sync writes the validated keys to that exact project and the deploy
+targets the same one, so a missing pair fails the job with a clear message
+instead of writing to whatever project the CLI guessed from the checkout.
+`VERCEL_PROJECT_ID` is the `prj_…` id and `VERCEL_ORG_ID` the `team_…` id (both
+printed by `vercel link`). If `VERCEL_KEY` is unset the deploy job skips itself
+with an explanatory message, so forks and pre-secret states stay green.
 
 **How the app adapts.** `vercel.json` runs `npm run build` (tsc) and bundles
 `dist/` and `public/` into the function (`includeFiles`); `/api/*` rewrites to

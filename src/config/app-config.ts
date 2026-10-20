@@ -5,6 +5,8 @@
  * All sensitive values should be loaded from environment variables.
  */
 
+import { resolve } from 'path';
+
 export interface AppConfig {
   /** Port for the Express server */
   port: number;
@@ -58,6 +60,13 @@ export interface AppConfig {
    *  Set SERVERLESS=true on platforms whose runtime starts invocations itself
    *  (Vercel). Unset by default: local and container runs listen as before. */
   serverless: boolean;
+  /**
+   * Express `trust proxy` setting, from TRUST_PROXY. Empty means "do not trust
+   * any proxy" (the safe default): req.ip is the socket address, so a caller
+   * cannot spoof X-Forwarded-For to escape the per-client write limit. Set it
+   * to the platform's hop count (e.g. "1") only behind a proxy you control.
+   */
+  trustProxy: string;
   /** Whether health data collection is disabled.
    *  Phase 1/2 gate: default true. Flip to false only after counsel approval
    *  of the medical consent flow (docs/medical-lead-capture-phase2.md).
@@ -162,6 +171,7 @@ export const config: AppConfig = {
   // SERVERLESS=true as the manual override for any other serverless runtime.
   // Local and container runs leave both unset so the server starts as before.
   serverless: process.env.SERVERLESS === 'true' || process.env.VERCEL === '1',
+  trustProxy: (process.env.TRUST_PROXY || '').trim(),
   // Phase 2 gate — enabled only by explicit opt-in in .env after counsel review
   healthDataCollectionDisabled: process.env.HEALTH_DATA_COLLECTION_DISABLED !== 'false',
   outboundMarketingDisabled: true,
@@ -209,6 +219,17 @@ export function isAllowedOrigin(origin: string): boolean {
 }
 
 /**
+ * Minimum length for ADMIN_API_KEY (SEC-10).
+ *
+ * The key is the only thing standing in front of the system prompt, session
+ * history, lead-status lookups, session deletion, and the runtime kill switch.
+ * A short key is guessable offline, and the constant-time comparison in front
+ * of it cannot help against a 4-character secret — so the floor is enforced at
+ * boot, in every mode, exactly as it is for RECORD_ENCRYPTION_KEY.
+ */
+export const MIN_ADMIN_API_KEY_LENGTH = 32;
+
+/**
  * True when an admin API key is configured (non-empty). Admin endpoints use
  * this to decide whether to enforce the x-admin-key header. In pilot mode
  * the endpoints remain accessible without a key for dev convenience; in
@@ -219,12 +240,60 @@ export function isAdminApiKeyConfigured(): boolean {
 }
 
 /**
+ * True when the configured admin key meets the minimum length. A configured
+ * key below the floor is refused at boot rather than accepted as "configured".
+ */
+export function isAdminApiKeyStrong(): boolean {
+  return config.adminApiKey.trim().length >= MIN_ADMIN_API_KEY_LENGTH;
+}
+
+/**
  * True when at-rest record encryption is configured (RECORD_ENCRYPTION_KEY
  * non-empty). In production mode startup fails fast until a key is supplied,
  * so DSR and lead logs are never persisted in plaintext in production.
  */
 export function isRecordEncryptionKeyConfigured(): boolean {
   return config.recordEncryptionKey.trim().length > 0;
+}
+
+/**
+ * True when a record log path points to an ephemeral or relative filesystem
+ * location while running in serverless mode (`config.serverless === true`).
+ *
+ * Serverless platforms (such as Vercel) provide a read-only deployment bundle
+ * and an ephemeral `/tmp` scratchpad that is wiped across cold starts and not
+ * shared across instances. Legal records (TDPSA DSR requests and consent-proof
+ * lead records) must never be acknowledged if written to an ephemeral
+ * serverless filesystem unless durable external storage is explicitly
+ * configured (`DURABLE_STORAGE_CONFIGURED=true`).
+ */
+export function isEphemeralServerlessPath(logPath: string): boolean {
+  if (!config.serverless) {
+    return false;
+  }
+  if (process.env.DURABLE_STORAGE_CONFIGURED === 'true') {
+    return false;
+  }
+  const trimmed = logPath.trim();
+  if (!trimmed) {
+    return true;
+  }
+  const resolved = resolve(trimmed);
+  if (
+    resolved === '/tmp' ||
+    resolved.startsWith('/tmp/') ||
+    resolved === '/private/tmp' ||
+    resolved.startsWith('/private/tmp/') ||
+    resolved.startsWith('/var/task/')
+  ) {
+    return true;
+  }
+  // Relative paths inside the serverless bundle (e.g., default `data/*.jsonl`)
+  // are either read-only or ephemeral to the invocation container.
+  if (!trimmed.startsWith('/')) {
+    return true;
+  }
+  return false;
 }
 
 /**

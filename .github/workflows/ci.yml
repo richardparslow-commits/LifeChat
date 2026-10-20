@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only by default: neither job needs to write to the repository, and a
+# pull request from a fork must not inherit a writable token.
+permissions:
+  contents: read
+
 # Cancel in-progress runs for the same ref to save CI minutes
 concurrency:
   group: ci-${{ github.ref }}
@@ -22,10 +27,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -50,11 +55,37 @@ jobs:
 
       - name: Upload coverage artifact
         if: matrix.node-version == 22
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: test-coverage
           path: coverage/
           retention-days: 14
+
+  # Dependency vulnerability gate. `npm run audit` is `npm audit --audit-level=high`,
+  # so a high or critical advisory fails the build outright while moderate findings
+  # are reported without blocking. It sits at high rather than low so a dev-toolchain
+  # advisory with no upstream fix cannot make the required check permanently red; the
+  # tree is clean at every level today (the `overrides` entry for the Jest coverage
+  # toolchain's js-yaml is what keeps the moderate chain at zero).
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from the lockfile
+        run: npm ci
+
+      - name: npm audit (fail on high or critical)
+        run: npm run audit
 
   # Persona & golden-set compliance gate.
   # Runs the bundled persona-guardrail checks as an independent, fast gate so a
@@ -69,10 +100,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm

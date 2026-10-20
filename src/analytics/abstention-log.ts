@@ -22,9 +22,8 @@
  */
 
 import { createHash } from 'crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
-import { dirname } from 'path';
 import { config } from '../config/app-config';
+import { appendJsonlLine, readJsonlLines } from '../persistence/jsonl-log';
 
 export interface AbstentionLogEntry {
   event: 'abstention';
@@ -66,8 +65,31 @@ export function deriveQuestionCategory(
 }
 
 /**
+ * Writes in flight, so tests and shutdown can wait for them. Entries remove
+ * themselves on completion; the set is bounded by concurrent traffic, not by
+ * log size.
+ */
+const pendingWrites = new Set<Promise<void>>();
+
+/**
+ * Resolves once every abstention write started so far has finished.
+ * The orchestrator fires and forgets (a chat turn must not wait on analytics),
+ * so the end-to-end test uses this instead of sleeping.
+ */
+export async function settleAbstentionWrites(): Promise<void> {
+  while (pendingWrites.size > 0) {
+    await Promise.all([...pendingWrites]);
+  }
+}
+
+/**
  * Appends one abstention record to the JSONL log (best-effort, never throws).
  * No-op when ABSTENTION_LOGGING_ENABLED=false.
+ *
+ * Asynchronous on purpose: the write goes through a stream so an abstention
+ * never blocks the chat turn that triggered it. The returned promise resolves
+ * when this record is flushed, so a caller that cares can await it; the
+ * orchestrator deliberately does not.
  */
 export function logAbstention(input: {
   userMessage: string;
@@ -75,8 +97,8 @@ export function logAbstention(input: {
   contextualArticleTopic?: string | null;
   articleId?: string | null;
   timestamp?: string;
-}): void {
-  if (!config.abstentionLoggingEnabled) return;
+}): Promise<void> {
+  if (!config.abstentionLoggingEnabled) return Promise.resolve();
 
   const entry: AbstentionLogEntry = {
     event: 'abstention',
@@ -86,16 +108,14 @@ export function logAbstention(input: {
     timestamp: input.timestamp ?? new Date().toISOString(),
   };
 
-  try {
-    const logPath = config.abstentionLogPath;
-    const dir = dirname(logPath);
-    if (dir && dir !== '.') {
-      mkdirSync(dir, { recursive: true });
-    }
-    appendFileSync(logPath, `${JSON.stringify(entry)}\n`, 'utf8');
-  } catch {
-    // Best-effort only — logging must never break a chat turn.
-  }
+  // Best-effort only — logging must never break a chat turn. The catch is the
+  // belt for anything unexpected, because a turn must never fail on logging.
+  const write = appendJsonlLine(config.abstentionLogPath, JSON.stringify(entry))
+    .catch(() => undefined)
+    .then(() => undefined);
+  pendingWrites.add(write);
+  void write.then(() => pendingWrites.delete(write));
+  return write;
 }
 
 /**
@@ -103,36 +123,28 @@ export function logAbstention(input: {
  * tooling / the editorial calendar. Returns an empty array when logging is
  * disabled or the file doesn't exist yet.
  */
-export function readAbstentionLog(limit = 200): AbstentionLogEntry[] {
+export async function readAbstentionLog(limit = 200): Promise<AbstentionLogEntry[]> {
   if (!config.abstentionLoggingEnabled) return [];
-  const logPath = config.abstentionLogPath;
-  if (!existsSync(logPath)) return [];
-  try {
-    const lines = readFileSync(logPath, 'utf8')
-      .split('\n')
-      .filter((l) => l.trim().length > 0);
-    const entries: AbstentionLogEntry[] = [];
-    for (const line of lines) {
-      try {
-        const parsed = JSON.parse(line) as AbstentionLogEntry;
-        if (parsed && parsed.event === 'abstention') entries.push(parsed);
-      } catch {
-        // skip malformed lines
-      }
+  const lines = await readJsonlLines(config.abstentionLogPath);
+  const entries: AbstentionLogEntry[] = [];
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line) as AbstentionLogEntry;
+      if (parsed && parsed.event === 'abstention') entries.push(parsed);
+    } catch {
+      // skip malformed lines
     }
-    return entries.slice(-limit);
-  } catch {
-    return [];
   }
+  return entries.slice(-limit);
 }
 
 /**
  * Aggregates abstention counts by category — the direct "editorial calendar"
  * feed: which content gaps exist and recur.
  */
-export function abstentionCountsByCategory(): Record<string, number> {
+export async function abstentionCountsByCategory(): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
-  for (const entry of readAbstentionLog(10000)) {
+  for (const entry of await readAbstentionLog(10000)) {
     const key = entry.question_category || '(uncategorized)';
     counts[key] = (counts[key] || 0) + 1;
   }

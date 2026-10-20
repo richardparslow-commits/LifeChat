@@ -1031,20 +1031,51 @@ function tokenize(text: string): string[] {
  *
  *   premium  → \bpremiums?\b       (matches premium, premiums)
  *   policy   → \bpolic(?:y|ies)\b  (matches policy, policies)
- *   box      → \box(?:es)?\b       (matches box, boxes)
+ *   premiums → \bpremiums(?:es)?\b (matches a token that already ends in 's')
  *
- * Words ending in 'ss' (boss, loss) are left as-is.
+ * Words ending in 'ss' (boss, loss) are left as-is, and a short word ending in
+ * another sibilant (box) matches only itself.
  */
-function tokenRegex(token: string): RegExp {
+/**
+ * Bound on the compiled-token cache.
+ *
+ * Query tokens are caller-supplied, so the cache needs a ceiling of its own:
+ * without one, distinct tokens from distinct queries would grow it forever.
+ */
+export const MAX_COMPILED_TOKEN_REGEXES = 5_000;
+
+/** Compiled token regexes, insertion-ordered so the oldest can be evicted. */
+const tokenRegexCache = new Map<string, RegExp>();
+
+/**
+ * Returns the word-boundary regex for a token, compiling it at most once.
+ *
+ * Retrieval scores every corpus document against every query token, so the
+ * old build-per-document path compiled the same regex N_docs times per token
+ * per request. The cache makes that one compile per distinct token, and an
+ * unknown token still matches exactly as before.
+ */
+export function tokenRegex(token: string): RegExp {
+  const cached = tokenRegexCache.get(token);
+  if (cached) return cached;
+
+  let compiled: RegExp;
   if (token.length > 4 && token.endsWith('y')) {
     const stem = token.slice(0, -1);
-    return new RegExp(`\\b${stem}(?:y|ies)\\b`);
+    compiled = new RegExp(`\\b${stem}(?:y|ies)\\b`);
+  } else if (token.length > 3 && token.endsWith('s') && !token.endsWith('ss')) {
+    compiled = new RegExp(`\\b${token}(?:es)?\\b`);
+  } else {
+    // Default: accept an optional trailing 's' so singular also matches plural.
+    compiled = new RegExp(`\\b${token}s?\\b`);
   }
-  if (token.length > 3 && token.endsWith('s') && !token.endsWith('ss')) {
-    return new RegExp(`\\b${token}(?:es)?\\b`);
+
+  if (tokenRegexCache.size >= MAX_COMPILED_TOKEN_REGEXES) {
+    const oldest = tokenRegexCache.keys().next();
+    if (!oldest.done) tokenRegexCache.delete(oldest.value);
   }
-  // Default: accept an optional trailing 's' so singular also matches plural.
-  return new RegExp(`\\b${token}s?\\b`);
+  tokenRegexCache.set(token, compiled);
+  return compiled;
 }
 
 /**

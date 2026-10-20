@@ -24,6 +24,8 @@ import request from 'supertest';
 import type { Express } from 'express';
 import type { Server } from 'http';
 
+import { testSessionId } from './helpers/test-session';
+
 interface LoadedApp {
   app: Express;
   server: Server;
@@ -270,7 +272,8 @@ describe('server hardening — write endpoints are bounded per client', () => {
 });
 
 describe('server hardening — the kill switch has a runtime control', () => {
-  const ADMIN_KEY = 'hardening-admin-key';
+  // 32+ characters: the boot entropy gate refuses a shorter key (SEC-10).
+  const ADMIN_KEY = 'hardening-admin-key-0123456789abcdef';
   let loaded: LoadedApp;
 
   beforeAll(async () => {
@@ -314,11 +317,12 @@ describe('server hardening — the kill switch has a runtime control', () => {
     const availability = await request(loaded.app).get('/api/availability');
     expect(availability.body.staffed).toBe(false);
 
-    const chat = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'kill-switch-drill',
-      currentState: 'education',
-      message: 'What is term life insurance?',
-    });
+    const chat = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('kill-switch-drill'),
+        message: 'What is term life insurance?',
+      });
     expect(chat.status).toBe(200);
     expect(chat.body.state).toBe('standby');
 

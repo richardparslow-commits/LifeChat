@@ -33,6 +33,8 @@
  */
 
 import request from 'supertest';
+
+import { seedSession, testSessionId } from './helpers/test-session';
 import type { Express } from 'express';
 import type { Server } from 'http';
 import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
@@ -1062,8 +1064,7 @@ describe('/api/chat — education state blocks condition disclosures with a hand
     const res = await request(loaded.app)
       .post('/api/chat')
       .send({
-        sessionId: `gate-edu-${label.replace(/\s+/g, '-')}`,
-        currentState: 'education',
+        sessionId: testSessionId(`gate-edu-${label.replace(/\s+/g, '-')}`),
         message,
       });
     expect(res.status).toBe(200);
@@ -1074,11 +1075,12 @@ describe('/api/chat — education state blocks condition disclosures with a hand
   });
 
   test('does not block an ordinary educational question', async () => {
-    const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'gate-edu-control',
-      currentState: 'education',
-      message: 'What is the difference between term and whole life insurance?',
-    });
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('gate-edu-control'),
+        message: 'What is the difference between term and whole life insurance?',
+      });
     expect(res.status).toBe(200);
     expect(res.body.risk_flags).not.toContain('sensitive_data_disclosed');
     expect(res.body.assistant_message).not.toContain(BLOCK_MESSAGE);
@@ -1110,8 +1112,7 @@ describe('/api/chat — education state blocks condition disclosures with a hand
     const res = await request(loaded.app)
       .post('/api/chat')
       .send({
-        sessionId: `gate-edu-meta-${label.replace(/\s+/g, '-')}`,
-        currentState: 'education',
+        sessionId: testSessionId(`gate-edu-meta-${label.replace(/\s+/g, '-')}`),
         message,
       });
     // ONE object comparison, deliberately: a failure prints the status, the
@@ -1146,8 +1147,7 @@ describe('/api/chat — education state blocks condition disclosures with a hand
       const res = await request(loaded.app)
         .post('/api/chat')
         .send({
-          sessionId: i < 11 ? `gate-order-${i}` : 'gate-order-0',
-          currentState: 'education',
+          sessionId: testSessionId(i < 11 ? `gate-order-${i}` : 'gate-order-0'),
           message,
         });
       states.push(`${res.status}:${String(res.body.state)}`);
@@ -1191,20 +1191,22 @@ describe('/api/chat — the same disclosure is accepted only in consented medica
   });
 
   test('a condition term is still not blocked in medical_review, and still blocked in education', async () => {
+    const reviewSession = testSessionId('gate-review-lupus');
+    await seedSession(reviewSession, 'medical_review', true);
     const inReview = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'gate-review-lupus',
-      currentState: 'medical_review',
+      sessionId: reviewSession,
       message: 'I have lupus',
     });
     expect(inReview.status).toBe(200);
     expect(inReview.body.risk_flags).not.toContain('sensitive_data_disclosed');
     expect(inReview.body.assistant_message).not.toContain(BLOCK_MESSAGE);
 
-    const inEducation = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'gate-review-edu-lupus',
-      currentState: 'education',
-      message: 'I have lupus',
-    });
+    const inEducation = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('gate-review-edu-lupus'),
+        message: 'I have lupus',
+      });
     expect(inEducation.status).toBe(200);
     expect(inEducation.body.state).toBe('handoff');
     expect(inEducation.body.risk_flags).toContain('sensitive_data_disclosed');
@@ -1231,7 +1233,7 @@ describe('/api/chat — a health topic question hands off without being logged a
   ])('hands off %s as a topic question, not a disclosure', async (label, message) => {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId: `topic-${label}`, currentState: 'education', message });
+      .send({ sessionId: testSessionId(`topic-${label}`), message });
 
     expect(res.status).toBe(200);
     // Same safety: no answer from the model, deterministic handoff.
@@ -1255,18 +1257,19 @@ describe('/api/chat — a health topic question hands off without being logged a
     // come back as the abstention path instead of a handoff.
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId: 'topic-no-model', currentState: 'education', message: 'Is TB curable?' });
+      .send({ sessionId: testSessionId('topic-no-model'), message: 'Is TB curable?' });
     expect(res.body.analytics.event_name).toBe('ai_handoff_request');
     expect(res.body.action_arguments.handoff_reason).toBe('health_topic_question');
     expect(res.body.assistant_message).not.toMatch(/culture|antibiotic|latent/i);
   });
 
   test('a personal question about the same condition is still a disclosure', async () => {
-    const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'topic-personal',
-      currentState: 'education',
-      message: 'does MS affect my life insurance rate?',
-    });
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('topic-personal'),
+        message: 'does MS affect my life insurance rate?',
+      });
     expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
     expect(res.body.risk_flags).not.toContain('health_topic_question');
     expect(res.body.assistant_message).toContain(BLOCK_MESSAGE);
@@ -1286,19 +1289,21 @@ describe('/api/chat — a topic question is accepted in consented medical_review
   });
 
   test('medical_review accepts it, education hands it off', async () => {
+    const reviewSession = testSessionId('topic-review');
+    await seedSession(reviewSession, 'medical_review', true);
     const inReview = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'topic-review',
-      currentState: 'medical_review',
+      sessionId: reviewSession,
       message: 'Is TB curable?',
     });
     expect(inReview.status).toBe(200);
     expect(inReview.body.risk_flags).not.toContain('health_topic_question');
 
-    const inEducation = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'topic-review-edu',
-      currentState: 'education',
-      message: 'Is TB curable?',
-    });
+    const inEducation = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('topic-review-edu'),
+        message: 'Is TB curable?',
+      });
     expect(inEducation.body.state).toBe('handoff');
     expect(inEducation.body.risk_flags).toContain('health_topic_question');
   });

@@ -128,8 +128,10 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   if (!retrievalResult.hasSufficientEvidence && isAnswerState) {
     // Content-strategy feed: record an anonymized abstention (hash + category,
     // never the raw question or any PII) so the editorial calendar can close
-    // the knowledge gap the approved corpus cannot yet answer.
-    logAbstention({
+    // the knowledge gap the approved corpus cannot yet answer. The append is a
+    // non-blocking stream write and is deliberately not awaited: analytics must
+    // never add latency to (or break) the turn that triggered it.
+    void logAbstention({
       userMessage: input.userMessage,
       topicCategory: input.topicCategory,
       contextualArticleTopic: input.contextualArticleTopic,

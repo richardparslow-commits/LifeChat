@@ -9,6 +9,8 @@ import {
   retrieveFromCorpus,
   formatRetrievedContext,
   passagesToCitations,
+  tokenRegex,
+  MAX_COMPILED_TOKEN_REGEXES,
 } from '../src/rag/retrieval';
 
 describe('RAG Retrieval — retrieveFromCorpus', () => {
@@ -173,5 +175,35 @@ describe('RAG Retrieval — passagesToCitations', () => {
     for (const c of citations) {
       expect(c.url).toMatch(/^https?:\/\//);
     }
+  });
+});
+
+describe('RAG Retrieval — compiled token regexes (PERF-03)', () => {
+  test('compiles each token once and reuses the instance', () => {
+    const first = tokenRegex('premium');
+    const second = tokenRegex('premium');
+    expect(second).toBe(first);
+    // The cache is shared across queries, which is the point of precompiling.
+    retrieveFromCorpus('What is a premium?');
+    expect(tokenRegex('premium')).toBe(first);
+  });
+
+  test('keeps the plural tolerance it was compiled for', () => {
+    expect(tokenRegex('premium').test('life insurance premiums')).toBe(true);
+    expect(tokenRegex('policy').test('two policies')).toBe(true);
+    expect(tokenRegex('premium').test('premiums')).toBe(true);
+    // A token that already ends in "s" matches itself, not an "es" plural.
+    expect(tokenRegex('premiums').test('premiums')).toBe(true);
+    // Still word-bounded: no match inside "coverage" for "over".
+    expect(tokenRegex('over').test('coverage')).toBe(false);
+  });
+
+  test('bounds the cache so caller-supplied tokens cannot grow it forever', () => {
+    for (let i = 0; i < MAX_COMPILED_TOKEN_REGEXES + 250; i++) {
+      tokenRegex(`synthetic${i}tokens`);
+    }
+    // A token evicted from the cache is simply recompiled, never wrong.
+    const revived = tokenRegex('term');
+    expect(revived.test('term life')).toBe(true);
   });
 });

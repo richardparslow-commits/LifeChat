@@ -17,6 +17,7 @@ The assistant is **educational, not advisory**. It may explain approved content 
 - **Admin-gated operations** — system prompt, session history, session listing/deletion, RAG search, and DSR status require an `x-admin-key` header compared in constant time when `ADMIN_API_KEY` is configured.
 - **Per-window budgets that actually enforce** — 20 requests and 50,000 tokens per session per 60-second window (the token budget counts real LLM usage end-to-end; a locked-out session recovers on window rollover).
 - **Contextual content bridge** — the article being read enriches the opening message and prioritizes RAG retrieval; pre-approved visual cards can attach to responses.
+- **In-chat scheduling** — on a scheduling turn the widget renders the server's own bookable times (`GET /api/scheduling/slots`) as a labelled group of buttons, each labelled with the practice's local time. Choosing one posts that id to `POST /api/scheduling/select`; the model never supplies a time, and selecting books nothing until the visitor confirms.
 
 ## Key Design Principles
 
@@ -157,8 +158,23 @@ npm run test:verdicts
 # Both + persona unit tests
 npm run test:persona
 
+# Repeat-until-failure harness for the suites that have flaked in full runs.
+# Stops at the first failure, keeps that log, and reruns each failing test alone
+# to say whether it is deterministic or load/order dependent.
+npm run test:flake -- --iterations 20
+npm run test:flake -- --suite tests/api-endpoints.test.ts --workers 50%
+
 # Section 508 walkthrough — the runnable checklist and the recorded results it validates
 npm run a11y:checklist
+
+# Pre-deploy posture gate — rejects a missing, short, placeholder, repeated,
+# sequential, or low-entropy ADMIN_API_KEY / RECORD_ENCRYPTION_KEY / LLM_API_KEY,
+# a TEXAS_LICENSE_NUMBER that is the pending sentinel or a number-shaped
+# placeholder (all digits repeated or in a straight run), and a secret reused
+# under two names. The license is a public identifier, so it is reported by
+# shape only. The deploy workflow runs this before the build; `-- --mode pilot`
+# makes the values optional but still validates any that are set.
+npm run secrets:gate
 
 # Condition-coverage sweep — every candidate phrase is mapped, gated, or
 # deliberately deferred (exits 1 on a silent row). Sweeps all 13 committed
@@ -180,10 +196,16 @@ The app runs two ways, both documented in [docs/sandbox-deployment.md](docs/sand
   mounted `data/` volume for records. This remains the path where durable
   record files matter.
 - **Vercel (serverless)** — merge to `main` and the `Deploy (Vercel)` workflow
-  deploys with the `VERCEL_KEY` repository secret, then smoke-checks `/health`
-  and the widget. The platform sets `VERCEL=1`, so the app builds without
-  binding a port (`api/index.ts` exports the Express app; `vercel.json` rewrites
-  `/api/*` to it and bundles `dist/` + `public/`). `tests/serverless-mode.test.ts`
+  validates the `ADMIN_API_KEY`, `RECORD_ENCRYPTION_KEY` and `LLM_API_KEY`
+  repository secrets plus `TEXAS_LICENSE_NUMBER` (a repository variable is
+  enough) with `npm run secrets:gate`, pushes the validated admin and
+  record-encryption keys into the Vercel project's production environment
+  (`scripts/sync-vercel-secrets.sh`, so the deployed value is the checked
+  value), deploys with the `VERCEL_KEY` repository secret, then smoke-checks
+  `/health` and the widget. The platform sets `VERCEL=1`, so the app builds
+  without binding a port (`api/index.ts` exports the Express app; `vercel.json`
+  rewrites `/api/*` to it and bundles `dist/` + `public/`).
+  `tests/serverless-mode.test.ts`
   pins the no-listen contract. Read §11's caveats on record persistence before
   enabling consent capture there.
 
@@ -196,13 +218,13 @@ LIFECHAT_PORT=3000 # wins when set; otherwise PORT is honored (hosting platforms
 ALLOWED_ORIGINS="" # cross-origin embed allowlist; empty = same-origin only (see Embedding the Widget)
 BUSINESS_NAME="Life Policy Pilot"
 LICENSED_BROKER_NAME="Richard Parslow"
-TEXAS_LICENSE_NUMBER="[Your Texas license number]"
+TEXAS_LICENSE_NUMBER="[Your Texas license number]" # verified TDI number; placeholders and the pending sentinel are rejected by the pre-deploy gate and by production startup
 APPOINTED_CARRIERS="" # comma-separated carriers Richard Parslow is appointed with (allowlist)
 WEBSITE_URL="https://lifepolicypilot.blog/"
 PRIVACY_NOTICE_URL="https://lifepolicypilot.blog/privacy/"
 CONTACT_URL="https://lifepolicypilot.blog/contact/"
 DSR_EMAIL="privacy@lifepolicypilot.blog" # data subject requests (TDPSA rights)
-LLM_API_KEY="your-api-key"
+LLM_API_KEY="your-api-key" # provider key: required by the production pre-deploy gate, optional at runtime (no key = static fallback)
 LLM_MODEL="gpt-4o"
 PILOT_MODE=true
 HEALTH_DATA_COLLECTION_DISABLED=true # set false ONLY after counsel approval (gated medical capture)
@@ -213,14 +235,17 @@ ABSTENTION_LOGGING_ENABLED=true # Abstention logging for content strategy: hashe
 ABSTENTION_LOG_PATH="data/abstention-log.jsonl"
 
 # Security & record store (added in the compliance audit)
-ADMIN_API_KEY="" # when set, gates /api/system-prompt, session history/sessions, RAG search, DSR status, and the runtime kill switch, via x-admin-key
-RECORD_ENCRYPTION_KEY="" # 32-byte hex key (openssl rand -hex 32). Encrypts DSR + lead logs at rest; loaders warn and skip records if missing or wrong. Do not change after records are written.
+ADMIN_API_KEY="" # when set (32+ chars), gates /api/system-prompt, session history/sessions, RAG search, DSR status, and the runtime kill switch, via x-admin-key; a shorter key refuses to start
+RECORD_ENCRYPTION_KEY="" # 32+ chars (openssl rand -base64 48). Encrypts DSR + lead logs at rest; loaders warn and skip records if missing or wrong. Do not change after records are written.
+TRUST_PROXY="" # empty = trust no proxy. Set to your proxy's hop count (1), keyword (loopback), or subnet list only when you control it; an unparseable value is ignored with a warning
 DSR_LOG_PATH="data/dsr-records.jsonl"
 LEAD_LOG_PATH="data/lead-records.jsonl"
 ```
 
 > **License disclosure:** `TEXAS_LICENSE_NUMBER` is required before going live
-> (Texas Insurance Code §541.003 / TAC §19.1004). While unset, `/api/disclosure`
+> (Texas Insurance Code §541.003 / TAC §19.1004) and is checked by the pre-deploy
+> gate for the pending sentinel, templates, letters, repeated digits, and
+> straight runs (`1234567`). While unset, `/api/disclosure`
 > returns `texasLicenseNumber: null` (never the placeholder) and production startup
 > (`PILOT_MODE=false`) fails fast. The appointment disclaimer
 > ("Richard Parslow is appointed with select carriers. Coverage availability may

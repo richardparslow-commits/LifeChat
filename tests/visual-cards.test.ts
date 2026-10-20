@@ -15,6 +15,7 @@ import type { Server } from 'http';
 import { cardLibrary, getCardById, ALLOWED_CARD_TYPES } from '../src/cards/card-library';
 import { validateCard } from '../src/cards/card-validation';
 import { SYSTEM_PROMPT } from '../src/prompts/system-prompt';
+import { testSessionId } from './helpers/test-session';
 
 interface LoadedApp {
   app: Express;
@@ -215,7 +216,10 @@ describe('VISUAL_CARDS_ENABLED kill switch', () => {
     try {
       const res = await request(app)
         .post('/api/chat')
-        .send({ session_id: 'vrc-enable-1', message: 'no-op (LLM disabled)' });
+        .send({
+          sessionId: testSessionId('vrc-enable-1'),
+          message: 'no-op (LLM disabled)',
+        });
       expect(res.status).toBe(200);
       // With an empty LLM key the flow returns a static fallback with no card;
       // the kill-switch contract is about not CRASHING and returning 200.
@@ -230,7 +234,7 @@ describe('VISUAL_CARDS_ENABLED kill switch', () => {
     try {
       const res = await request(app)
         .post('/api/chat')
-        .send({ session_id: 'vrc-disable-1', message: 'no-op' });
+        .send({ sessionId: testSessionId('vrc-disable-1'), message: 'no-op' });
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('risk_flags');
     } finally {
@@ -243,7 +247,7 @@ describe('VISUAL_CARDS_ENABLED kill switch', () => {
     try {
       const res = await request(app)
         .post('/api/chat')
-        .send({ session_id: 'vrc-off-1', message: 'no-op' });
+        .send({ sessionId: testSessionId('vrc-off-1'), message: 'no-op' });
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('visual_card');
     } finally {

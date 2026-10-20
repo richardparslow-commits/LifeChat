@@ -19,6 +19,7 @@ import {
   getContextualOpeningMessage,
   getFirstMessageDisclosure,
 } from '../src/prompts/system-prompt';
+import { testSessionId } from './helpers/test-session';
 
 // ── 3.2 page-context validation (CCB-002..009) ──
 describe('validatePageContext', () => {
@@ -366,8 +367,7 @@ describe('/api/chat session persistence of page context', () => {
     const res = await request(loaded.app)
       .post('/api/chat')
       .send({
-        sessionId: 'ccb-session-1',
-        currentState: 'education',
+        sessionId: testSessionId('ccb-session-1'),
         message: 'How much life insurance do I need?',
         userRequestsDimeEstimator: true,
         page_context: { url: 'https://lifepolicypilot.blog/coverage-needs-estimator/' },

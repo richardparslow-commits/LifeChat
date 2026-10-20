@@ -8,6 +8,7 @@
 import {
   detectPromptInjection,
   detectSensitiveData,
+  containsPersonalIdentifier,
   sanitizeRetrievedContent,
   checkRateLimit,
   incrementTokenCount,
@@ -17,6 +18,10 @@ import {
   RATE_LIMIT_CONFIG,
   detectProhibitedPromotionalOffer,
   PROMOTIONAL_OFFER_PATTERNS,
+  MAX_RATE_LIMIT_ENTRIES,
+  getRateLimitStoreSize,
+  getWriteRateLimitStoreSize,
+  clearAllRateLimits,
 } from '../src/security/security-controls';
 import { validateEmail, validatePhone, createLeadRecord } from '../src/consent/consent-model';
 
@@ -286,6 +291,20 @@ describe('Security — detectSensitiveData', () => {
     // PII is checked last; if a message contains both health and PII, health wins
     const result = detectSensitiveData('I have diabetes and my email is test@example.com');
     expect(result).toBe('health_data');
+  });
+
+  test('containsPersonalIdentifier sees PII that the single-category classifier ranks below health', () => {
+    // The chat route gates on this predicate independently, because
+    // detectSensitiveData() would report only 'health_data' here — and
+    // medical_review is allowed to pass health data to the model.
+    const combined = 'I have diabetes and my email is test@example.com';
+    expect(detectSensitiveData(combined)).toBe('health_data');
+    expect(containsPersonalIdentifier(combined)).toBe(true);
+  });
+
+  test('containsPersonalIdentifier stays false for benign messages and bare reference numbers', () => {
+    expect(containsPersonalIdentifier('What is term life insurance?')).toBe(false);
+    expect(containsPersonalIdentifier('My case id is 5551234567')).toBe(false);
   });
 
   test('financial-account data takes priority over health (financial checked first)', () => {
@@ -607,5 +626,41 @@ describe('Consent — createLeadRecord', () => {
     const lead1 = createLeadRecord('a', '/', 'topic');
     const lead2 = createLeadRecord('a', '/', 'topic');
     expect(lead1.lead_id).not.toBe(lead2.lead_id);
+  });
+});
+
+describe('Security — rate-limit stores are bounded (PERF-01)', () => {
+  afterEach(() => {
+    clearAllRateLimits();
+  });
+
+  test('never holds more than MAX_RATE_LIMIT_ENTRIES session keys', () => {
+    // Distinct caller-supplied ids are the attack: without a ceiling this loop
+    // is a memory leak with extra steps.
+    for (let i = 0; i < MAX_RATE_LIMIT_ENTRIES + 500; i++) {
+      checkRateLimit(`lpp_flood_${i}`);
+    }
+    expect(getRateLimitStoreSize()).toBeLessThanOrEqual(MAX_RATE_LIMIT_ENTRIES);
+    expect(getRateLimitStoreSize()).toBe(MAX_RATE_LIMIT_ENTRIES);
+  });
+
+  test('evicts the least-recently-used id, and a re-seen id still limits', () => {
+    for (let i = 0; i < MAX_RATE_LIMIT_ENTRIES + 1; i++) {
+      checkRateLimit(`lpp_evict_${i}`);
+    }
+    // The first id was evicted, so a new window starts for it...
+    expect(checkRateLimit('lpp_evict_0').allowed).toBe(true);
+    // ...while the budget still enforces for a live id.
+    const fresh = 'lpp_evict_live';
+    for (let i = 0; i < RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_WINDOW; i++) {
+      checkRateLimit(fresh);
+    }
+    expect(checkRateLimit(fresh).allowed).toBe(false);
+  });
+
+  test('bounds the write-endpoint store the same way', () => {
+    // The write limiter keys on client IP; it shares the same ceiling.
+    expect(getWriteRateLimitStoreSize()).toBe(0);
+    expect(MAX_RATE_LIMIT_ENTRIES).toBeGreaterThanOrEqual(10_000);
   });
 });

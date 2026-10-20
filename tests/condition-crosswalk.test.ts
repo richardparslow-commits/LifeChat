@@ -12,6 +12,7 @@
 import request from 'supertest';
 import type { Express } from 'express';
 import type { Server } from 'http';
+import { TEST_CONSENT_TEXT } from './helpers/test-session';
 import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
 import {
   CANONICAL_CONDITIONS,
@@ -845,6 +846,7 @@ const consentBody = {
   contactChannel: 'email',
   email: 'visitor@example.com',
   firstName: 'Sam',
+  consentText: TEST_CONSENT_TEXT,
 };
 
 const medicalProfile = {
@@ -945,7 +947,7 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
     expect(res.body.leadId).toBeTruthy();
 
     const { getLeadRecord } = (await import('../src/consent/consent-model')) as {
-      getLeadRecord: (id: string) =>
+      getLeadRecord: (id: string) => Promise<
         | {
             medical_consent_version: string | null;
             medical_consent_timestamp: string | null;
@@ -954,10 +956,11 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
               canonical_conditions: { icd10_cm: string; vocabulary: string }[];
             } | null;
           }
-        | undefined;
+        | undefined
+      >;
     };
 
-    const lead = getLeadRecord(res.body.leadId);
+    const lead = await getLeadRecord(res.body.leadId);
     expect(lead).toBeDefined();
     expect(lead!.medical_consent_version).toBe('1.0.0');
     expect(lead!.medical_consent_timestamp).toBeTruthy();
@@ -981,14 +984,15 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
     // come from — and a profile that answered neither male nor female stores the
     // words uncoded instead of guessing a sibling.
     const { getLeadRecord } = (await import('../src/consent/consent-model')) as {
-      getLeadRecord: (id: string) =>
+      getLeadRecord: (id: string) => Promise<
         | {
             medical_profile: {
               medical_conditions: string[];
               canonical_conditions: { icd10_cm: string }[];
             } | null;
           }
-        | undefined;
+        | undefined
+      >;
     };
 
     for (const [gender, expected] of [
@@ -1011,7 +1015,7 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
         });
       expect(res.status).toBe(200);
 
-      const lead = getLeadRecord(res.body.leadId);
+      const lead = await getLeadRecord(res.body.leadId);
       expect(lead!.medical_profile!.medical_conditions).toEqual(['urethral stricture']);
       expect(lead!.medical_profile!.canonical_conditions.map((c) => c.icd10_cm)).toEqual(expected);
     }
@@ -1034,16 +1038,17 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
     expect(res.status).toBe(200);
 
     const { getLeadRecord } = (await import('../src/consent/consent-model')) as {
-      getLeadRecord: (id: string) =>
+      getLeadRecord: (id: string) => Promise<
         | {
             medical_profile: {
               medical_conditions: string[];
               canonical_conditions: { icd10_cm: string }[];
             } | null;
           }
-        | undefined;
+        | undefined
+      >;
     };
-    const lead = getLeadRecord(res.body.leadId);
+    const lead = await getLeadRecord(res.body.leadId);
     expect(lead!.medical_profile!.medical_conditions).toEqual(stated);
     expect(lead!.medical_profile!.canonical_conditions.map((c) => c.icd10_cm)).toEqual([
       'Z62.819',
@@ -1056,14 +1061,15 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
     expect(res.status).toBe(200);
 
     const { getLeadRecord } = (await import('../src/consent/consent-model')) as {
-      getLeadRecord: (id: string) =>
+      getLeadRecord: (id: string) => Promise<
         | {
             medical_consent_version: string | null;
             medical_profile: unknown;
           }
-        | undefined;
+        | undefined
+      >;
     };
-    const lead = getLeadRecord(res.body.leadId);
+    const lead = await getLeadRecord(res.body.leadId);
     expect(lead!.medical_profile).toBeNull();
     expect(lead!.medical_consent_version).toBeNull();
   });

@@ -21,6 +21,7 @@ import {
   clearSession,
   clearAllSessions,
   getActiveSessionCount,
+  MAX_SESSION_CACHE_ENTRIES,
   startSessionCleanup,
   stopSessionCleanup,
   getSourceUrl,
@@ -280,5 +281,33 @@ describe('Session Store — session management', () => {
   test('stopSessionCleanup can be called without error', () => {
     startSessionCleanup();
     expect(() => stopSessionCleanup()).not.toThrow();
+  });
+});
+
+describe('bounded session cache (LRU)', () => {
+  test('caps resident sessions instead of growing without bound', () => {
+    clearAllSessions();
+    for (let i = 0; i < MAX_SESSION_CACHE_ENTRIES; i++) {
+      addUserMessage(`lru-${i}`, 'hello');
+    }
+    expect(getActiveSessionCount()).toBe(MAX_SESSION_CACHE_ENTRIES);
+
+    addUserMessage('lru-overflow', 'hello');
+    expect(getActiveSessionCount()).toBe(MAX_SESSION_CACHE_ENTRIES);
+    expect(getHistory('lru-overflow')).toHaveLength(1);
+  });
+
+  test('evicts the least recently used session, not the oldest by creation', () => {
+    clearAllSessions();
+    for (let i = 0; i < MAX_SESSION_CACHE_ENTRIES; i++) {
+      addUserMessage(`lru-${i}`, 'hello');
+    }
+
+    // Touch the oldest session so the second-oldest becomes the victim.
+    expect(getHistory('lru-0')).toHaveLength(1);
+    addUserMessage('lru-trigger', 'hello');
+
+    expect(getHistory('lru-0')).toHaveLength(1);
+    expect(getHistory('lru-1')).toEqual([]);
   });
 });

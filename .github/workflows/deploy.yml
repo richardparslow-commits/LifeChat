@@ -10,10 +10,37 @@ name: Deploy (Vercel)
 #                 Git Integration). Stored under this name; the workflow does
 #                 not read any other name.
 #
-# The VERCEL_ORG_ID / VERCEL_PROJECT_ID secrets are optional: when present
-# they pin the deploy to one project; when absent the token's default project
-# scope decides. If VERCEL_KEY is not set the job skips itself, so forks and
-# pre-secret states stay green rather than failing.
+# Four deployment values are also required, and are validated before any build
+# or deploy (npm run secrets:gate):
+#   ADMIN_API_KEY          - 32+ characters, random (openssl rand -base64 48)
+#   RECORD_ENCRYPTION_KEY  - 32+ characters, random, different from the others
+#   LLM_API_KEY            - provider key, 20+ characters, not a template
+#   TEXAS_LICENSE_NUMBER   - verified TDI number; a repository variable is fine
+# The gate refuses each value's placeholders by shape: "your-api-key-here" and
+# "sk-test..." for the model key, the pending sentinel / letters / repeated or
+# sequential digits for the license. The deployed function refuses to start
+# without the admin key, the record key and the license, and a production
+# deploy without an LLM key would serve only the static fallback — so a missing
+# or weak value is rejected here rather than discovered by the post-deploy
+# smoke check.
+#
+# The two secrets the runtime cannot start without — ADMIN_API_KEY and
+# RECORD_ENCRYPTION_KEY — are then written into the Vercel project's production
+# environment before the deploy, from the same repository secrets the gate
+# validated. Vercel values are write-only, so pushing the checked copy is the
+# only way to guarantee the deployed value is the checked value; without it the
+# two stores could drift and nothing would notice. LLM_API_KEY is not pushed
+# (the runtime treats it as optional) and TEXAS_LICENSE_NUMBER is public project
+# configuration, so neither is duplicated into the workflow's Vercel sync.
+#
+# VERCEL_ORG_ID and VERCEL_PROJECT_ID identify the project that receives the
+# secrets and the deploy, and both are required whenever VERCEL_KEY is set.
+# The sync addresses the project explicitly instead of letting the CLI infer a
+# link from the checkout: writing a secret to the wrong project would leave the
+# function that is being deployed running whatever value it already had. A
+# missing pair fails the run with a clear message rather than guessing. If
+# VERCEL_KEY is not set at all the job skips itself, so forks and pre-secret
+# states stay green rather than failing.
 
 on:
   workflow_run:
@@ -53,9 +80,28 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Fail before the build, not after it: the sync step addresses the
+      # project by ID, so a run without both IDs has nowhere to push the
+      # validated secrets, and deploying anyway would ship unchecked values.
+      - name: Require the project pin
+        if: steps.token.outputs.available == 'true'
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          missing=""
+          [ -n "$VERCEL_ORG_ID" ] || missing="VERCEL_ORG_ID"
+          if [ -z "$VERCEL_PROJECT_ID" ]; then
+            missing="${missing:+$missing }VERCEL_PROJECT_ID"
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::Set the repository secret(s) $missing so the validated secrets and the deploy target the same Vercel project."
+            exit 1
+          fi
+
       - name: Checkout repository
         if: steps.token.outputs.available == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Deploy exactly the commit CI validated, not whatever main has
           # moved to since the workflow started.
@@ -63,14 +109,45 @@ jobs:
 
       - name: Setup Node.js
         if: steps.token.outputs.available == 'true'
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies (including Vercel CLI)
+      - name: Install dependencies
         if: steps.token.outputs.available == 'true'
-        run: npm ci && npm install --no-save vercel@latest
+        run: npm ci
+
+      # Pre-deploy posture gate: the runtime refuses to start in production
+      # without a strong ADMIN_API_KEY, RECORD_ENCRYPTION_KEY and verified
+      # TEXAS_LICENSE_NUMBER (src/index.ts), and an LLM-less deploy would serve
+      # only the static fallback — so stop here instead of shipping a build
+      # that cannot do its job. The report prints length and shape only, never
+      # a value.
+      - name: Pre-deploy posture gate (secrets + license)
+        if: steps.token.outputs.available == 'true'
+        env:
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          RECORD_ENCRYPTION_KEY: ${{ secrets.RECORD_ENCRYPTION_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          # The license is public: accept a repository variable (preferred) or
+          # an existing secret, so either configuration keeps working.
+          TEXAS_LICENSE_NUMBER: ${{ vars.TEXAS_LICENSE_NUMBER || secrets.TEXAS_LICENSE_NUMBER }}
+        run: npm run secrets:gate
+
+      # Audited before the CLI is installed: the gate is about the tree that
+      # ships, not about the deploy tool's own transitive dependencies.
+      - name: Dependency vulnerability audit
+        if: steps.token.outputs.available == 'true'
+        run: npm run audit
+
+      # The CLI is pinned to an exact version. `vercel@latest` meant the deploy
+      # pipeline could change without a commit, so a broken or compromised
+      # release would ship with no review. Bump this deliberately, the way a
+      # dependency change is reviewed.
+      - name: Install pinned Vercel CLI
+        if: steps.token.outputs.available == 'true'
+        run: npm install --no-save vercel@64.7.0
 
       - name: Lint
         if: steps.token.outputs.available == 'true'
@@ -84,6 +161,20 @@ jobs:
         if: steps.token.outputs.available == 'true'
         run: npm run build
 
+      # The gate checked the repository copy of these two secrets; this step
+      # writes that same copy into the project the deploy will use. The script
+      # sends each value over stdin (never argv), stores it as a Vercel Secret,
+      # overwrites a stale value, and logs only the name and length.
+      - name: Sync validated secrets to Vercel (production)
+        if: steps.token.outputs.available == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_KEY }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          RECORD_ENCRYPTION_KEY: ${{ secrets.RECORD_ENCRYPTION_KEY }}
+        run: bash scripts/sync-vercel-secrets.sh
+
       - name: Deploy to Vercel (production)
         if: steps.token.outputs.available == 'true'
         env:
@@ -91,9 +182,10 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx vercel deploy --prebuilt --prod --yes \
-            --token "$VERCEL_TOKEN" \
-            ${VERCEL_ORG_ID:+--scope "$VERCEL_ORG_ID"} 2>&1 | tee deploy.log
+          npx --no-install vercel deploy --prebuilt --prod --yes \
+            --scope "$VERCEL_ORG_ID" \
+            --project "$VERCEL_PROJECT_ID" \
+            --token "$VERCEL_TOKEN" 2>&1 | tee deploy.log
           URL=$(grep -oE 'https://[a-z0-9-]+\.vercel\.app' deploy.log | tail -1)
           echo "DEPLOY_URL=$URL" >> "$GITHUB_ENV"
           echo "Deployed to $URL"

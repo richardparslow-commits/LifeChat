@@ -150,3 +150,37 @@ export function createHandoffSummary(leadData: {
  * Stop the sales flow and use the approved emergency resources.
  */
 export const EMERGENCY_RESPONSE = `If you are in immediate danger or experiencing a crisis, please call 911 or the National Suicide and Crisis Lifeline at 988. This chat assistant is not equipped to handle emergencies.`;
+
+/**
+ * Present-tense, first-person statements of intent or immediate danger.
+ *
+ * The patterns are deliberately narrow. A history disclosure ("I have thought
+ * about suicide", "I attempted suicide in 2019") and a contract question ("If I
+ * kill myself, does the policy pay out?", "does the suicide exclusion apply?") are
+ * health or coverage questions for the medical gate, not a live crisis, and
+ * answering them with 911/988 instead of the question asked would be both
+ * unhelpful and a false alarm. Only language about *now* — intent, a plan, being
+ * in danger — answers with the emergency resources.
+ */
+export const IMMEDIATE_CRISIS_PATTERNS: readonly RegExp[] = [
+  /\bi(?:'m| am) (?:going to|gonna) (?:kill myself|end my life|hurt myself)\b/,
+  /\bi(?:'m| am) (?:thinking about|considering|planning to) (?:suicide|killing myself|ending my life)\b(?=\s*(?:[.!?,]|$))/,
+  /\bi (?:want|wanna) to die\b(?=\s*(?:[.!?,]|$))/,
+  /\bi (?:don't|do not) want to (?:live|be alive)\b(?=\s*(?:anymore|any more|[.!?]|$))/,
+  /\bi(?:'m| am) in immediate danger\b(?=\s*(?:right now)?\s*(?:[.!?,]|$))/,
+  /\bi(?:'ve| have) (?:taken|swallowed) (?:too many|a handful of) (?:pills|tablets)\b/,
+  /\bi just (?:took|swallowed) (?:a bunch of|too many|all the) pills\b/,
+];
+
+/**
+ * True when the message reports a live crisis or immediate danger.
+ *
+ * Callers must stop the sales and education flow and answer with
+ * EMERGENCY_RESPONSE; the message is never sent to the model and never stored
+ * verbatim (it may itself contain health data).
+ */
+export function detectImmediateCrisis(userInput: string): boolean {
+  if (typeof userInput !== 'string' || userInput.length === 0) return false;
+  const normalized = userInput.toLowerCase().replace(/[\u2018\u2019]/g, "'");
+  return IMMEDIATE_CRISIS_PATTERNS.some((pattern) => pattern.test(normalized));
+}

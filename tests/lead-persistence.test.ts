@@ -22,27 +22,27 @@ import {
   saveLeadRecord,
 } from '../src/consent/consent-model';
 
-beforeEach(() => {
-  clearAllLeadRecords();
+beforeEach(async () => {
+  await clearAllLeadRecords();
 });
 
-afterAll(() => {
-  clearAllLeadRecords();
+afterAll(async () => {
+  await clearAllLeadRecords();
   cleanupTempLogs(process.env.LEAD_LOG_PATH);
   delete process.env.LEAD_LOG_PATH;
 });
 
 describe('lead record store', () => {
-  test('saveLeadRecord stores a record retrievable by id', () => {
+  test('saveLeadRecord stores a record retrievable by id', async () => {
     const lead = createLeadRecord('article-1', '/term-life', 'term_life');
-    saveLeadRecord(lead);
-    expect(getLeadRecord(lead.lead_id)).toBe(lead);
+    await saveLeadRecord(lead);
+    expect(await getLeadRecord(lead.lead_id)).toBe(lead);
     expect(listLeadRecords()).toHaveLength(1);
   });
 
-  test('clearAllLeadRecords empties the store', () => {
-    saveLeadRecord(createLeadRecord('a', '/a', 't'));
-    clearAllLeadRecords();
+  test('clearAllLeadRecords empties the store', async () => {
+    await saveLeadRecord(createLeadRecord('a', '/a', 't'));
+    await clearAllLeadRecords();
     expect(listLeadRecords()).toHaveLength(0);
   });
 });
@@ -58,40 +58,66 @@ describe('lead persistence across restarts', () => {
     lead.first_name = 'Alex';
     lead.email = 'alex@example.com';
     lead.contact_channel = 'email';
-    saveLeadRecord(lead);
+    await saveLeadRecord(lead);
     const submittedId = lead.lead_id;
 
     jest.resetModules();
     const reloaded = await import('../src/consent/consent-model');
+    await reloaded.ensureLeadRecordsLoaded();
 
-    const found = reloaded.getLeadRecord(submittedId);
+    const found = await reloaded.getLeadRecord(submittedId);
     expect(found).toBeDefined();
     expect(found?.sanitized_canonical_path).toBe('/whole-life');
     expect(found?.first_name).toBe('Alex');
     expect(found?.email).toBe('alex@example.com');
     expect(found?.contact_channel).toBe('email');
 
-    reloaded.clearAllLeadRecords();
+    await reloaded.clearAllLeadRecords();
   });
 
   test('multiple saved leads are all loaded after a simulated restart', async () => {
-    saveLeadRecord(createLeadRecord('a', '/a', 't1'));
-    saveLeadRecord(createLeadRecord('b', '/b', 't2'));
+    await saveLeadRecord(createLeadRecord('a', '/a', 't1'));
+    await saveLeadRecord(createLeadRecord('b', '/b', 't2'));
     expect(listLeadRecords()).toHaveLength(2);
 
     jest.resetModules();
     const reloaded = await import('../src/consent/consent-model');
+    await reloaded.ensureLeadRecordsLoaded();
     expect(reloaded.listLeadRecords()).toHaveLength(2);
-    reloaded.clearAllLeadRecords();
+    await reloaded.clearAllLeadRecords();
+  });
+
+  test('a consented session still verifies after a simulated restart', async () => {
+    const lead = createLeadRecord('article-4', '/term-life', 'term_life');
+    lead.session_id = 'lpp_restartverified001';
+    lead.email = 'restart@example.com';
+    lead.contact_channel = 'email';
+    lead.contact_consent_version = '1.0.0';
+    lead.consent_timestamp = new Date().toISOString();
+    lead.consent_text_hash = 'sha256:test';
+    await saveLeadRecord(lead);
+
+    // The session → consent binding is rebuilt from the log, so the chat route
+    // can authorize a lead after a restart with no in-memory state carried over.
+    jest.resetModules();
+    const reloaded = await import('../src/consent/consent-model');
+    await reloaded.ensureLeadRecordsLoaded();
+
+    const result = await reloaded.getVerifiedContactConsent('lpp_restartverified001');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.consent.leadId).toBe(lead.lead_id);
+
+    await reloaded.clearAllLeadRecords();
   });
 
   test('clearAllLeadRecords removes the JSONL file so a restart starts empty', async () => {
-    saveLeadRecord(createLeadRecord('a', '/a', 't'));
-    clearAllLeadRecords();
+    await saveLeadRecord(createLeadRecord('a', '/a', 't'));
+    await clearAllLeadRecords();
     expect(listLeadRecords()).toHaveLength(0);
 
     jest.resetModules();
     const reloaded = await import('../src/consent/consent-model');
+    await reloaded.ensureLeadRecordsLoaded();
     expect(reloaded.listLeadRecords()).toHaveLength(0);
   });
 });
@@ -102,14 +128,15 @@ describe('lead persistence across restarts', () => {
  */
 describe('lead at-rest encryption', () => {
   const encryptedLog = tempLogPath('lead-enc');
-  const key = 'test-encryption-key-999';
+  const key = `test-encryption-key-${'a'.repeat(24)}`;
 
   afterAll(async () => {
     process.env.RECORD_ENCRYPTION_KEY = key;
     process.env.LEAD_LOG_PATH = encryptedLog;
     jest.resetModules();
     const mod = await import('../src/consent/consent-model');
-    mod.clearAllLeadRecords();
+    await mod.ensureLeadRecordsLoaded();
+    await mod.clearAllLeadRecords();
     delete process.env.RECORD_ENCRYPTION_KEY;
     delete process.env.LEAD_LOG_PATH;
     jest.resetModules();
@@ -123,7 +150,7 @@ describe('lead at-rest encryption', () => {
     return await import('../src/consent/consent-model');
   }
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.RECORD_ENCRYPTION_KEY;
     delete process.env.LEAD_LOG_PATH;
   });
@@ -134,7 +161,7 @@ describe('lead at-rest encryption', () => {
     lead.first_name = 'Sam';
     lead.email = 'sam@example.com';
     lead.phone = '5125551234';
-    mod.saveLeadRecord(lead);
+    await mod.saveLeadRecord(lead);
 
     const { readFileSync } = await import('fs');
     const line = readFileSync(encryptedLog, 'utf8').trim();
@@ -154,16 +181,17 @@ describe('lead at-rest encryption', () => {
     const lead = first.createLeadRecord('article-4', '/iul', 'iul');
     lead.email = 'reencrypt@example.com';
     lead.first_name = 'Riley';
-    first.saveLeadRecord(lead);
+    await first.saveLeadRecord(lead);
 
     jest.resetModules();
     const reloaded = await import('../src/consent/consent-model');
-    const found = reloaded.getLeadRecord(lead.lead_id);
+    await reloaded.ensureLeadRecordsLoaded();
+    const found = await reloaded.getLeadRecord(lead.lead_id);
     expect(found).toBeDefined();
     expect(found?.email).toBe('reencrypt@example.com');
     expect(found?.first_name).toBe('Riley');
 
-    reloaded.clearAllLeadRecords();
+    await reloaded.clearAllLeadRecords();
   });
 });
 
@@ -174,7 +202,7 @@ describe('lead at-rest encryption', () => {
  * lost write must never be confirmed to the consumer.
  */
 describe('lead fail-closed persistence', () => {
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.LEAD_LOG_PATH;
   });
 
@@ -182,13 +210,14 @@ describe('lead fail-closed persistence', () => {
     process.env.LEAD_LOG_PATH = '/dev/null/leads.jsonl';
     jest.resetModules();
     const mod = await import('../src/consent/consent-model');
+    await mod.ensureLeadRecordsLoaded();
 
     const lead = mod.createLeadRecord('article-5', '/term-life', 'term_life');
     lead.email = 'failclosed@example.com';
 
-    expect(mod.saveLeadRecord(lead)).toBe(false);
+    expect(await mod.saveLeadRecord(lead)).toBe(false);
     // Not acknowledged — nothing in the in-memory store either
-    expect(mod.getLeadRecord(lead.lead_id)).toBeUndefined();
+    expect(await mod.getLeadRecord(lead.lead_id)).toBeUndefined();
     expect(mod.listLeadRecords()).toHaveLength(0);
   });
 
@@ -196,10 +225,11 @@ describe('lead fail-closed persistence', () => {
     process.env.LEAD_LOG_PATH = '/dev/null/leads.jsonl';
     jest.resetModules();
     const mod = await import('../src/consent/consent-model');
+    await mod.ensureLeadRecordsLoaded();
 
     for (let i = 0; i < 3; i++) {
       const lead = mod.createLeadRecord(`article-${i}`, '/x', 'general');
-      expect(mod.saveLeadRecord(lead)).toBe(false);
+      expect(await mod.saveLeadRecord(lead)).toBe(false);
     }
     expect(mod.listLeadRecords()).toHaveLength(0);
   });
@@ -213,7 +243,7 @@ describe('lead fail-closed persistence', () => {
 describe('lead keyless-startup warning', () => {
   const encLog = tempLogPath('lead-keyless');
   const plainLog = tempLogPath('lead-keyless-plain');
-  const key = 'warning-test-key-999';
+  const key = `warning-test-key-${'b'.repeat(24)}`;
   const originalKey = process.env.RECORD_ENCRYPTION_KEY;
   const originalLog = process.env.LEAD_LOG_PATH;
 
@@ -226,7 +256,7 @@ describe('lead keyless-startup warning', () => {
     process.env.LEAD_LOG_PATH = originalLog as string;
   }
 
-  afterEach(() => {
+  afterEach(async () => {
     restoreEnv();
   });
 
@@ -236,7 +266,8 @@ describe('lead keyless-startup warning', () => {
     process.env.LEAD_LOG_PATH = encLog;
     jest.resetModules();
     const mod = await import('../src/consent/consent-model');
-    mod.clearAllLeadRecords();
+    await mod.ensureLeadRecordsLoaded();
+    await mod.clearAllLeadRecords();
     jest.resetModules();
     await import('../src/consent/consent-model');
     restoreEnv();
@@ -248,9 +279,10 @@ describe('lead keyless-startup warning', () => {
     process.env.LEAD_LOG_PATH = encLog;
     jest.resetModules();
     const withKey = await import('../src/consent/consent-model');
+    await withKey.ensureLeadRecordsLoaded();
     const lead = withKey.createLeadRecord('article-k', '/term-life', 'term_life');
     lead.email = 'keyless@example.com';
-    expect(withKey.saveLeadRecord(lead)).toBe(true);
+    expect(await withKey.saveLeadRecord(lead)).toBe(true);
 
     // Reload without the key — must warn and load zero records
     delete process.env.RECORD_ENCRYPTION_KEY;
@@ -258,6 +290,7 @@ describe('lead keyless-startup warning', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const noKey = await import('../src/consent/consent-model');
+      await noKey.ensureLeadRecordsLoaded();
       expect(noKey.listLeadRecords()).toHaveLength(0);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('RECORD_ENCRYPTION_KEY'));
       expect(warnSpy.mock.calls[0][0]).toContain('skipped');
@@ -273,9 +306,10 @@ describe('lead keyless-startup warning', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const mod = await import('../src/consent/consent-model');
+      await mod.ensureLeadRecordsLoaded();
       const lead = mod.createLeadRecord('article-p', '/faq', 'general');
       lead.email = 'plain@example.com';
-      expect(mod.saveLeadRecord(lead)).toBe(true);
+      expect(await mod.saveLeadRecord(lead)).toBe(true);
       // plaintext log loads fine without a key — no warning expected
       jest.resetModules();
       await import('../src/consent/consent-model');
@@ -296,15 +330,17 @@ describe('lead keyless-startup warning', () => {
     process.env.LEAD_LOG_PATH = encLog;
     jest.resetModules();
     const withKey = await import('../src/consent/consent-model');
+    await withKey.ensureLeadRecordsLoaded();
     const lead = withKey.createLeadRecord('article-wk', '/term-life', 'term_life');
     lead.email = 'wrongkey@example.com';
-    expect(withKey.saveLeadRecord(lead)).toBe(true);
+    expect(await withKey.saveLeadRecord(lead)).toBe(true);
 
-    process.env.RECORD_ENCRYPTION_KEY = 'a-different-key-999';
+    process.env.RECORD_ENCRYPTION_KEY = `a-different-key-${'c'.repeat(24)}`;
     jest.resetModules();
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const wrongKey = await import('../src/consent/consent-model');
+      await wrongKey.ensureLeadRecordsLoaded();
       expect(wrongKey.listLeadRecords()).toHaveLength(0);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('could not be decoded'));
     } finally {

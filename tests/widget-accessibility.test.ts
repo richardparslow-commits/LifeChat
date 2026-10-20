@@ -19,6 +19,7 @@
  */
 
 import { readFileSync } from 'fs';
+import { randomFillSync } from 'crypto';
 import path from 'path';
 
 import {
@@ -61,6 +62,25 @@ const REPLY = {
   state: 'education',
 };
 
+/** A resolved pre-approved card, exactly as /api/chat attaches it. */
+const CARD = {
+  card_id: 'comparison_term_vs_whole',
+  card_type: 'comparison_table',
+  title: 'Term vs. Whole Life Insurance',
+  content: {
+    columns: ['Feature', 'Term Life', 'Whole Life'],
+    rows: [
+      { feature: 'Duration', values: ['10–30 years', 'Lifetime'] },
+      { feature: 'Cash Value', values: ['No', 'Yes'] },
+    ],
+  },
+  disclaimer: 'This is general educational information, not a recommendation.',
+};
+
+const SOURCES = [
+  { title: 'Term vs Whole Life', url: 'https://lifepolicypilot.blog/term-vs-whole/' },
+];
+
 /** Start a widget and settle the opening disclosure request. */
 async function start(options: { reducedMotion?: boolean } = {}): Promise<WidgetRun> {
   const run = runWidget(WIDGET_SOURCE, options);
@@ -68,8 +88,14 @@ async function start(options: { reducedMotion?: boolean } = {}): Promise<WidgetR
   return run;
 }
 
-/** Type into the field and press Enter. */
+/** Open the panel from the launcher, the way a visitor starts a conversation. */
+function open(run: WidgetRun): void {
+  if (run.widget.styleValue('display') === 'none') run.launcher.dispatch('click');
+}
+
+/** Open the panel, type into the field and press Enter. */
 function send(run: WidgetRun, text: string): void {
+  open(run);
   run.input.value = text;
   run.input.dispatch('keydown', { key: 'Enter', shiftKey: false });
 }
@@ -225,8 +251,19 @@ describe('widget keyboard operability (ACC-4, ACC-5, ACC-15)', () => {
     expect(run.document.activeElement).not.toBe(run.send);
   });
 
+  it('starts collapsed to its launcher instead of covering the page (ACC-15)', async () => {
+    const run = await start();
+    // Nothing may obscure the host page before the visitor asks for the panel,
+    // and the launcher is the only entry point that exists at that moment.
+    expect(run.widget.styleValue('display')).toBe('none');
+    expect(run.launcher.styleValue('display')).toBe('block');
+    expect(run.launcher.getAttribute('aria-expanded')).toBe('false');
+    expect(run.document.activeElement).not.toBe(run.input);
+  });
+
   it('collapses to a launcher on close, and returns focus there', async () => {
     const run = await start();
+    open(run);
     expect(run.launcher.styleValue('display')).toBe('none');
 
     run.close.dispatch('click');
@@ -238,6 +275,7 @@ describe('widget keyboard operability (ACC-4, ACC-5, ACC-15)', () => {
 
   it('reopens from the launcher and moves focus into the field', async () => {
     const run = await start();
+    open(run);
     run.close.dispatch('click');
     run.launcher.dispatch('click');
     expect(run.widget.styleValue('display')).toBe('flex');
@@ -248,6 +286,7 @@ describe('widget keyboard operability (ACC-4, ACC-5, ACC-15)', () => {
 
   it('closes on Escape and restores focus to the launcher', async () => {
     const run = await start();
+    open(run);
     run.input.focus();
     run.widget.dispatch('keydown', { key: 'Escape' });
     expect(run.widget.styleValue('display')).toBe('none');
@@ -261,6 +300,345 @@ describe('widget keyboard operability (ACC-4, ACC-5, ACC-15)', () => {
     expect(run.widget.hasAttribute('aria-modal')).toBe(false);
     expect(WIDGET_SOURCE).not.toMatch(/key === 'Tab'/);
     expect(WIDGET_SOURCE).not.toContain('role", "presentation"');
+  });
+});
+
+describe('widget focus-collapse toggle (ACC-15)', () => {
+  it('offers a visible minimize control wired to the panel body', async () => {
+    const run = await start();
+    open(run);
+    expect(run.collapse.visibleText()).toBe('Minimize');
+    expect(run.collapse.type).toBe('button');
+    expect(run.collapse.getAttribute('aria-expanded')).toBe('true');
+    expect(run.collapse.getAttribute('aria-controls')).toBe('lpp-chat-body');
+    expect(run.body.styleValue('display')).toBe('flex');
+    // The header (identity disclosure + close) must stay; only the body folds.
+    expect(run.banner.parentNode).toBe(run.body);
+    expect(run.log.parentNode).toBe(run.body);
+  });
+
+  it('folds the panel to its header and moves focus out before hiding', async () => {
+    const run = await start();
+    open(run);
+    run.input.focus();
+    run.collapse.dispatch('click');
+
+    expect(run.body.styleValue('display')).toBe('none');
+    expect(run.collapse.getAttribute('aria-expanded')).toBe('false');
+    expect(run.collapse.visibleText()).toBe('Expand');
+    expect(run.collapse.getAttribute('aria-label')).toContain('Expand');
+    // Hiding a subtree that holds focus would strand the user on the body.
+    expect(run.document.activeElement).toBe(run.collapse);
+  });
+
+  it('re-expands with the conversation intact', async () => {
+    const run = await start();
+    open(run);
+    run.collapse.dispatch('click');
+    run.collapse.dispatch('click');
+
+    expect(run.body.styleValue('display')).toBe('flex');
+    expect(run.collapse.getAttribute('aria-expanded')).toBe('true');
+    expect(run.collapse.visibleText()).toBe('Minimize');
+    expect(bubbles(run)).toHaveLength(1);
+  });
+
+  it('folds automatically when focus lands on page content behind it', async () => {
+    const run = await start();
+    open(run);
+    const pageLink = run.document.createElement('a');
+    run.document.body.appendChild(pageLink);
+    run.input.focus();
+
+    run.document.dispatch('focusin', { target: pageLink });
+
+    expect(run.body.styleValue('display')).toBe('none');
+    expect(run.collapse.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('does not fold while focus stays inside the widget', async () => {
+    const run = await start();
+    open(run);
+    run.input.focus();
+
+    run.document.dispatch('focusin', { target: run.send });
+    run.document.dispatch('focusin', { target: run.collapse });
+
+    expect(run.body.styleValue('display')).toBe('flex');
+  });
+
+  it('reopens from the launcher in the expanded state', async () => {
+    const run = await start();
+    open(run);
+    run.collapse.dispatch('click');
+    run.close.dispatch('click');
+    run.launcher.dispatch('click');
+
+    expect(run.body.styleValue('display')).toBe('flex');
+    expect(run.document.activeElement).toBe(run.input);
+  });
+});
+
+describe('widget session identity', () => {
+  it('mints the session id with crypto.randomUUID when the platform exposes it', async () => {
+    const env = createEnvironment();
+    const uuid = '3f1c7e2a-9b4d-4a61-8c2e-5d0f6a7b8c9d';
+    env.window.crypto = { randomUUID: () => uuid };
+    executeWidget(WIDGET_SOURCE, env);
+    await env.fetch.respond(DISCLOSURE);
+
+    const input = env.document.getElementById('lpp-chat-input')!;
+    const chats = () => env.fetch.calls.filter((call) => call.url.includes('/api/chat'));
+
+    input.value = 'first';
+    input.dispatch('keydown', { key: 'Enter', shiftKey: false });
+    expect(JSON.parse(chats()[0].init.body).sessionId).toBe(`lpp_${uuid}`);
+
+    await env.fetch.respond(REPLY);
+    input.value = 'second';
+    input.dispatch('keydown', { key: 'Enter', shiftKey: false });
+    // One conversation, one id — the whole session keys off it server-side.
+    expect(JSON.parse(chats()[1].init.body).sessionId).toBe(`lpp_${uuid}`);
+  });
+
+  it('falls back to getRandomValues when randomUUID is unavailable or blocked', async () => {
+    const env = createEnvironment();
+    env.window.crypto = {
+      randomUUID: () => {
+        throw new Error('insecure context');
+      },
+      getRandomValues: (array: Uint8Array) => randomFillSync(array),
+    };
+    executeWidget(WIDGET_SOURCE, env);
+    await env.fetch.respond(DISCLOSURE);
+
+    const input = env.document.getElementById('lpp-chat-input')!;
+    input.value = 'hello';
+    input.dispatch('keydown', { key: 'Enter', shiftKey: false });
+
+    const call = env.fetch.calls.find((entry) => entry.url.includes('/api/chat'))!;
+    // 128 bits of CSPRNG output, hex encoded — never Math.random.
+    expect(JSON.parse(call.init.body).sessionId).toMatch(/^lpp_[0-9a-f]{32}$/);
+  });
+
+  it('never falls back to a non-cryptographic generator', () => {
+    // The fallback chain is documented in a comment, so assert on call syntax:
+    // a `Math.random()` call anywhere in the widget would defeat the session
+    // id's entropy and is what SEC-05 exists to prevent.
+    expect(WIDGET_SOURCE).not.toMatch(/Math\.random\s*\(/);
+  });
+
+  it('refuses to start a chat when the browser has no CSPRNG at all', async () => {
+    const env = createEnvironment();
+    env.window.crypto = undefined;
+    executeWidget(WIDGET_SOURCE, env);
+    await env.fetch.respond(DISCLOSURE);
+
+    const input = env.document.getElementById('lpp-chat-input')!;
+    input.value = 'hello';
+    input.dispatch('keydown', { key: 'Enter', shiftKey: false });
+
+    expect(env.fetch.calls.filter((entry) => entry.url.includes('/api/chat'))).toHaveLength(0);
+  });
+});
+
+describe('widget pre-approved cards and citations', () => {
+  it('renders a comparison card as a figure with scoped table headers', async () => {
+    const run = await start();
+    send(run, 'Compare term and whole');
+    await run.fetch.respond({ ...REPLY, visual_card: CARD, citations: SOURCES });
+
+    const figure = run.log.descendants().find((node) => node.tagName === 'FIGURE');
+    expect(figure).toBeDefined();
+    expect(figure!.className).toContain('lpp-card');
+    const caption = figure!.childNodes.find((node) => node.tagName === 'FIGCAPTION');
+    expect(caption!.textContent).toBe(CARD.title);
+
+    const table = figure!.descendants().find((node) => node.tagName === 'TABLE')!;
+    expect(
+      table
+        .descendants()
+        .filter((node) => node.tagName === 'TH')
+        .map((th) => th.getAttribute('scope')),
+    ).toEqual(['col', 'col', 'col', 'row', 'row']);
+    expect(table.textContent).toContain('Lifetime');
+    expect(figure!.textContent).toContain(CARD.disclaimer);
+  });
+
+  it('renders a bullet list as a real list, not a run of divs', async () => {
+    const run = await start();
+    send(run, 'underwriting factors');
+    await run.fetch.respond({
+      ...REPLY,
+      visual_card: {
+        ...CARD,
+        card_id: 'bullet_underwriting_factors',
+        card_type: 'bullet_list',
+        title: 'Key Factors',
+        content: { items: ['Age', 'Health history'] },
+      },
+    });
+
+    const figure = run.log.descendants().find((node) => node.tagName === 'FIGURE')!;
+    const items = figure.descendants().filter((node) => node.tagName === 'LI');
+    expect(items.map((item) => item.textContent)).toEqual(['Age', 'Health history']);
+  });
+
+  it('renders every approved card type as semantic content', async () => {
+    const scenarios = [
+      {
+        card_type: 'definition_card',
+        content: {
+          term: 'Premium',
+          definition: 'What you pay.',
+          example: 'For example, $30 a month.',
+        },
+        expected: 'What you pay.',
+      },
+      {
+        card_type: 'process_steps',
+        content: { steps: [{ step_number: 1, title: 'Application', description: 'You apply.' }] },
+        expected: 'Application',
+      },
+      {
+        card_type: 'faq_accordion',
+        content: { items: [{ question: 'Who can be a beneficiary?', answer: 'Anyone.' }] },
+        expected: 'Anyone.',
+      },
+      {
+        card_type: 'link_card',
+        content: {
+          description: 'Read more.',
+          url: 'https://example.com/article',
+          link_text: 'Read the full article',
+        },
+        expected: 'Read the full article',
+      },
+      {
+        card_type: 'warning_card',
+        content: { severity: 'important', message: 'Not a recommendation.' },
+        expected: 'Not a recommendation.',
+      },
+      {
+        card_type: 'stat_card',
+        content: {
+          statistic: '10 days',
+          description: 'Free look.',
+          source: 'Texas Insurance Code',
+        },
+        expected: 'Free look.',
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const run = await start();
+      send(run, 'show me');
+      await run.fetch.respond({
+        ...REPLY,
+        visual_card: {
+          card_id: `fixture_${scenario.card_type}`,
+          card_type: scenario.card_type,
+          title: 'Approved card',
+          content: scenario.content,
+          disclaimer: null,
+        },
+      });
+
+      const figure = run.log.descendants().find((node) => node.tagName === 'FIGURE');
+      expect(figure).toBeDefined();
+      expect(figure!.className).toContain(`lpp-card-${scenario.card_type}`);
+      expect(figure!.textContent).toContain(scenario.expected);
+      expect(figure!.textContent).toContain('Approved card');
+    }
+  });
+
+  it('lists citations as a named group of real links', async () => {
+    const run = await start();
+    send(run, 'Where is that from?');
+    await run.fetch.respond({ ...REPLY, citations: SOURCES });
+
+    const links = run.log.descendants().filter((node) => node.tagName === 'A');
+    expect(links).toHaveLength(1);
+    expect(links[0].getAttribute('href')).toBe(SOURCES[0].url);
+    expect(links[0].getAttribute('rel')).toBe('noopener noreferrer');
+    expect(links[0].textContent).toBe(SOURCES[0].title);
+
+    const group = run.log.descendants().find((node) => node.getAttribute('role') === 'group');
+    expect(group).toBeDefined();
+    expect(group!.textContent).toContain('Sources');
+    // The group is named by its own visible label, not a second hidden string.
+    const labelId = group!.getAttribute('aria-labelledby');
+    expect(labelId).toBeTruthy();
+    expect(
+      group!.descendants().find((node) => node.getAttribute('id') === labelId)!.textContent,
+    ).toBe('Sources');
+  });
+
+  it('writes payload text as text, never as markup', async () => {
+    const run = await start();
+    send(run, 'show a card');
+    await run.fetch.respond({
+      ...REPLY,
+      visual_card: { ...CARD, title: '<img src=x onerror=alert(1)>' },
+    });
+
+    expect(run.log.descendants().some((node) => node.tagName === 'IMG')).toBe(false);
+    expect(run.log.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  it('drops unsafe citation URLs and an unapproved card type', async () => {
+    const run = await start();
+    send(run, 'anything');
+    await run.fetch.respond({
+      ...REPLY,
+      citations: [
+        { title: 'Script', url: 'javascript:alert(1)' },
+        { title: 'Relative', url: '//evil.example/x' },
+        { title: '', url: 'https://ok.example/x' },
+      ],
+      visual_card: {
+        card_id: 'model_generated',
+        card_type: 'freeform',
+        title: 'Not approved',
+        content: { anything: 'goes' },
+      },
+    });
+
+    expect(run.log.descendants().filter((node) => node.tagName === 'A')).toHaveLength(0);
+    expect(run.log.descendants().some((node) => node.tagName === 'FIGURE')).toBe(false);
+  });
+});
+
+describe('widget message formatting (UI-02, UI-04)', () => {
+  it('keeps the paragraph breaks an approved answer carries', async () => {
+    const run = await start();
+    const answer = 'Term life covers a set period.\n\nWhole life covers your lifetime.';
+    send(run, 'What is the difference?');
+    await run.fetch.respond({ ...REPLY, assistant_message: answer });
+
+    const bubble = bubbles(run).slice(-1)[0];
+    // Without pre-wrap the blank line collapses and the answer arrives as one
+    // unformatted wall of text.
+    expect(bubble.styleValue('white-space')).toBe('pre-wrap');
+    expect(bubble.styleValue('overflow-wrap')).toBe('break-word');
+    expect(bubble.visibleText()).toBe(answer);
+  });
+
+  it('lets a card keep its own block layout inside a pre-wrapped bubble', async () => {
+    const run = await start();
+    send(run, 'Compare them');
+    await run.fetch.respond({ ...REPLY, visual_card: CARD });
+
+    const figure = run.log.descendants().find((node) => node.tagName === 'FIGURE')!;
+    expect(figure.styleValue('white-space')).toBe('normal');
+  });
+
+  it('declares every type size in rem so it scales with the host page', () => {
+    // A px size inside a third-party drop-in ignores the visitor's browser
+    // font preference and the host page's root size (WCAG 1.4.4).
+    expect(WIDGET_SOURCE).not.toMatch(/font-size:\s*\d+(?:\.\d+)?px/);
+    expect(WIDGET_SOURCE).toMatch(/font-size:0\.9375rem/); // panel text, 15px at a 16px root
+    expect(WIDGET_SOURCE).toMatch(/font-size:0\.75rem/); // 12px at a 16px root
   });
 });
 
@@ -306,7 +684,7 @@ describe('widget reflow and geometry (ACC-6)', () => {
     expect(parseFloat(run.input.styleValue('min-height'))).toBeGreaterThanOrEqual(
       WCAG_REQUIREMENTS.MIN_TARGET_SIZE_PX,
     );
-    for (const control of [run.send, run.close, run.launcher]) {
+    for (const control of [run.send, run.close, run.collapse, run.launcher]) {
       expect(parseFloat(control.styleValue('min-height'))).toBeGreaterThanOrEqual(
         WCAG_REQUIREMENTS.MIN_TARGET_SIZE_PX,
       );
@@ -407,6 +785,10 @@ describe('widget accessible names and associations (ACC-10)', () => {
     const run = await start();
     expect(run.send.getAttribute('aria-label')).toBe('Send message');
     expect(run.close.getAttribute('aria-label')).toBe('Close chat');
+    // 2.5.3: the collapse toggle's name contains its visible text, and both
+    // change together when it toggles.
+    expect(run.collapse.getAttribute('aria-label')).toContain(run.collapse.visibleText());
+    expect(run.collapse.getAttribute('aria-controls')).toBe(run.body.id);
     expect(run.launcher.getAttribute('aria-label')).toBeTruthy();
     // 2.5.3: the launcher's accessible name contains its visible text.
     expect(run.launcher.getAttribute('aria-label')).toContain(run.launcher.visibleText());
@@ -417,7 +799,7 @@ describe('widget accessible names and associations (ACC-10)', () => {
 
   it('uses a type on every button so no host form is submitted (ACC-14)', async () => {
     const run = await start();
-    for (const control of [run.send, run.close, run.launcher]) {
+    for (const control of [run.send, run.close, run.collapse, run.launcher]) {
       expect(control.type).toBe('button');
     }
   });
@@ -499,10 +881,11 @@ describe('widget API contract is unchanged', () => {
     const first = JSON.parse(chatCalls(run)[0].init.body);
     expect(first).toMatchObject({
       message: 'first',
-      currentState: 'disclosure',
       sourceUrl: '/articles/term-life-basics',
     });
-    expect(first.sessionId).toMatch(/^lpp_\d+_[a-z0-9]+$/);
+    // State is server-authoritative now; the payload no longer sends it.
+    expect(first.currentState).toBeUndefined();
+    expect(first.sessionId).toMatch(/^lpp_[0-9a-f]{32}$/);
     expect(first.page_context).toEqual({
       url: 'https://blog.example.test/articles/term-life-basics',
       title: 'A test page',
@@ -514,7 +897,6 @@ describe('widget API contract is unchanged', () => {
     send(run, 'second');
     const second = JSON.parse(chatCalls(run)[1].init.body);
     expect(second).not.toHaveProperty('page_context');
-    expect(second.currentState).toBe('education'); // carried from data.state
   });
 
   it('pushes allowlisted analytics fields only', async () => {
@@ -610,9 +992,10 @@ describe('review record and gate', () => {
         expect(finding.resolution.length).toBeGreaterThan(20);
       }
     }
-    // ACC-15 is the one accepted, documented mitigation; nothing else may be open.
+    // ACC-15 is now fixed by the focus-collapse behaviour; nothing may be left
+    // unresolved without a documented, deliberate record.
     const unresolved = SECTION_508_FINDINGS.filter((finding) => finding.status !== 'fixed');
-    expect(unresolved.map((finding) => finding.id)).toEqual(['ACC-15']);
+    expect(unresolved.map((finding) => finding.id)).toEqual([]);
   });
 
   it('takes every browser/AT row status from the recorded walkthrough', () => {
@@ -650,7 +1033,9 @@ describe('section 508 review record honesty', () => {
   it('does not claim a screen-reader pass that was never run', () => {
     const claims = SECTION_508_REVIEW.limits.join(' ').toLowerCase();
     expect(claims).toContain('no screen reader');
-    expect(claims).toContain('mitigated, not fixed');
+    // ACC-15 is fixed in the DOM contract, and the record says the painted
+    // fold is still owed to the human walkthrough rather than claiming it.
+    expect(claims).toContain('re-checked in the human walkthrough');
   });
 
   it('keeps the demo page it reviewed structurally sound', () => {

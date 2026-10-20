@@ -606,19 +606,24 @@ export const SECTION_508_FINDINGS: readonly AccessibilityFinding[] = [
   },
   {
     id: 'ACC-15',
-    title: 'A fixed overlay can obscure focused page content',
+    title: 'A fixed overlay could obscure focused page content',
     severity: 'medium',
     criteria: ['2.4.11 Focus Not Obscured (Minimum)'],
-    status: 'mitigated',
+    status: 'fixed',
     evidence:
       'the panel is position:fixed with z-index 9999, so while it is open it covers the bottom-right ' +
-      'of the page and can cover the element the user is tabbing through; the layout is 360px wide and ' +
-      'the panel is collapsed to a launcher as soon as the user closes it',
+      'of the page and can cover the element the user is tabbing through; the only mitigation was that ' +
+      'closing collapsed the panel to a launcher, which does nothing while the visitor is still reading ' +
+      'the page with the panel open',
     resolution:
-      'mitigated rather than eliminated: the close control collapses the panel to a launcher (so nothing ' +
-      'stays obscured), the panel is limited to the bottom-right, and it never traps focus. A fixed ' +
-      'overlay cannot guarantee the minimum for every viewport, so this stays recorded and is re-checked ' +
-      'on any layout change',
+      'the widget now starts collapsed to its launcher, so nothing is obscured and no control is ' +
+      'presented until the visitor asks for it; once open the panel folds itself: the header carries a ' +
+      'visible Minimize/Expand toggle (aria-expanded plus aria-controls on the panel body) that ' +
+      'collapses everything below the header, and a document-level focusin handler collapses the panel ' +
+      'the moment focus lands on any element outside the widget — so the element that receives focus is ' +
+      'never underneath an open panel. Focus is moved to the toggle before the body is hidden (2.4.3) ' +
+      'and the conversation is preserved; closing still returns focus to the launcher and focus is ' +
+      'never trapped',
   },
 ];
 
@@ -807,7 +812,9 @@ export const SECTION_508_REVIEW = {
     'Forced-colors support is verified by construction (an outline is retained in every focus rule) ' +
       'rather than by a real Windows High Contrast Mode session',
     'Reflow is verified by style assertions and layout arithmetic, not by a rendered 320px viewport capture',
-    'ACC-15 stays mitigated, not fixed: a fixed overlay cannot guarantee 2.4.11 for every viewport',
+    'Focus Not Obscured (ACC-15) is resolved in the DOM contract (the visible collapse toggle and the ' +
+      'automatic fold when focus leaves the widget), but the shim does not paint, so the fold is ' +
+      're-checked in the human walkthrough and on any layout change',
   ],
 } as const;
 

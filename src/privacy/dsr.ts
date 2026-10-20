@@ -22,9 +22,14 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
-import { dirname as pathDirname } from 'path';
-import { config } from '../config/app-config';
+import { config, isEphemeralServerlessPath } from '../config/app-config';
+import { BoundedLruCache } from '../persistence/bounded-lru';
+import {
+  appendJsonlLine,
+  findJsonlRecord,
+  readJsonlLines,
+  removeLogFile,
+} from '../persistence/jsonl-log';
 import {
   encryptRecordLine,
   decryptRecordLine,
@@ -61,51 +66,50 @@ export interface DsrRecord {
 }
 
 /**
- * In-memory store for the pilot phase (mirrors session-store pattern).
- * Backed by an append-only JSONL file so records survive process restarts —
- * DSR records are legal artifacts under TDPSA (45-day response SLA) and must
- * not be lost when the server restarts. Only records that were successfully
- * persisted are added to this in-memory store.
+ * Bounded in-memory cache of DSR records, in front of the JSONL log.
+ *
+ * DSR records are legal artifacts under TDPSA (45-day response SLA), so the
+ * log on disk is authoritative; the cache is capped so a long-lived process
+ * cannot grow without bound, and only records that were successfully
+ * persisted are added to it.
  */
-const dsrRecords: DsrRecord[] = [];
+export const MAX_CACHED_DSR_RECORDS = 5000;
+const dsrRecords = new BoundedLruCache<string, DsrRecord>(MAX_CACHED_DSR_RECORDS);
 
-/** Loads existing DSR records from the JSONL log at startup. */
-function loadDsrRecordsFromDisk(): void {
+let loadPromise: Promise<void> | null = null;
+
+/** Streams the JSONL log into the cache. */
+async function loadDsrRecordsFromDisk(): Promise<void> {
   const logPath = config.dsrLogPath;
-  if (!existsSync(logPath)) return;
+  const lines = await readJsonlLines(logPath);
   let skippedMissingKey = 0;
   let skippedUndecodable = 0;
-  try {
-    const lines = readFileSync(logPath, 'utf8')
-      .split('\n')
-      .filter((l) => l.trim().length > 0);
-    for (const line of lines) {
-      try {
-        const plain = decryptRecordLine(line);
-        if (plain === null) {
-          // Skipped encrypted lines are an operational trap — records
-          // silently vanish on startup. Count them so we can warn, whether
-          // the key is missing or present-but-wrong.
-          if (isEncryptedRecordLine(line)) {
-            if (isRecordEncryptionConfigured()) {
-              skippedUndecodable++;
-            } else {
-              skippedMissingKey++;
-            }
+
+  for (const line of lines) {
+    try {
+      const plain = decryptRecordLine(line);
+      if (plain === null) {
+        // Skipped encrypted lines are an operational trap — records silently
+        // vanish on startup. Count them so we can warn, whether the key is
+        // missing or present-but-wrong.
+        if (isEncryptedRecordLine(line)) {
+          if (isRecordEncryptionConfigured()) {
+            skippedUndecodable++;
+          } else {
+            skippedMissingKey++;
           }
-          continue; // cannot decode — skip
         }
-        const parsed = JSON.parse(plain) as DsrRecord;
-        if (parsed && parsed.request_id && parsed.request_type) {
-          dsrRecords.push(parsed);
-        }
-      } catch {
-        // skip malformed lines
+        continue; // cannot decode — skip
       }
+      const parsed = JSON.parse(plain) as DsrRecord;
+      if (parsed && parsed.request_id && parsed.request_type) {
+        dsrRecords.set(parsed.request_id, parsed);
+      }
+    } catch {
+      // skip malformed lines
     }
-  } catch {
-    // Best-effort — don't block startup if the log can't be read
   }
+
   if (skippedMissingKey > 0) {
     console.warn(
       `WARNING: ${skippedMissingKey} encrypted DSR record(s) in ${logPath} were skipped because ` +
@@ -121,25 +125,36 @@ function loadDsrRecordsFromDisk(): void {
   }
 }
 
-// Load persisted records on module init so they survive restarts
-loadDsrRecordsFromDisk();
+/**
+ * Resolves once the startup load from disk has finished. Submission awaits it
+ * so a request recorded during startup is never ordered against a half-loaded
+ * cache; tests await it before asserting on records that came from disk.
+ */
+export function ensureDsrRecordsLoaded(): Promise<void> {
+  loadPromise ??= loadDsrRecordsFromDisk();
+  return loadPromise;
+}
+
+// Hydration is explicit: the entry point (src/index.ts) starts it at boot and
+// the first submission awaits it. Module evaluation itself stays free of I/O
+// and of log output, so importing this module never races a console spy.
 
 /**
- * Appends a DSR record to the JSONL log.
- * Returns true on success. Returns false (and pushes nothing) on failure so
- * the caller can fail closed and never acknowledge a request that was not
+ * Appends a DSR record to the JSONL log through an async stream.
+ * Returns false on failure (or an ephemeral serverless filesystem) so the
+ * caller can fail closed and never acknowledge a request that was not
  * durably stored.
  */
-function persistDsrRecord(record: DsrRecord): boolean {
+async function persistDsrRecord(record: DsrRecord): Promise<boolean> {
+  const logPath = config.dsrLogPath;
+  if (isEphemeralServerlessPath(logPath)) {
+    return false;
+  }
   try {
-    const logPath = config.dsrLogPath;
-    const dir = pathDirname(logPath);
-    if (dir && dir !== '.') {
-      mkdirSync(dir, { recursive: true });
-    }
-    appendFileSync(logPath, `${encryptRecordLine(JSON.stringify(record))}\n`, 'utf8');
-    return true;
+    return await appendJsonlLine(logPath, encryptRecordLine(JSON.stringify(record)));
   } catch {
+    // Fail closed: any unexpected error is a failed write, never a rejection
+    // that would surface as a hanging request under Express 4.
     return false;
   }
 }
@@ -148,11 +163,12 @@ function persistDsrRecord(record: DsrRecord): boolean {
  * Validates a DSR submission and creates a record.
  * Returns the record, or null with a reason when the input is invalid.
  */
-export function submitDsr(input: {
+export async function submitDsr(input: {
   requestType: string;
   contactEmail: string;
   detail?: string | null;
-}): { ok: true; record: DsrRecord } | { ok: false; reason: string } {
+}): Promise<{ ok: true; record: DsrRecord } | { ok: false; reason: string }> {
+  await ensureDsrRecordsLoaded();
   if (!DSR_REQUEST_TYPES.includes(input.requestType as DsrRequestType)) {
     return {
       ok: false,
@@ -173,7 +189,7 @@ export function submitDsr(input: {
   };
 
   // Fail closed: only acknowledge the request if it was durably persisted.
-  if (!persistDsrRecord(record)) {
+  if (!(await persistDsrRecord(record))) {
     return {
       ok: false,
       reason:
@@ -182,31 +198,64 @@ export function submitDsr(input: {
     };
   }
 
-  dsrRecords.push(record);
+  dsrRecords.set(record.request_id, record);
   return { ok: true, record };
 }
 
-/** Gets a DSR record by id (admin/debug). */
-export function getDsrRecord(requestId: string): DsrRecord | undefined {
-  return dsrRecords.find((r) => r.request_id === requestId);
+/**
+ * Reads one DSR record straight from the JSONL log, decrypting each line.
+ * Used only when the cache does not hold the id.
+ */
+async function findDsrRecordOnDisk(requestId: string): Promise<DsrRecord | undefined> {
+  return findJsonlRecord<DsrRecord>(config.dsrLogPath, (line) => {
+    const plain = decryptRecordLine(line);
+    if (plain === null) return null;
+    const parsed = JSON.parse(plain) as DsrRecord;
+    return parsed && parsed.request_id === requestId ? parsed : null;
+  });
 }
 
-/** Lists all DSR records (admin). */
+/**
+ * Gets a DSR record by id (admin/debug).
+ *
+ * Cache-first, log-backed: the cache is bounded, so a miss does not mean the
+ * request does not exist. On a miss this streams the JSONL log for the id,
+ * caches the match, and returns it — a DSR filed before this process started
+ * (or written by another instance) is as findable as one filed here. A
+ * TDPSA access/deletion request must never become invisible because of local
+ * cache pressure.
+ */
+export async function getDsrRecord(requestId: string): Promise<DsrRecord | undefined> {
+  const cached = dsrRecords.get(requestId);
+  if (cached) return cached;
+
+  // If startup hydration is still running, let it finish first; it may already
+  // hold the record, and the cache must not be read half-loaded.
+  await ensureDsrRecordsLoaded();
+
+  const hydrated = dsrRecords.get(requestId);
+  if (hydrated) return hydrated;
+
+  const fromDisk = await findDsrRecordOnDisk(requestId);
+  if (fromDisk) {
+    dsrRecords.set(requestId, fromDisk);
+  }
+  return fromDisk;
+}
+
+/**
+ * Lists cached DSR records, oldest first. The JSONL log remains the full
+ * record set; this is capped at MAX_CACHED_DSR_RECORDS entries.
+ */
 export function listDsrRecords(): DsrRecord[] {
-  return dsrRecords.slice();
+  return dsrRecords.values();
 }
 
 /**
  * Clears all DSR records (testing). Also removes the JSONL log file so
  * tests start with a clean slate on disk as well as in memory.
  */
-export function clearAllDsrRecords(): void {
-  dsrRecords.length = 0;
-  try {
-    if (existsSync(config.dsrLogPath)) {
-      unlinkSync(config.dsrLogPath);
-    }
-  } catch {
-    // Best-effort — test cleanup must not throw
-  }
+export async function clearAllDsrRecords(): Promise<void> {
+  dsrRecords.clear();
+  await removeLogFile(config.dsrLogPath);
 }
