@@ -5,7 +5,9 @@
  * turns as context for follow-up questions.
  *
  * Design decisions:
- * - In-memory Map for the pilot phase (replace with Redis in production)
+ * - Bounded LRU cache for the pilot phase (replace with Redis in production);
+ *   session ids are client-supplied, so an unbounded Map would let an
+ *   unauthenticated caller grow the process without limit
  * - Max 20 turns per session (10 user + 10 assistant) to limit token budget
  * - TTL of 30 minutes of inactivity (configurable)
  * - Assistant messages stored are the assistant_message field only —
@@ -17,8 +19,10 @@
  */
 
 import type { LLMMessage } from './llm-client';
+import { BoundedLruCache } from '../persistence/bounded-lru';
 import { EMPTY_DIME_INPUTS, type DimeInputs } from '../estimator/dime-estimator';
 import type { PageContext } from '../contextual/page-context';
+import type { ConversationState } from '../state-machine/state-machine';
 
 /** Maximum number of conversation turns to retain per session. */
 const MAX_TURNS = 20;
@@ -55,9 +59,36 @@ interface SessionData {
    * on the first message that carries a sourceUrl and reused thereafter.
    */
   sourceUrl: string | null;
+  /**
+   * Authoritative server-side conversation state (Section 4.4). Derived from
+   * server-verified state transitions rather than trusting the client payload.
+   */
+  currentState: ConversationState;
+  /**
+   * Authoritative server-side medical consent flag (Phase 2, Section 9.1).
+   * Only set to true when medical consent is affirmed during the medical_offer
+   * flow with medical capture enabled, or via a verified /api/consent record.
+   */
+  medicalConsentAffirmative: boolean;
+  /**
+   * The slot the visitor selected through POST /api/scheduling/select.
+   *
+   * A booking may only name this slot: the model cannot choose an appointment
+   * time on the visitor's behalf, and a slot id it invents never matches.
+   * Null until the visitor picks one.
+   */
+  selectedSlotId: string | null;
 }
 
-const sessions = new Map<string, SessionData>();
+/**
+ * Upper bound on resident sessions. Reaching it evicts the least-recently-used
+ * session, which is the correct trade for a pilot: an evicted session loses
+ * its in-memory context (the conversation is not persisted) while the process
+ * keeps serving instead of growing until it is OOM-killed.
+ */
+export const MAX_SESSION_CACHE_ENTRIES = 5000;
+
+const sessions = new BoundedLruCache<string, SessionData>(MAX_SESSION_CACHE_ENTRIES);
 
 /**
  * Gets the conversation history for a session as LLMMessage[].
@@ -249,6 +280,59 @@ export function setSourceUrl(sessionId: string, sourceUrl: string | null): void 
 }
 
 /**
+ * Returns the authoritative server-side conversation state for the session.
+ * Defaults to 'education' for a new session (after the initial disclosure).
+ */
+export function getSessionState(sessionId: string): ConversationState {
+  const session = sessions.get(sessionId);
+  return session ? session.currentState : 'education';
+}
+
+/**
+ * Updates the authoritative server-side conversation state for the session.
+ */
+export function setSessionState(sessionId: string, state: ConversationState): void {
+  const session = getOrCreateSession(sessionId);
+  session.currentState = state;
+  session.lastActivity = Date.now();
+}
+
+/**
+ * Returns whether the session has affirmed medical consent on the server.
+ */
+export function getMedicalConsentAffirmative(sessionId: string): boolean {
+  const session = sessions.get(sessionId);
+  return session ? session.medicalConsentAffirmative : false;
+}
+
+/**
+ * Records server-side medical consent status for the session.
+ */
+export function setMedicalConsentAffirmative(sessionId: string, affirmed: boolean): void {
+  const session = getOrCreateSession(sessionId);
+  session.medicalConsentAffirmative = affirmed;
+  session.lastActivity = Date.now();
+}
+
+/**
+ * Returns the slot the visitor selected in this session, or null.
+ */
+export function getSelectedSlot(sessionId: string): string | null {
+  const session = sessions.get(sessionId);
+  return session ? session.selectedSlotId : null;
+}
+
+/**
+ * Records the slot the visitor selected (server-verified by the scheduling
+ * route before this is called). Passing null clears the selection.
+ */
+export function setSelectedSlot(sessionId: string, slotId: string | null): void {
+  const session = getOrCreateSession(sessionId);
+  session.selectedSlotId = slotId;
+  session.lastActivity = Date.now();
+}
+
+/**
  * Increments consecutive failure count for loop control (Section 4.11).
  * Returns the new count.
  */
@@ -309,6 +393,9 @@ function getOrCreateSession(sessionId: string): SessionData {
       dimeInputs: { ...EMPTY_DIME_INPUTS },
       pageContext: null,
       sourceUrl: null,
+      currentState: 'education',
+      medicalConsentAffirmative: false,
+      selectedSlotId: null,
     };
     sessions.set(sessionId, session);
   }
@@ -327,7 +414,7 @@ export function startSessionCleanup(): void {
   }
   cleanupTimer = setInterval(() => {
     const now = Date.now();
-    for (const [id, session] of sessions.entries()) {
+    for (const [id, session] of sessions) {
       if (now - session.lastActivity > SESSION_TTL_MS) {
         sessions.delete(id);
       }

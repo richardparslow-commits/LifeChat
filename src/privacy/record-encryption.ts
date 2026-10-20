@@ -17,9 +17,25 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { config } from '../config/app-config';
 
+/**
+ * Minimum secret length. A short passphrase is a brute-force target even with
+ * a random salt; 32 characters is the floor the deployment contract enforces.
+ */
+export const MIN_RECORD_ENCRYPTION_KEY_LENGTH = 32;
+
 /** True when RECORD_ENCRYPTION_KEY is configured (non-empty). */
 export function isRecordEncryptionConfigured(): boolean {
   return config.recordEncryptionKey.trim().length > 0;
+}
+
+/**
+ * True when the configured key meets the minimum entropy requirement (SEC-10).
+ * A configured-but-weak key is a hard error at the encryption boundary: writes
+ * fail closed and encrypted lines stay unreadable, rather than silently
+ * deriving a weak AES key.
+ */
+export function isRecordEncryptionKeyStrong(): boolean {
+  return config.recordEncryptionKey.trim().length >= MIN_RECORD_ENCRYPTION_KEY_LENGTH;
 }
 
 /**
@@ -38,6 +54,12 @@ export function isEncryptedRecordLine(line: string): boolean {
 
 /** Deterministic 32-byte AES-256 key derived from the configured secret. */
 function deriveKey(): Buffer {
+  if (!isRecordEncryptionKeyStrong()) {
+    throw new Error(
+      `RECORD_ENCRYPTION_KEY must be at least ${MIN_RECORD_ENCRYPTION_KEY_LENGTH} characters. ` +
+        'Refusing to derive a weak AES-256 key; record writes fail closed until this is fixed.',
+    );
+  }
   return createHash('sha256').update(config.recordEncryptionKey).digest();
 }
 

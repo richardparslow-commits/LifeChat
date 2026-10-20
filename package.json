@@ -13,11 +13,14 @@
     "format": "prettier --write src/ tests/",
     "format:check": "prettier --check src/ tests/",
     "test": "jest",
+    "secrets:gate": "ts-node src/config/secret-gate-cli.ts",
+    "audit": "npm audit --audit-level=high",
     "a11y:checklist": "ts-node src/accessibility/accessibility-checklist-cli.ts",
     "conditions:sweep": "ts-node src/medical/condition-coverage-sweep-cli.ts",
     "test:guardrails:golden": "ts-node src/evaluation/persona-guardrail-gate.ts",
     "test:verdicts": "ts-node src/evaluation/verdict-gate.ts",
-    "test:persona": "npm run test:guardrails:golden && jest tests/persona-guardrails.test.ts tests/persona-guardrail-gate.test.ts"
+    "test:persona": "npm run test:guardrails:golden && jest tests/persona-guardrails.test.ts tests/persona-guardrail-gate.test.ts",
+    "test:flake": "ts-node src/testing/flake-harness-cli.ts"
   },
   "keywords": [
     "life-insurance",
@@ -35,23 +38,28 @@
   },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "express": "^4.21.0",
+    "express": "^4.22.3",
     "uuid": "^11.1.1",
     "zod": "^3.23.8"
+  },
+  "overrides": {
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^4.1.0"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/express": "^4.17.21",
-    "@types/jest": "^29.5.14",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
     "@types/supertest": "^7.2.1",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^9.1.2",
-    "jest": "^29.7.0",
+    "jest": "^30.5.2",
     "prettier": "^3.9.6",
     "supertest": "^7.2.2",
-    "ts-jest": "^29.2.5",
+    "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.68.0"

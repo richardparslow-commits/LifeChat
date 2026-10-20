@@ -20,6 +20,7 @@ import {
   logAbstention,
   readAbstentionLog,
   abstentionCountsByCategory,
+  settleAbstentionWrites,
   type AbstentionLogEntry,
 } from '../src/analytics/abstention-log';
 import { generateResponse } from '../src/llm/orchestrator';
@@ -77,8 +78,8 @@ describe('hash and category helpers', () => {
 describe('logAbstention', () => {
   it('writes an anonymized record with no raw question text', async () => {
     const logPath = makeLogPath('anon');
-    await withLogPath(logPath, true, () => {
-      logAbstention({ userMessage: 'jane@example.com art vandelay 555-0199' });
+    await withLogPath(logPath, true, async () => {
+      await logAbstention({ userMessage: 'jane@example.com art vandelay 555-0199' });
       const raw = readFileSync(logPath, 'utf8');
       expect(raw).toContain('"event":"abstention"');
       // The raw question and any PII must NOT appear.
@@ -86,7 +87,7 @@ describe('logAbstention', () => {
       expect(raw).not.toContain('vandelay');
       expect(raw).not.toContain('555-0199');
 
-      const entries = readAbstentionLog(10);
+      const entries = await readAbstentionLog(10);
       expect(entries).toHaveLength(1);
       const e = entries[0];
       expect(e.event).toBe('abstention');
@@ -98,12 +99,12 @@ describe('logAbstention', () => {
 
   it('records the correct hash and category', async () => {
     const logPath = makeLogPath('cat');
-    await withLogPath(logPath, true, () => {
-      logAbstention({
+    await withLogPath(logPath, true, async () => {
+      await logAbstention({
         userMessage: 'How do Texas tax rules work for our policy?',
         topicCategory: 'texas_laws',
       });
-      const entries = readAbstentionLog(10);
+      const entries = await readAbstentionLog(10);
       expect(entries).toHaveLength(1);
       expect(entries[0].question_category).toBe('texas_laws');
       expect(entries[0].question_text_hash).toBe(
@@ -114,36 +115,38 @@ describe('logAbstention', () => {
 
   it('does nothing when ABSTENTION_LOGGING_ENABLED is off', async () => {
     const logPath = makeLogPath('off');
-    await withLogPath(logPath, false, () => {
-      logAbstention({ userMessage: 'whatever' });
+    await withLogPath(logPath, false, async () => {
+      await logAbstention({ userMessage: 'whatever' });
       // With logging disabled, the isolated (temp) log path must stay empty
       // and the read/aggregate helpers must report nothing. These reads run
       // while config.abstentionLogPath points at the temp path, not the shared
       // default data/abstention-log.jsonl which the live server may write to.
       expect(existsSync(logPath)).toBe(false);
-      expect(readAbstentionLog(10)).toEqual([]);
-      expect(abstentionCountsByCategory()).toEqual({});
+      expect(await readAbstentionLog(10)).toEqual([]);
+      expect(await abstentionCountsByCategory()).toEqual({});
     });
   });
 
   it('never throws even when the target path is unwritable', async () => {
     const badPath = join(tmpdir(), `lifechat-abstention-bad-${Date.now()}`, 'nope', 'sub');
-    await withLogPath(badPath, true, () => {
-      expect(() => logAbstention({ userMessage: 'something' })).not.toThrow();
+    await withLogPath(badPath, true, async () => {
+      // A failed write resolves false instead of throwing — logging can never
+      // take a chat turn down.
+      await expect(logAbstention({ userMessage: 'something' })).resolves.toBeUndefined();
     });
   });
 
   it('deduplicates sizes via hash and aggregates counts by category', async () => {
     const logPath = makeLogPath('agg');
-    await withLogPath(logPath, true, () => {
-      logAbstention({ userMessage: 'How do riders work?', topicCategory: 'riders' });
+    await withLogPath(logPath, true, async () => {
+      await logAbstention({ userMessage: 'How do riders work?', topicCategory: 'riders' });
       // Same normalized hash; category is supplied again so both aggregate.
-      logAbstention({ userMessage: '  How   do RIDERS WORK?   ', topicCategory: 'riders' });
-      logAbstention({ userMessage: 'What about Texas laws?', topicCategory: 'texas_laws' });
-      const entries = readAbstentionLog(20);
+      await logAbstention({ userMessage: '  How   do RIDERS WORK?   ', topicCategory: 'riders' });
+      await logAbstention({ userMessage: 'What about Texas laws?', topicCategory: 'texas_laws' });
+      const entries = await readAbstentionLog(20);
       expect(entries).toHaveLength(3);
       expect(entries[0].question_text_hash).toBe(entries[1].question_text_hash);
-      const counts = abstentionCountsByCategory();
+      const counts = await abstentionCountsByCategory();
       expect(counts['riders']).toBe(2);
       expect(counts['texas_laws']).toBe(1);
     });
@@ -161,7 +164,10 @@ describe('orchestrator end-to-end abstention logging', () => {
       expect(response.analytics.event_name).toBe('ai_abstention');
       expect(latencyMs).toBeGreaterThanOrEqual(0);
 
-      const entries = readAbstentionLog(10);
+      // The orchestrator does not wait on the analytics write, so wait for the
+      // in-flight append here rather than sleeping and hoping.
+      await settleAbstentionWrites();
+      const entries = await readAbstentionLog(10);
       expect(entries).toHaveLength(1);
       const e: AbstentionLogEntry = entries[0];
       expect(e.event).toBe('abstention');
@@ -188,7 +194,7 @@ describe('orchestrator end-to-end abstention logging', () => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
   // Best-effort cleanup of any leftover temp dir from a failed assertion.
   const base = join(tmpdir(), 'lifechat-abstention-test');
   try {

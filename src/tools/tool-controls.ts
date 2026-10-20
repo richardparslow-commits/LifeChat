@@ -34,7 +34,15 @@ export interface ToolAuthorizationContext {
   proposedAction: ProposedAction;
   actionArguments: Record<string, unknown>;
   consent: Consent;
-  leadData: LeadData;
+  /** Not read by the rules today; callers pass it only when they hold one. */
+  leadData?: LeadData;
+  /**
+   * Set by the application when it, not the model, derives the idempotency
+   * key. The model's own `idempotency_key` argument is untrusted (it can
+   * invent one, or reuse a key from another session), so a server-derived key
+   * takes precedence and is the only one copied into the sanitized arguments.
+   */
+  idempotencyKey?: string;
   userRequestedAction: boolean;
   requiredFieldsValid: boolean;
   suppressionChecksPassed: boolean;
@@ -70,18 +78,22 @@ export function authorizeToolAction(ctx: ToolAuthorizationContext): ToolAuthoriz
   const errors: string[] = [];
   const sanitizedArgs: Record<string, unknown> = {};
 
-  // 1. Check that the proposed action is on the allowlist
+  // 1. 'none' is the absence of a tool call, not a tool. It has nothing to
+  //    authorize, and must not be reported as an unauthorized action — doing
+  //    so flagged every ordinary answer as a blocked tool call. Any arguments
+  //    attached to it are dropped.
+  if (ctx.proposedAction === 'none') {
+    return { authorized: true, errors, sanitizedArguments: sanitizedArgs };
+  }
+
+  // 2. Check that the proposed action is on the allowlist
   if (!ALLOWED_TOOLS.includes(ctx.proposedAction as AllowedTool)) {
     errors.push(`Tool "${ctx.proposedAction}" is not on the allowlist`);
     return { authorized: false, errors, sanitizedArguments: sanitizedArgs };
   }
 
-  // 2. 'none' and 'search_knowledge' and 'request_human_handoff' don't require consent
-  if (
-    ctx.proposedAction === 'none' ||
-    ctx.proposedAction === 'search_knowledge' ||
-    ctx.proposedAction === 'request_human_handoff'
-  ) {
+  // 3. 'search_knowledge' and 'request_human_handoff' don't require consent
+  if (ctx.proposedAction === 'search_knowledge' || ctx.proposedAction === 'request_human_handoff') {
     // Still sanitize action arguments — redact any fields not expected
     for (const [key, value] of Object.entries(ctx.actionArguments)) {
       if (isAllowedArgument(key, ctx.proposedAction)) {
@@ -93,7 +105,7 @@ export function authorizeToolAction(ctx: ToolAuthorizationContext): ToolAuthoriz
     return { authorized: errors.length === 0, errors, sanitizedArguments: sanitizedArgs };
   }
 
-  // 3. create_lead requires affirmative current consent + valid fields + user request
+  // 4. create_lead requires affirmative current consent + valid fields + user request
   if (ctx.proposedAction === 'create_lead') {
     if (!ctx.userRequestedAction) {
       errors.push('create_lead requires that the user requested that action');
@@ -114,14 +126,15 @@ export function authorizeToolAction(ctx: ToolAuthorizationContext): ToolAuthoriz
       errors.push('create_lead blocked: do_not_contact is true');
     }
     // Require idempotency key
-    if (!ctx.actionArguments.idempotency_key) {
+    const leadKey = ctx.idempotencyKey ?? ctx.actionArguments.idempotency_key;
+    if (!leadKey) {
       errors.push('create_lead requires an idempotency_key');
     } else {
-      sanitizedArgs.idempotency_key = ctx.actionArguments.idempotency_key;
+      sanitizedArgs.idempotency_key = leadKey;
     }
   }
 
-  // 4. get_calendar_slots requires user request
+  // 5. get_calendar_slots requires user request
   if (ctx.proposedAction === 'get_calendar_slots') {
     if (!ctx.userRequestedAction) {
       errors.push('get_calendar_slots requires that the user requested scheduling');
@@ -133,7 +146,7 @@ export function authorizeToolAction(ctx: ToolAuthorizationContext): ToolAuthoriz
     }
   }
 
-  // 5. book_appointment requires verified slot + explicit user confirmation
+  // 6. book_appointment requires verified slot + explicit user confirmation
   if (ctx.proposedAction === 'book_appointment') {
     if (!ctx.userRequestedAction) {
       errors.push('book_appointment requires that the user requested booking');
@@ -143,16 +156,17 @@ export function authorizeToolAction(ctx: ToolAuthorizationContext): ToolAuthoriz
     } else {
       sanitizedArgs.slot_id = ctx.actionArguments.slot_id;
     }
-    if (!ctx.actionArguments.idempotency_key) {
+    const bookingKey = ctx.idempotencyKey ?? ctx.actionArguments.idempotency_key;
+    if (!bookingKey) {
       errors.push('book_appointment requires an idempotency_key');
     } else {
-      sanitizedArgs.idempotency_key = ctx.actionArguments.idempotency_key;
+      sanitizedArgs.idempotency_key = bookingKey;
     }
     // Recheck slot availability at commit time (application must do this)
     // The tool itself doesn't confirm until downstream returns success
   }
 
-  // 6. send_transactional_confirmation requires a booking to have succeeded
+  // 7. send_transactional_confirmation requires a booking to have succeeded
   if (ctx.proposedAction === 'send_transactional_confirmation') {
     if (!ctx.actionArguments.appointment_id) {
       errors.push(
@@ -163,7 +177,7 @@ export function authorizeToolAction(ctx: ToolAuthorizationContext): ToolAuthoriz
     }
   }
 
-  // 7. Redact secrets and sensitive data from all arguments
+  // 8. Redact secrets and sensitive data from all arguments
   for (const [key, value] of Object.entries(ctx.actionArguments)) {
     if (isSensitiveKey(key)) {
       // Skip — do not include in sanitized output

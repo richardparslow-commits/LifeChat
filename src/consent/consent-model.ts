@@ -6,9 +6,14 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
-import { dirname } from 'path';
-import { config } from '../config/app-config';
+import { config, isEphemeralServerlessPath } from '../config/app-config';
+import { BoundedLruCache } from '../persistence/bounded-lru';
+import {
+  appendJsonlLine,
+  findJsonlRecord,
+  readJsonlLines,
+  removeLogFile,
+} from '../persistence/jsonl-log';
 import type { CanonicalConditionRef } from '../medical/condition-crosswalk';
 import {
   encryptRecordLine,
@@ -26,6 +31,16 @@ import {
 export interface LeadRecord {
   /** Server-generated UUID */
   lead_id: string;
+  /**
+   * The chat session the consent was submitted from, when the form carried one.
+   *
+   * This is the join key that lets the chat route verify consent server-side:
+   * the record is created by /api/consent, so a session id found here proves the
+   * visitor submitted the consent form, while an id the model asserts about
+   * itself proves nothing. It is the client-generated opaque session id, never
+   * a name, email, or phone number.
+   */
+  session_id: string | null;
   /** Server timestamp */
   created_at: string;
   /** Sanitized canonical path — never raw window.location.href with query params */
@@ -154,6 +169,7 @@ export function createLeadRecord(
 ): LeadRecord {
   return {
     lead_id: uuidv4(),
+    session_id: null,
     created_at: new Date().toISOString(),
     source_page_id: sourcePageId,
     sanitized_canonical_path: sanitizedPath,
@@ -183,52 +199,67 @@ export function createLeadRecord(
 }
 
 /**
- * In-memory lead store for the pilot phase (mirrors the DSR pattern).
- * Backed by an append-only JSONL file (encrypted at rest when a
- * RECORD_ENCRYPTION_KEY is set) so lead records and their consent artifacts
- * survive process restarts. Lead records and consent proof are legal records
- * under TDPSA retention / consent-proof requirements and must not be lost
- * when the server restarts.
+ * Bounded in-memory cache of lead records, in front of the JSONL log.
+ *
+ * The log on disk is the source of truth; this cache makes admin and handoff
+ * lookups O(1). It is capped so a long-lived process cannot grow without
+ * bound, and it is hydrated from disk asynchronously at module load rather
+ * than with a blocking read.
  */
-const leadRecords: LeadRecord[] = [];
+export const MAX_CACHED_LEAD_RECORDS = 5000;
+const leadRecords = new BoundedLruCache<string, LeadRecord>(MAX_CACHED_LEAD_RECORDS);
 
-/** Loads existing lead records from the JSONL log at startup. */
-function loadLeadRecordsFromDisk(): void {
+/**
+ * Session id → lead id, so a chat turn can find its consent artifact in O(1).
+ *
+ * `null` is a *negative* entry: the log was scanned and no record carries this
+ * session. Without it, every turn of a session that never submitted consent
+ * would re-read the whole append-only log — a per-request O(file) scan on the
+ * chat hot path. A local write stores the id over any negative entry, so
+ * submitting consent later in the same process takes effect immediately; a
+ * restart re-reads the log, so eviction changes lookup cost, never the answer.
+ */
+const leadIdBySession = new BoundedLruCache<string, string | null>(MAX_CACHED_LEAD_RECORDS);
+
+let loadPromise: Promise<void> | null = null;
+
+/** Streams the JSONL log into the cache. */
+async function loadLeadRecordsFromDisk(): Promise<void> {
   const logPath = config.leadLogPath;
-  if (!existsSync(logPath)) return;
+  const lines = await readJsonlLines(logPath);
   let skippedMissingKey = 0;
   let skippedUndecodable = 0;
-  try {
-    const lines = readFileSync(logPath, 'utf8')
-      .split('\n')
-      .filter((l) => l.trim().length > 0);
-    for (const line of lines) {
-      try {
-        const plain = decryptRecordLine(line);
-        if (plain === null) {
-          // Skipped encrypted lines are an operational trap — records
-          // silently vanish on startup. Count them so we can warn, whether
-          // the key is missing or present-but-wrong.
-          if (isEncryptedRecordLine(line)) {
-            if (isRecordEncryptionConfigured()) {
-              skippedUndecodable++;
-            } else {
-              skippedMissingKey++;
-            }
+
+  for (const line of lines) {
+    try {
+      const plain = decryptRecordLine(line);
+      if (plain === null) {
+        // Skipped encrypted lines are an operational trap — records silently
+        // vanish on startup. Count them so we can warn, whether the key is
+        // missing or present-but-wrong.
+        if (isEncryptedRecordLine(line)) {
+          if (isRecordEncryptionConfigured()) {
+            skippedUndecodable++;
+          } else {
+            skippedMissingKey++;
           }
-          continue; // cannot decode — skip
         }
-        const parsed = JSON.parse(plain) as LeadRecord;
-        if (parsed && parsed.lead_id) {
-          leadRecords.push(parsed);
-        }
-      } catch {
-        // skip malformed lines
+        continue; // cannot decode — skip
       }
+      const parsed = JSON.parse(plain) as LeadRecord;
+      if (parsed && parsed.lead_id) {
+        leadRecords.set(parsed.lead_id, parsed);
+        // The log is appended in submission order, so the last record for a
+        // session is also the one a lookup should reach first.
+        if (parsed.session_id) {
+          leadIdBySession.set(parsed.session_id, parsed.lead_id);
+        }
+      }
+    } catch {
+      // skip malformed lines
     }
-  } catch {
-    // Best-effort — don't block startup if the log can't be read
   }
+
   if (skippedMissingKey > 0) {
     console.warn(
       `WARNING: ${skippedMissingKey} encrypted lead record(s) in ${logPath} were skipped because ` +
@@ -244,23 +275,37 @@ function loadLeadRecordsFromDisk(): void {
   }
 }
 
-// Load persisted records on module init so they survive restarts
-loadLeadRecordsFromDisk();
+/**
+ * Resolves once the startup load from disk has finished.
+ *
+ * Writes await this so a record appended during startup can never interleave
+ * with a half-loaded cache; tests and admin tooling await it before asserting
+ * on records that came from disk rather than from this process.
+ */
+export function ensureLeadRecordsLoaded(): Promise<void> {
+  loadPromise ??= loadLeadRecordsFromDisk();
+  return loadPromise;
+}
+
+// Hydration is explicit: the entry point (src/index.ts) starts it at boot and
+// the first write awaits it. Module evaluation itself stays free of I/O and of
+// log output, so importing this module never races a caller's console spy.
 
 /**
- * Appends a lead record to the JSONL log.
- * Returns true on success, false on failure (read-only dir, full disk).
+ * Appends a lead record to the JSONL log through an async stream.
+ * Returns false on failure (read-only dir, full disk, or ephemeral serverless
+ * filesystem).
  */
-function persistLeadRecord(lead: LeadRecord): boolean {
+async function persistLeadRecord(lead: LeadRecord): Promise<boolean> {
+  const logPath = config.leadLogPath;
+  if (isEphemeralServerlessPath(logPath)) {
+    return false;
+  }
   try {
-    const logPath = config.leadLogPath;
-    const dir = dirname(logPath);
-    if (dir && dir !== '.') {
-      mkdirSync(dir, { recursive: true });
-    }
-    appendFileSync(logPath, `${encryptRecordLine(JSON.stringify(lead))}\n`, 'utf8');
-    return true;
+    return await appendJsonlLine(logPath, encryptRecordLine(JSON.stringify(lead)));
   } catch {
+    // Fail closed: any unexpected error is a failed write, never a rejection
+    // that would surface as a hanging request under Express 4.
     return false;
   }
 }
@@ -269,50 +314,180 @@ function persistLeadRecord(lead: LeadRecord): boolean {
  * Persists a lead record to the store. The record should already be fully
  * populated (PII fields, consent version, timestamp) before calling this.
  *
- * Fail-closed: returns true only when the record was durably written, and
- * only then adds it to the in-memory store. On a persistence failure it
- * returns false and the record is neither stored nor acknowledged — the
- * consent artifact is a legal record under TDPSA consent-proof
- * requirements, so a lost write must not be confirmed (mirrors the DSR
- * intake path in src/privacy/dsr.ts).
+ * Fail-closed: resolves true only when the record was durably written, and
+ * only then adds it to the in-memory cache. On a persistence failure it
+ * resolves false and the record is neither stored nor acknowledged — the
+ * consent artifact is a legal record under TDPSA consent-proof requirements,
+ * so a lost write must not be confirmed (mirrors the DSR intake path in
+ * src/privacy/dsr.ts).
  *
  * @returns true when durably persisted, false when the write failed.
  */
-export function saveLeadRecord(lead: LeadRecord): boolean {
-  if (!persistLeadRecord(lead)) {
+export async function saveLeadRecord(lead: LeadRecord): Promise<boolean> {
+  await ensureLeadRecordsLoaded();
+  if (!(await persistLeadRecord(lead))) {
     return false;
   }
-  leadRecords.push(lead);
+  leadRecords.set(lead.lead_id, lead);
+  if (lead.session_id) {
+    leadIdBySession.set(lead.session_id, lead.lead_id);
+  }
   return true;
 }
 
 /**
- * Gets a lead record by its lead_id (admin/debug + handoff lookup).
+ * Finds the lead id submitted from a session, scanning the log on a cache miss.
  */
-export function getLeadRecord(leadId: string): LeadRecord | undefined {
-  return leadRecords.find((l) => l.lead_id === leadId);
+async function findLeadIdBySession(sessionId: string): Promise<string | undefined> {
+  const match = await findJsonlRecord<LeadRecord>(config.leadLogPath, (line) => {
+    const plain = decryptRecordLine(line);
+    if (plain === null) return null;
+    const parsed = JSON.parse(plain) as LeadRecord;
+    return parsed && parsed.session_id === sessionId ? parsed : null;
+  });
+  return match?.lead_id;
 }
 
 /**
- * Lists all lead records (admin).
+ * The session's consented contact details, as verified from storage.
+ *
+ * Note what is *not* here: nothing the model said. Every field comes from the
+ * record /api/consent wrote on a user submission.
+ */
+export interface VerifiedContactConsent {
+  leadId: string;
+  channel: 'email' | 'phone' | 'calendar';
+  email: string | null;
+  phone: string | null;
+  version: string;
+  consentedAt: string;
+}
+
+/** Why a session has no usable consent. Stable codes, safe to log. */
+export type ContactConsentRejection =
+  'no_consent_record' | 'stale_consent_version' | 'invalid_contact_field';
+
+export type ContactConsentVerification =
+  { ok: true; consent: VerifiedContactConsent } | { ok: false; reason: ContactConsentRejection };
+
+/**
+ * Verifies that the session holds affirmative, current, complete contact
+ * consent, derived entirely from the durable lead record.
+ *
+ * Fail-closed: a record that is missing, incomplete (no consent version,
+ * timestamp, or affirmed-copy hash), written under a superseded consent
+ * version, or that lacks a valid value for its own channel does not authorize
+ * anything. The caller must treat every rejection reason as "no consent".
+ */
+export async function getVerifiedContactConsent(
+  sessionId: string,
+): Promise<ContactConsentVerification> {
+  let leadId = leadIdBySession.get(sessionId);
+  if (leadId === undefined) {
+    leadId = (await findLeadIdBySession(sessionId)) ?? null;
+    leadIdBySession.set(sessionId, leadId);
+  }
+  if (!leadId) return { ok: false, reason: 'no_consent_record' };
+
+  const record = await getLeadRecord(leadId);
+  if (!record) return { ok: false, reason: 'no_consent_record' };
+
+  // An incomplete artifact is not consent: the version names the copy that was
+  // shown, the timestamp proves when, and the hash proves which words.
+  if (!record.contact_consent_version || !record.consent_timestamp || !record.consent_text_hash) {
+    return { ok: false, reason: 'no_consent_record' };
+  }
+
+  if (record.contact_consent_version !== config.contactConsentVersion) {
+    return { ok: false, reason: 'stale_consent_version' };
+  }
+
+  const channel = record.contact_channel;
+  if (channel === 'email') {
+    if (!record.email || !validateEmail(record.email)) {
+      return { ok: false, reason: 'invalid_contact_field' };
+    }
+  } else if (channel === 'phone') {
+    if (!record.phone || !validatePhone(record.phone)) {
+      return { ok: false, reason: 'invalid_contact_field' };
+    }
+  } else if (channel !== 'calendar') {
+    // No channel was captured, so there is no consented route to reach the
+    // visitor through.
+    return { ok: false, reason: 'invalid_contact_field' };
+  }
+
+  return {
+    ok: true,
+    consent: {
+      leadId: record.lead_id,
+      channel,
+      email: record.email,
+      phone: record.phone,
+      version: record.contact_consent_version,
+      consentedAt: record.consent_timestamp,
+    },
+  };
+}
+
+/**
+ * Reads one lead record straight from the JSONL log, decrypting each line.
+ * Used only when the cache does not hold the id.
+ */
+async function findLeadRecordOnDisk(leadId: string): Promise<LeadRecord | undefined> {
+  return findJsonlRecord<LeadRecord>(config.leadLogPath, (line) => {
+    const plain = decryptRecordLine(line);
+    if (plain === null) return null;
+    const parsed = JSON.parse(plain) as LeadRecord;
+    return parsed && parsed.lead_id === leadId ? parsed : null;
+  });
+}
+
+/**
+ * Gets a lead record by its lead_id (admin/debug + handoff lookup).
+ *
+ * Cache-first, log-backed: a bounded cache evicts old entries, so a miss is
+ * not proof the record does not exist. On a miss this streams the JSONL log
+ * for the id, caches the match, and returns it. A record written by another
+ * process (or before this process started) is therefore just as findable as
+ * one written here — eviction changes lookup cost, never the answer.
+ */
+export async function getLeadRecord(leadId: string): Promise<LeadRecord | undefined> {
+  const cached = leadRecords.get(leadId);
+  if (cached) return cached;
+
+  // If startup hydration is still running, let it finish first; it may already
+  // hold the record, and the cache must not be read half-loaded.
+  await ensureLeadRecordsLoaded();
+
+  const hydrated = leadRecords.get(leadId);
+  if (hydrated) return hydrated;
+
+  const fromDisk = await findLeadRecordOnDisk(leadId);
+  if (fromDisk) {
+    leadRecords.set(leadId, fromDisk);
+  }
+  return fromDisk;
+}
+
+/**
+ * Lists cached lead records, oldest first. The JSONL log remains the full
+ * record set; this is capped at MAX_CACHED_LEAD_RECORDS entries.
  */
 export function listLeadRecords(): LeadRecord[] {
-  return leadRecords.slice();
+  return leadRecords.values();
 }
 
 /**
  * Clears all lead records (testing). Also removes the JSONL log file so
  * tests start with a clean slate on disk as well as in memory.
  */
-export function clearAllLeadRecords(): void {
-  leadRecords.length = 0;
-  try {
-    if (existsSync(config.leadLogPath)) {
-      unlinkSync(config.leadLogPath);
-    }
-  } catch {
-    // Best-effort — test cleanup must not throw
-  }
+export async function clearAllLeadRecords(): Promise<void> {
+  // Testing only: the durable log is removed below, so the session index must
+  // be emptied with it or a later lookup would resolve an id that is gone.
+  leadRecords.clear();
+  leadIdBySession.clear();
+  await removeLogFile(config.leadLogPath);
 }
 
 /**

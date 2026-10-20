@@ -11,6 +11,32 @@
 import request from 'supertest';
 import type { Express } from 'express';
 import type { Server } from 'http';
+import type { ConversationState } from '../src/state-machine/state-machine';
+
+/** The exact consent copy a test visitor affirmed (SEC-06 stores its hash). */
+const CONSENT_TEXT =
+  'I agree to be contacted about my life-insurance inquiry. Consent is not a condition of purchase.';
+
+/** A schema-valid session id derived from a readable test name. */
+function testSessionId(name: string): string {
+  const slug = name.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 50);
+  return `lpp_${slug.padEnd(12, 'x')}`;
+}
+
+/**
+ * Seeds server-authoritative session state (SEC-02). The chat route ignores
+ * client-supplied currentState/medical consent, so a flow test starts by
+ * putting the session where the prior turn would have left it.
+ */
+async function seedSession(
+  sessionId: string,
+  state: ConversationState,
+  medicalConsent = false,
+): Promise<void> {
+  const store = await import('../src/llm/session-store');
+  store.setSessionState(sessionId, state);
+  store.setMedicalConsentAffirmative(sessionId, medicalConsent);
+}
 
 interface LoadedApp {
   app: Express;
@@ -73,23 +99,24 @@ describe('GET / with the medical capture flag OFF (default)', () => {
   });
 
   it('blocks health data shared in the education state with a licensed-broker handoff', async () => {
-    const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-edu-health',
-      currentState: 'education',
-      message: 'I have diabetes and I take insulin',
-    });
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('off-edu-health'),
+        message: 'I have diabetes and I take insulin',
+      });
     expect(res.status).toBe(200);
     expect(res.body.state).toBe('handoff');
     expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
     expect(res.body.proposed_action).toBe('request_human_handoff');
   });
 
-  it('blocks health data in medical_offer even when a consent flag is sent (flag forces the flow off)', async () => {
+  it('blocks health data in medical_offer even when consent is recorded (flag forces the flow off)', async () => {
+    const sessionId = testSessionId('off-medoffer-health');
+    await seedSession(sessionId, 'medical_offer', true);
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-medoffer-health',
-      currentState: 'medical_offer',
+      sessionId,
       message: 'I have diabetes and I take insulin',
-      medicalConsentAffirmative: true,
     });
     expect(res.status).toBe(200);
     expect(res.body.state).toBe('handoff');
@@ -97,9 +124,9 @@ describe('GET / with the medical capture flag OFF (default)', () => {
   });
 
   it('blocks financial-account data with a licensed-broker handoff and redacts it from history', async () => {
+    const sessionId = testSessionId('off-edu-financial');
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-edu-financial',
-      currentState: 'education',
+      sessionId,
       message: 'My routing number is 111000025 and my account number is 409877123456',
     });
     expect(res.status).toBe(200);
@@ -113,21 +140,21 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(res.body.assistant_message).not.toContain('409877123456');
 
     // Session history stores the redacted placeholder, never the numbers
-    const history = await request(loaded.app).get('/api/session/off-edu-financial/history');
+    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
     expect(JSON.stringify(history.body)).toContain('REDACTED');
     expect(JSON.stringify(history.body)).not.toContain('111000025');
     expect(JSON.stringify(history.body)).not.toContain('409877123456');
   });
 
   it('does not honor medical consent when the flag is off (state stays medical_offer)', async () => {
+    const sessionId = testSessionId('off-medoffer-consent');
+    await seedSession(sessionId, 'medical_offer', true);
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-medoffer-consent',
-      currentState: 'medical_offer',
+      sessionId,
       message: 'qzxvbnm asdfghj',
-      medicalConsentAffirmative: true,
     });
     expect(res.status).toBe(200);
-    // The flag forces consent off, so the state machine stays in medical_offer
+    // The flag forces the flow off, so the state machine stays in medical_offer
     // (observable via the stage passed to the orchestrator).
     expect(res.body.analytics.conversation_stage).toBe('medical_offer');
   });
@@ -135,9 +162,10 @@ describe('GET / with the medical capture flag OFF (default)', () => {
   it('does not abstain on conversational turns in flow states (contact_offer)', async () => {
     // Short conversational replies ("That is everything.") have no RAG
     // evidence; the abstention gate must not block flow-state turns.
+    const sessionId = testSessionId('off-contactflow');
+    await seedSession(sessionId, 'contact_offer');
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-contactflow',
-      currentState: 'contact_offer',
+      sessionId,
       message: 'That is everything.',
     });
     expect(res.status).toBe(200);
@@ -148,12 +176,13 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     // With userRequestsDimeEstimator, the state machine advances from
     // education to dime_estimator (observable via the stage passed to the
     // orchestrator even when the LLM is unreachable).
-    const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-dime-entry',
-      currentState: 'education',
-      message: 'How much life insurance do I need?',
-      userRequestsDimeEstimator: true,
-    });
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('off-dime-entry'),
+        message: 'How much life insurance do I need?',
+        userRequestsDimeEstimator: true,
+      });
     expect(res.status).toBe(200);
     expect(res.body.analytics.conversation_stage).toBe('dime_estimator');
     expect(res.body.analytics.event_name).not.toBe('ai_abstention');
@@ -162,9 +191,10 @@ describe('GET / with the medical capture flag OFF (default)', () => {
   it('does not abstain on DIME answer turns in the dime_estimator state', async () => {
     // Short factual answers to the estimator's questions have no RAG evidence;
     // the abstention gate must not block the collecting turns.
+    const sessionId = testSessionId('off-dime-step');
+    await seedSession(sessionId, 'dime_estimator');
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-dime-step',
-      currentState: 'dime_estimator',
+      sessionId,
       message: 'Yes, I have a mortgage.',
     });
     expect(res.status).toBe(200);
@@ -208,9 +238,9 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     // that the Express app is using.
     const { getSourceUrl } = await import('../src/llm/session-store');
 
+    const sessionId = testSessionId('off-source-url');
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-source-url',
-      currentState: 'education',
+      sessionId,
       message: 'What is term life insurance?',
       sourceUrl:
         'https://lifepolicypilot.blog/term-vs-whole-life/?utm_source=google&email=user@example.com',
@@ -218,7 +248,7 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(res.status).toBe(200);
 
     // Verify via the session store that only the pathname was stored
-    const stored = getSourceUrl('off-source-url');
+    const stored = getSourceUrl(sessionId);
     expect(stored).toBe('/term-vs-whole-life/');
     expect(stored).not.toContain('utm_source');
     expect(stored).not.toContain('email');
@@ -230,20 +260,19 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     // sourceUrl must not overwrite it (mirrors the pageContext pattern).
     const { getSourceUrl } = await import('../src/llm/session-store');
 
+    const sessionId = testSessionId('off-source-url-persist');
     await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-source-url-persist',
-      currentState: 'education',
+      sessionId,
       message: 'What is term life?',
       sourceUrl: 'https://lifepolicypilot.blog/term-vs-whole-life/?ref=homepage',
     });
     await request(loaded.app).post('/api/chat').send({
-      sessionId: 'off-source-url-persist',
-      currentState: 'education',
+      sessionId,
       message: 'And whole life?',
       sourceUrl: 'https://lifepolicypilot.blog/whole-life/?different=true',
     });
 
-    const stored = getSourceUrl('off-source-url-persist');
+    const stored = getSourceUrl(sessionId);
     expect(stored).toBe('/term-vs-whole-life/');
   });
 });
@@ -270,20 +299,22 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
   });
 
   it('still blocks health data outside the consented medical_review state', async () => {
-    const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'on-edu-health',
-      currentState: 'education',
-      message: 'I have diabetes and I take insulin',
-    });
+    const res = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('on-edu-health'),
+        message: 'I have diabetes and I take insulin',
+      });
     expect(res.status).toBe(200);
     expect(res.body.state).toBe('handoff');
     expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
   });
 
   it('accepts health data in the consented medical_review state (no block, no handoff)', async () => {
+    const sessionId = testSessionId('on-medreview-health');
+    await seedSession(sessionId, 'medical_review', true);
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'on-medreview-health',
-      currentState: 'medical_review',
+      sessionId,
       message: 'I have diabetes and I take insulin',
     });
     expect(res.status).toBe(200);
@@ -297,21 +328,22 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
   it('does not short-circuit to abstention on non-corpus answers in medical_review', async () => {
     // The user's short factual answers (birthdate, A1C) have no RAG evidence;
     // the RAG gate must not block the consented interview.
+    const sessionId = testSessionId('on-medreview-nocorpus');
+    await seedSession(sessionId, 'medical_review', true);
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'on-medreview-nocorpus',
-      currentState: 'medical_review',
+      sessionId,
       message: 'My last A1C was 6.8',
     });
     expect(res.status).toBe(200);
     expect(res.body.analytics.event_name).not.toBe('ai_abstention');
   });
 
-  it('honors medical consent and transitions medical_offer -> medical_review', async () => {
+  it('honors server-recorded medical consent and transitions medical_offer -> medical_review', async () => {
+    const sessionId = testSessionId('on-medoffer-consent');
+    await seedSession(sessionId, 'medical_offer', true);
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'on-medoffer-consent',
-      currentState: 'medical_offer',
+      sessionId,
       message: 'qzxvbnm asdfghj',
-      medicalConsentAffirmative: true,
     });
     expect(res.status).toBe(200);
     // The state machine advanced: the endpoint passed medical_review as the
@@ -320,9 +352,10 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
   });
 
   it('stays in medical_offer when no consent is given', async () => {
+    const sessionId = testSessionId('on-medoffer-noconsent');
+    await seedSession(sessionId, 'medical_offer');
     const res = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'on-medoffer-noconsent',
-      currentState: 'medical_offer',
+      sessionId,
       message: 'qzxvbnm asdfghj',
     });
     expect(res.status).toBe(200);
@@ -530,6 +563,7 @@ describe('POST /api/consent', () => {
     const res = await request(loaded.app).post('/api/consent').send({
       contactConsentAffirmed: false,
       contactChannel: 'email',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Affirmative consent required');
@@ -541,6 +575,7 @@ describe('POST /api/consent', () => {
       contactChannel: 'email',
       email: 'not-an-email',
       firstName: 'Test',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid email format');
@@ -552,6 +587,7 @@ describe('POST /api/consent', () => {
       contactChannel: 'email',
       email: 'test@example.com',
       firstName: 'Test',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('created');
@@ -563,6 +599,7 @@ describe('POST /api/consent', () => {
       contactConsentAffirmed: true,
       contactChannel: 'phone',
       phone: '123',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid phone format');
@@ -573,6 +610,7 @@ describe('POST /api/consent', () => {
       contactConsentAffirmed: true,
       contactChannel: 'phone',
       phone: '5125551234',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('created');
@@ -583,9 +621,9 @@ describe('POST /api/consent', () => {
     // A prior chat message validated and stored the canonical path on the
     // session. The consent form body carries a different (hostile) URL — the
     // lead must carry the session's stored path, never the body value.
+    const sessionId = testSessionId('consent-stored-url');
     const chat = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'consent-stored-url',
-      currentState: 'education',
+      sessionId,
       message: 'What is term life insurance?',
       sourceUrl: 'https://lifepolicypilot.blog/term-vs-whole-life/?email=user@example.com',
     });
@@ -595,14 +633,15 @@ describe('POST /api/consent', () => {
       contactConsentAffirmed: true,
       contactChannel: 'email',
       email: 'test@example.com',
-      sessionId: 'consent-stored-url',
+      sessionId,
       sourceUrl: 'https://evil.example.com/malicious-path?steal=1',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(200);
 
     // Import AFTER loadApp so the module instance matches the app's.
     const { getLeadRecord } = await import('../src/consent/consent-model');
-    const lead = getLeadRecord(res.body.leadId);
+    const lead = await getLeadRecord(res.body.leadId);
     expect(lead).toBeTruthy();
     expect(lead!.sanitized_canonical_path).toBe('/term-vs-whole-life/');
     expect(lead!.sanitized_canonical_path).not.toContain('malicious');
@@ -612,17 +651,20 @@ describe('POST /api/consent', () => {
   it('falls back to the sanitized body URL when the session has no stored URL', async () => {
     // A session id with no prior chat message (or no sourceUrl yet) must fall
     // back to re-sanitizing the body value.
-    const res = await request(loaded.app).post('/api/consent').send({
-      contactConsentAffirmed: true,
-      contactChannel: 'email',
-      email: 'fallback@example.com',
-      sessionId: 'consent-no-stored-url',
-      sourceUrl: 'https://lifepolicypilot.blog/faq/?utm_source=google',
-    });
+    const res = await request(loaded.app)
+      .post('/api/consent')
+      .send({
+        contactConsentAffirmed: true,
+        contactChannel: 'email',
+        email: 'fallback@example.com',
+        sessionId: testSessionId('consent-no-stored-url'),
+        sourceUrl: 'https://lifepolicypilot.blog/faq/?utm_source=google',
+        consentText: CONSENT_TEXT,
+      });
     expect(res.status).toBe(200);
 
     const { getLeadRecord } = await import('../src/consent/consent-model');
-    const lead = getLeadRecord(res.body.leadId);
+    const lead = await getLeadRecord(res.body.leadId);
     expect(lead).toBeTruthy();
     expect(lead!.sanitized_canonical_path).toBe('/faq/');
     expect(lead!.sanitized_canonical_path).not.toContain('utm_source');
@@ -634,11 +676,12 @@ describe('POST /api/consent', () => {
       contactChannel: 'email',
       email: 'nosession@example.com',
       sourceUrl: 'https://lifepolicypilot.blog/contact/?email=user@example.com',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(200);
 
     const { getLeadRecord } = await import('../src/consent/consent-model');
-    const lead = getLeadRecord(res.body.leadId);
+    const lead = await getLeadRecord(res.body.leadId);
     expect(lead).toBeTruthy();
     expect(lead!.sanitized_canonical_path).toBe('/contact/');
     expect(lead!.sanitized_canonical_path).not.toContain('user@example.com');
@@ -666,6 +709,7 @@ describe('POST /api/consent fails closed when the lead log is unwritable', () =>
       contactChannel: 'email',
       email: 'failclosed@example.com',
       firstName: 'Fail',
+      consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Lead storage failed');
@@ -683,7 +727,8 @@ describe('POST /api/consent fails closed when the lead log is unwritable', () =>
  * (pilot/dev default), all endpoints remain accessible without auth.
  */
 describe('Admin auth middleware', () => {
-  const ADMIN_KEY = 'test-admin-secret-123';
+  // 32+ characters: the boot entropy gate refuses a shorter key (SEC-10).
+  const ADMIN_KEY = 'test-admin-secret-0123456789abcdef';
 
   describe('with ADMIN_API_KEY configured', () => {
     let loaded: LoadedApp;
@@ -723,12 +768,25 @@ describe('Admin auth middleware', () => {
       // Same length as ADMIN_KEY with a matching prefix — a naive
       // startsWith/prefix-optimized comparison would leak, and a buggy
       // constant-time implementation could accept it. Must still be rejected.
-      const sameLengthWrong = 'test-admin-secret-999';
+      const sameLengthWrong = `${ADMIN_KEY.slice(0, -1)}X`;
       expect(sameLengthWrong.length).toBe(ADMIN_KEY.length);
       const res = await request(loaded.app)
         .get('/api/system-prompt')
         .set('x-admin-key', sameLengthWrong);
       expect(res.status).toBe(401);
+    });
+
+    it.each([
+      ['a shorter key', 'test-admin'],
+      ['a longer key', `${ADMIN_KEY}-and-then-some`],
+      ['an empty header', ''],
+    ])('rejects %s without throwing (401, not 500)', async (_label, wrongKey) => {
+      // Both values are SHA-256 digested before the constant-time compare, so a
+      // length mismatch is an ordinary rejection. A raw timingSafeEqual would
+      // throw on differing lengths and surface as a 500.
+      const res = await request(loaded.app).get('/api/system-prompt').set('x-admin-key', wrongKey);
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('Admin authentication required');
     });
 
     it('rejects GET /api/sessions without x-admin-key (401)', async () => {
@@ -869,9 +927,11 @@ describe('POST /api/chat — the piles rule at the endpoint', () => {
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -925,7 +985,7 @@ describe('POST /api/chat — the piles rule at the endpoint', () => {
     const { getHistory } = (await import('../src/llm/session-store')) as {
       getHistory: (sessionId: string) => { role: string; content: string }[];
     };
-    const modelFacing = getHistory('piles-endpoint-collision');
+    const modelFacing = getHistory(testSessionId('piles-endpoint-collision'));
     expect(modelFacing[0]).toEqual({ role: 'user', content: 'piles of paperwork' });
     const stored = history.messages.map((entry) => entry.content).join('\n');
     expect(stored).not.toContain('REDACTED');
@@ -1001,7 +1061,7 @@ describe('POST /api/chat — the Chapter XVIII symptom words at the endpoint', (
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     // The body travels with the status, so an unexpected code prints what
     // actually answered instead of only the number (the diagnostic the endpoint
     // suites carry after the unreproduced 401 that was seen once).
@@ -1009,7 +1069,9 @@ describe('POST /api/chat — the Chapter XVIII symptom words at the endpoint', (
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1098,14 +1160,16 @@ describe('POST /api/chat — the Chapter XXI status vocabulary at the endpoint',
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     // The body travels with the status, so an unexpected code prints what
     // actually answered instead of only the number.
     expect({ status: res.status, body: res.body }).toEqual({
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1225,14 +1289,16 @@ describe('POST /api/chat — the product-provision sense of the suicide words', 
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     // The body travels with the status, so an unexpected code prints what
     // actually answered instead of only the number.
     expect({ status: res.status, body: res.body }).toEqual({
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1341,12 +1407,14 @@ describe('POST /api/chat — contract questions about the policy’s own wording
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect({ status: res.status, body: res.body }).toEqual({
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1529,14 +1597,16 @@ describe('POST /api/chat — the abuse-family topic mentions at the endpoint', (
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     // The body travels with the status, so an unexpected code prints what
     // actually answered instead of only the number.
     expect({ status: res.status, body: res.body }).toEqual({
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1663,9 +1733,11 @@ describe('POST /api/chat — the maltreatment compound sense is closed at the en
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1769,9 +1841,11 @@ describe('POST /api/chat — the lay word "bug" at the endpoint', () => {
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1844,9 +1918,11 @@ describe('POST /api/chat — the self-harm vocabulary\u2019s topic sense is clos
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1943,9 +2019,11 @@ describe('POST /api/chat — the hyperbole adjective \u201cmanic\u201d separates
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2025,9 +2103,11 @@ describe('POST /api/chat — the Chapter VI nervous-system vocabulary at the end
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2102,9 +2182,11 @@ describe('POST /api/chat — the Chapter X respiratory vocabulary at the endpoin
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2175,9 +2257,11 @@ describe('POST /api/chat - the Chapter XI digestive vocabulary at the endpoint',
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2250,9 +2334,11 @@ describe('POST /api/chat - the Chapter XII skin vocabulary at the endpoint', () 
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2320,9 +2406,11 @@ describe('POST /api/chat - the Chapter XIII musculoskeletal vocabulary at the en
   }> {
     const res = await request(loaded.app)
       .post('/api/chat')
-      .send({ sessionId, currentState: 'education', message });
+      .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app).get(
+      `/api/session/${testSessionId(sessionId)}/history`,
+    );
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }

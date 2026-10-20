@@ -14,6 +14,8 @@
  * review records separately which parts need a human in a real browser.
  */
 
+import { randomFillSync } from 'crypto';
+
 interface FakeStyle {
   cssText: string;
   setProperty(name: string, value: string): void;
@@ -61,6 +63,7 @@ export class FakeElement {
   id = '';
   className = '';
   type = '';
+  disabled = false;
   placeholder = '';
   value = '';
   onclick: ((event: any) => void) | null = null;
@@ -178,6 +181,7 @@ export class FakeDocument {
   body = new FakeElement('body');
   title = 'A test page';
   activeElement: FakeElement | null = null;
+  private listeners: Record<string, ((event: any) => void)[]> = {};
   currentScript: { getAttribute(name: string): string | null } | null = {
     getAttribute: (name: string) =>
       name === 'data-server-url' ? 'https://server.example.test' : null,
@@ -213,6 +217,21 @@ export class FakeDocument {
   querySelectorAll(): FakeElement[] {
     return [];
   }
+
+  /** Document-level listeners, so focusin delegation (ACC-15) is testable. */
+  addEventListener(type: string, handler: (event: any) => void): void {
+    (this.listeners[type] ??= []).push(handler);
+  }
+
+  removeEventListener(type: string, handler: (event: any) => void): void {
+    this.listeners[type] = (this.listeners[type] ?? []).filter((fn) => fn !== handler);
+  }
+
+  /** Fire an event at the document (bubbled from `target` when supplied). */
+  dispatch(type: string, event: Record<string, unknown> = {}): void {
+    const payload = { type, target: this, ...event };
+    for (const handler of this.listeners[type] ?? []) handler(payload);
+  }
 }
 
 export interface FakeWindow {
@@ -224,6 +243,15 @@ export interface FakeWindow {
 
 export function createWindow(options: { reducedMotion?: boolean } = {}): FakeWindow {
   return {
+    // Every browser the widget supports has some CSPRNG. The default shim
+    // exposes only getRandomValues (not randomUUID), which is the fallback the
+    // widget's session-id minting is expected to handle.
+    crypto: {
+      getRandomValues(array: Uint8Array) {
+        randomFillSync(array);
+        return array;
+      },
+    },
     location: {
       href: 'https://blog.example.test/articles/term-life-basics',
       pathname: '/articles/term-life-basics',
@@ -264,6 +292,9 @@ export class FakeTimers {
 }
 
 export interface FakeResponse {
+  /** HTTP status, so the widget's failure paths are testable. */
+  status: number;
+  ok: boolean;
   json(): Promise<unknown>;
 }
 
@@ -283,11 +314,15 @@ export class FakeFetch {
     });
   };
 
-  /** Answer the oldest unanswered request with `body`. */
-  async respond(body: unknown): Promise<void> {
+  /** Answer the oldest unanswered request with `body` and an HTTP status. */
+  async respond(body: unknown, status = 200): Promise<void> {
     const next = this.pending.shift();
     if (!next) throw new Error('No pending request to respond to');
-    next.resolve({ json: async () => body });
+    next.resolve({
+      status,
+      ok: status >= 200 && status < 300,
+      json: async () => body,
+    });
     await flushPromises();
   }
 
@@ -319,6 +354,8 @@ export interface WidgetRun {
   widget: FakeElement;
   launcher: FakeElement;
   title: FakeElement;
+  collapse: FakeElement;
+  body: FakeElement;
   banner: FakeElement;
   log: FakeElement;
   input: FakeElement;
@@ -335,13 +372,25 @@ export interface WidgetEnvironment {
   timers: FakeTimers;
 }
 
-export function createEnvironment(options: { reducedMotion?: boolean } = {}): WidgetEnvironment {
-  return {
+/**
+ * Options for one execution of the widget. `fetch` replaces the recording fetch
+ * double, which lets a test point the shipped script at a real server instead
+ * of at hand-written payloads — the wire-level suite does exactly that.
+ */
+export interface WidgetOptions {
+  reducedMotion?: boolean;
+  fetch?: FakeFetch['fetch'];
+}
+
+export function createEnvironment(options: WidgetOptions = {}): WidgetEnvironment {
+  const env: WidgetEnvironment = {
     document: new FakeDocument(),
     window: createWindow(options),
     fetch: new FakeFetch(),
     timers: new FakeTimers(),
   };
+  if (options.fetch) env.fetch.fetch = options.fetch;
+  return env;
 }
 
 /**
@@ -364,7 +413,7 @@ export function executeWidget(source: string, env: WidgetEnvironment): void {
  * handles a test needs. `source` is read from public/widget.js by the caller so
  * the test always runs the shipped file rather than a copy.
  */
-export function runWidget(source: string, options: { reducedMotion?: boolean } = {}): WidgetRun {
+export function runWidget(source: string, options: WidgetOptions = {}): WidgetRun {
   const env = createEnvironment(options);
   const { document, window, fetch, timers } = env;
   executeWidget(source, env);
@@ -386,6 +435,8 @@ export function runWidget(source: string, options: { reducedMotion?: boolean } =
     widget,
     launcher: element('lpp-chat-launcher'),
     title: element('lpp-chat-title'),
+    collapse: widget.descendants().find((node) => node.className.includes('lpp-chat-collapse'))!,
+    body: element('lpp-chat-body'),
     banner: element('lpp-chat-banner'),
     log: element('lpp-chat-messages'),
     input: element('lpp-chat-input'),

@@ -12,6 +12,7 @@ import {
   withoutAmbiguousSpellings,
 } from './context-qualified-terms';
 import { MALTREATMENT_TERMS, stripOrdinarySenseShapes } from './ordinary-sense-shapes';
+import { BoundedLruCache } from '../persistence/bounded-lru';
 import {
   BODY_OR_SYSTEM,
   CONTEXT_FAMILY_PATTERNS,
@@ -2224,6 +2225,50 @@ export function detectContractQuestion(userInput: string): boolean {
 export { hasContextQualifiedTerm };
 
 /**
+ * Direct personal identifiers — tuned to reduce false positives on benign
+ * numbers.
+ *   Email: high precision.
+ *   SSN: requires the canonical XXX-XX-XXXX format (or XXX XX XXXX /
+ *   XXX.XX.XXXX). The bare \d{3}\d{2}\d{4} variant was removed because
+ *   it matched any 9-digit sequence.
+ *   Phone: requires a +1 prefix, or (XXX) area code, or an explicit phone
+ *   keyword nearby. A bare 10-digit number alone is not enough — it could
+ *   be a reference number or ZIP+4.
+ *   Card: four groups of four digits.
+ */
+const PII_PATTERNS = [
+  // Email (high precision)
+  /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+  // SSN — canonical format only (XXX-XX-XXXX or XXX.XX.XXXX or XXX XX XXXX)
+  /\b\d{3}[-.\s]\d{2}[-.\s]\d{4}\b/,
+  // Phone — with context: +1 prefix or (XXX) area-code format
+  /\+1\s?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/,
+  /\(\d{3}\)\s?\d{3}[-.\s]?\d{4}/,
+  // Phone — with an explicit keyword nearby (call/text/phone/number/fax)
+  /(?:call|text|phone|number|fax|reach|dial)[^\n]{0,30}\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/i,
+  /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b[^\n]{0,30}(?:call|text|phone|number|fax|reach|dial)/i,
+  // Credit card — 4 groups of 4 digits separated by spaces or dashes
+  /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/,
+];
+
+/**
+ * True when the text contains a direct personal identifier: an email address,
+ * SSN, phone number, or card number.
+ *
+ * Deliberately separate from `detectSensitiveData()`, which returns a single
+ * category with health data outranking PII. A message that names a condition
+ * *and* an email address is classified `health_data`, which the consented
+ * `medical_review` flow is allowed to pass to the model — but a direct
+ * identifier must never reach the model in any flow. Callers that gate on
+ * "is this message safe to send?" consult this predicate independently.
+ *
+ * @param userInput - The text entered by the user
+ */
+export function containsPersonalIdentifier(userInput: string): boolean {
+  return PII_PATTERNS.some((pattern) => pattern.test(userInput));
+}
+
+/**
  * Checks if user input appears to contain PII or health data.
  *
  * @param userInput - The text entered by the user
@@ -2373,29 +2418,7 @@ export function detectSensitiveData(
     return 'health_data';
   }
 
-  // PII patterns — tuned to reduce false positives on benign numbers.
-  //   SSN: requires the canonical XXX-XX-XXXX format (or XXX XX XXXX /
-  //   XXX.XX.XXXX). The bare \d{3}\d{2}\d{4} variant was removed because
-  //   it matched any 9-digit sequence.
-  //   Phone: requires a +1 prefix, or (XXX) area code, or an explicit phone
-  //   keyword nearby. A bare 10-digit number alone is not enough — it could
-  //   be a reference number or ZIP+4.
-  const piiPatterns = [
-    // Email (high precision)
-    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
-    // SSN — canonical format only (XXX-XX-XXXX or XXX.XX.XXXX or XXX XX XXXX)
-    /\b\d{3}[-.\s]\d{2}[-.\s]\d{4}\b/,
-    // Phone — with context: +1 prefix or (XXX) area-code format
-    /\+1\s?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/,
-    /\(\d{3}\)\s?\d{3}[-.\s]?\d{4}/,
-    // Phone — with an explicit keyword nearby (call/text/phone/number/fax)
-    /(?:call|text|phone|number|fax|reach|dial)[^\n]{0,30}\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/i,
-    /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b[^\n]{0,30}(?:call|text|phone|number|fax|reach|dial)/i,
-    // Credit card — 4 groups of 4 digits separated by spaces or dashes
-    /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/,
-  ];
-
-  if (piiPatterns.some((p) => p.test(userInput))) {
+  if (containsPersonalIdentifier(userInput)) {
     return 'pii';
   }
 
@@ -2441,7 +2464,17 @@ interface RateLimitState {
   lastActivity: number;
 }
 
-const rateLimitStore = new Map<string, RateLimitState>();
+/**
+ * Hard ceiling on distinct rate-limit keys held in memory.
+ *
+ * Session ids and client keys are caller-supplied, so an unauthenticated
+ * flood of unique ids can outrun the TTL sweep. The eviction bound makes the
+ * worst case fixed: the store is a cache of recent counters, and an evicted
+ * key simply starts a fresh window instead of growing the process.
+ */
+export const MAX_RATE_LIMIT_ENTRIES = 10_000;
+
+const rateLimitStore = new BoundedLruCache<string, RateLimitState>(MAX_RATE_LIMIT_ENTRIES);
 
 /**
  * Rate limit configuration.
@@ -2523,7 +2556,7 @@ export function checkRateLimit(sessionId: string): { allowed: boolean; reason?: 
  * the retention store. They are therefore budgeted per client key, with their
  * own deliberately generous window so ordinary use never notices.
  */
-const writeRateLimitStore = new Map<string, RateLimitState>();
+const writeRateLimitStore = new BoundedLruCache<string, RateLimitState>(MAX_RATE_LIMIT_ENTRIES);
 
 /**
  * Write-endpoint budget. Per client key, per one-minute window.
@@ -2604,12 +2637,12 @@ export function startRateLimitCleanup(): void {
   }
   rateLimitCleanupTimer = setInterval(() => {
     const now = Date.now();
-    for (const [id, state] of rateLimitStore.entries()) {
+    for (const [id, state] of rateLimitStore.entriesList()) {
       if (now - state.lastActivity > RATE_LIMIT_CONFIG.ENTRY_TTL_MS) {
         rateLimitStore.delete(id);
       }
     }
-    for (const [id, state] of writeRateLimitStore.entries()) {
+    for (const [id, state] of writeRateLimitStore.entriesList()) {
       if (now - state.lastActivity > RATE_LIMIT_CONFIG.ENTRY_TTL_MS) {
         writeRateLimitStore.delete(id);
       }
@@ -2638,6 +2671,19 @@ export function stopRateLimitCleanup(): void {
 export function clearAllRateLimits(): void {
   rateLimitStore.clear();
   writeRateLimitStore.clear();
+}
+
+/**
+ * Current number of tracked session keys (monitoring and tests).
+ * Never exceeds MAX_RATE_LIMIT_ENTRIES, whatever the caller sends.
+ */
+export function getRateLimitStoreSize(): number {
+  return rateLimitStore.size;
+}
+
+/** Current number of tracked write-endpoint client keys. */
+export function getWriteRateLimitStoreSize(): number {
+  return writeRateLimitStore.size;
 }
 
 /**

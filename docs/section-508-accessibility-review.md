@@ -15,10 +15,10 @@ shipped `public/widget.js` against a minimal DOM rather than a copy of it.
 | Part of the review                             | State                                                                                                 |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Manual code review of the three UI surfaces    | **Complete** — 15 findings (ACC-1 … ACC-15)                                                           |
-| Defects fixed                                  | **14 of 15 fixed**; ACC-15 mitigated and recorded                                                     |
+| Defects fixed                                  | **15 of 15 fixed** — ACC-15 resolved by the focus-collapse toggle and automatic fold                  |
 | Contrast recomputed from source                | **Complete** — every documented pair recomputed, 12 pairs                                             |
 | Focus indicators measured per control          | **Complete** — 4 indicators, 8 boundaries                                                             |
-| DOM contract asserted in CI                    | **Green** — 48 assertions, `npx jest tests/widget-accessibility.test.ts`                              |
+| DOM contract asserted in CI                    | **Green** — 62 tests, `npx jest tests/widget-accessibility.test.ts`                                   |
 | Rendered browser verification (`/demo.html`)   | **Complete for geometry, tree, and behaviour** (see below)                                            |
 | Walkthrough instrument (checklist + receipt)   | **Runnable** — `npm run a11y:checklist`; results recorded in `docs/accessibility-matrix-receipt.json` |
 | Browser + assistive-technology walkthrough × 5 | **Not performed** — 0 of 5 rows; needs a human at the keyboard, see the matrix                        |
@@ -77,9 +77,9 @@ Full text, evidence, and resolution for each are in `SECTION_508_FINDINGS`. Summ
 | ACC-12 | Two rendered colours absent from the verified palette                        | medium   | 1.4.3                 | Fixed     |
 | ACC-13 | A second copy of the script duplicated the dialog and its ids                | low      | 1.3.1, 4.1.2          | Fixed     |
 | ACC-14 | Buttons had no `type`; Enter could double-send under IME/voice input         | low      | 2.1.1, 3.3.2          | Fixed     |
-| ACC-15 | A fixed overlay can obscure focused page content                             | medium   | 2.4.11                | Mitigated |
+| ACC-15 | A fixed overlay could obscure focused page content                           | medium   | 2.4.11                | Fixed     |
 
-### The two findings worth reading in full
+### The findings worth reading in full
 
 **ACC-1 — the indicator that looked fine.** Every control was outlined in `#000000`. That is
 17.035:1 against the light widget background and looks deliberate, which is presumably why it
@@ -114,6 +114,32 @@ panel capped at 90vw (288px at 320px viewport), and no `box-sizing: border-box` 
 borders added to the width on top of that. The panel is now `min(360px, 100vw)` and
 `calc(100vh - 16px)` (with a `100dvh` override where it exists), the input is `flex: 1 1 auto` with
 `min-width: 0`, and the transcript is `flex: 1 1 auto` with `min-height: 0`.
+
+**ACC-15 — a fixed panel cannot promise 2.4.11, so the panel folds.** *Focus Not Obscured
+(Minimum)* asks that a component receiving focus is not entirely hidden by author-created content.
+A `position: fixed` panel at `z-index: 9999` can always cover a page element a visitor is tabbing
+to, and the previous mitigation — "closing collapses it to a launcher" — only helped a visitor who
+had already stopped using the panel. The fix is behavioural rather than geometric:
+
+- The widget now **starts collapsed to its launcher**: the panel is `display: none`, the launcher is
+  the only thing painted, and its `aria-expanded` reads `false`. Nothing on the host page is covered
+  and no control is offered until the visitor activates the launcher.
+- The header carries a visible **Minimize / Expand** toggle (`aria-expanded`, and `aria-controls`
+  pointing at the panel body) that folds everything below the header, keeping the AI-identity
+  disclosure and the Close control on screen while preserving the conversation.
+- A document-level `focusin` handler folds the panel the moment focus lands on any element outside
+  the widget, so the element that just took focus is never underneath an open panel. Focus inside
+  the widget — including the toggle itself — never folds it.
+- Collapsing moves focus to the toggle **before** the body is hidden, because hiding the element
+  that holds focus would strand the user on the body (2.4.3). Closing still returns focus to the
+  launcher, and focus is never trapped.
+
+All three parts are asserted at the DOM level in `tests/widget-accessibility.test.ts`, and the fold
+was exercised against the shipped file in a browser on a probe page: collapsing left a 61px header bar
+with the toggle reading "Expand", focus moved to the toggle rather than being stranded, and
+focusing a page link behind the panel folded it before the link could be covered. The shim does not
+paint, so the rendered fold stays on the human walkthrough list (AT-01) and must be re-checked on
+any layout change.
 
 ## Contrast, recomputed
 
@@ -219,10 +245,11 @@ established, and what it could not:
 
 ## Residual risks
 
-- **ACC-15 remains mitigated, not fixed.** A `position: fixed` overlay cannot guarantee that focused
-  page content is never obscured at every viewport. Mitigations: the panel is confined to the
-  bottom-right, is 360px wide, collapses to a launcher the moment the visitor closes it, and never
-  traps focus (it is not a modal dialog). Re-check on any layout change.
+- **ACC-15 is fixed by behaviour, but its geometry is unproven here.** The fold toggle and the
+  automatic collapse when focus leaves the widget are exercised by the DOM contract; a real browser
+  still has to confirm that the fold happens before the focused page element is painted underneath
+  the panel. That is covered by the pending walkthrough (AT-01), and the behaviour should be
+  re-checked on any layout change.
 - **Focus rings on very old browsers.** The buttons use `:focus-visible` with a
   `@supports not selector(:focus-visible)` fallback to `:focus`. Browsers that understand neither
   (Safari ≤ 14.0) would show no button ring; the input and transcript, which use `:focus`, are

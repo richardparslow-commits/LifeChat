@@ -25,6 +25,7 @@
 import request from 'supertest';
 import type { Express } from 'express';
 import type { Server } from 'http';
+import { TEST_CONSENT_TEXT } from './helpers/test-session';
 import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
 import {
   CONDITION_VOCABULARY_ID,
@@ -614,17 +615,17 @@ interface StoredLead {
 /** The shape a screen reads off a stored lead record, as a broker would. */
 async function storedProfile(leadId: string): Promise<StoredLead['medical_profile']> {
   const { getLeadRecord } = (await import('../src/consent/consent-model')) as {
-    getLeadRecord: (id: string) => StoredLead | undefined;
+    getLeadRecord: (id: string) => Promise<StoredLead | undefined>;
   };
-  return getLeadRecord(leadId)?.medical_profile ?? null;
+  return (await getLeadRecord(leadId))?.medical_profile ?? null;
 }
 
 /** The lead's own consent fields, reshaped for the screening gate. */
 async function storedConsent(leadId: string): Promise<MedicalConsentState> {
   const { getLeadRecord } = (await import('../src/consent/consent-model')) as {
-    getLeadRecord: (id: string) => StoredLead | undefined;
+    getLeadRecord: (id: string) => Promise<StoredLead | undefined>;
   };
-  const lead = getLeadRecord(leadId);
+  const lead = await getLeadRecord(leadId);
   return {
     medical_consent_affirmed: lead!.medical_consent_version !== null,
     medical_consent_version: lead!.medical_consent_version,
@@ -656,6 +657,7 @@ describe('/api/consent → screening — the stored lead record answers the qual
         medicalProfile: { gender: 'female', medical_conditions: medicalConditions },
         medicalConsentAffirmed: true,
         medicalConsentVersion: '1.0.0',
+        consentText: TEST_CONSENT_TEXT,
       });
     expect(res.status).toBe(200);
     expect(res.body.leadId).toBeTruthy();
@@ -764,6 +766,7 @@ describe('/api/consent → screening — the stored lead record answers the qual
       contactChannel: 'email',
       email: 'quiet@example.com',
       firstName: 'Alex',
+      consentText: TEST_CONSENT_TEXT,
     });
     expect(res.status).toBe(200);
 

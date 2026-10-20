@@ -23,6 +23,8 @@ import request from 'supertest';
 import type { Express } from 'express';
 import net from 'net';
 
+import { testSessionId } from './helpers/test-session';
+
 interface LoadedApp {
   app: Express;
   server?: import('http').Server;
@@ -119,7 +121,7 @@ describe('serverless mode — the app builds without owning a socket', () => {
       SERVERLESS: 'true',
       LIFECHAT_PORT: String(PORT),
       LLM_API_KEY: '',
-      ADMIN_API_KEY: 'serverless-test-admin-key',
+      ADMIN_API_KEY: 'serverless-test-admin-key-0123456789abcdef',
       LEAD_LOG_PATH: `data/lead-serverless-test-${Date.now()}.jsonl`,
       DSR_LOG_PATH: `data/dsr-serverless-test-${Date.now()}.jsonl`,
     });
@@ -136,11 +138,12 @@ describe('serverless mode — the app builds without owning a socket', () => {
     expect([401, 403]).toContain(gated.status);
 
     // The main chat envelope is unchanged.
-    const chat = await request(loaded.app).post('/api/chat').send({
-      sessionId: 'serverless-smoke',
-      currentState: 'education',
-      message: 'What is term life insurance?',
-    });
+    const chat = await request(loaded.app)
+      .post('/api/chat')
+      .send({
+        sessionId: testSessionId('serverless-smoke'),
+        message: 'What is term life insurance?',
+      });
     expect(chat.status).toBe(200);
     expect(chat.body).toHaveProperty('state');
 
