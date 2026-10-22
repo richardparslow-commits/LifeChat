@@ -1,0 +1,32 @@
+# gitleaks configuration (SEC-17).
+#
+# The default ruleset is kept. The only allowlist entries are three historical
+# test fixtures — literal fake encryption keys that the tests used before they
+# were rewritten to generate the value at runtime. They were verified against
+# the commits below and are not credentials: one is an obvious placeholder
+# (`test-record-encryption-key-0123456789abcdef`), the other two are
+# `test-encryption-key-999` and `test-encryption-key-123`.
+#
+# Matching is by whole line and by the exact fixture text, not by path: a real
+# secret committed to any of these test files, on any other line, still fails
+# the scan.
+#
+# Current synthetic fixtures (fake keys in the Docker build tests, the Archil
+# token-shape case, and the provider-error leak fixture) and the Docker build
+# script's `id=…,env=…` secret references use *inline* exemptions instead of
+# entries here. Each such line is annotated where it lives and must say what it
+# is; `tests/security-gates.test.ts` enforces that wording. Keeping them out of
+# this file means the config allowlist never grows a pattern that could hide a
+# real secret elsewhere.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Historical test-only encryption keys (fake fixtures, not credentials)."
+regexTarget = "line"
+regexes = [
+  '''RECORD_ENCRYPTION_KEY:\s*'test-record-encryption-key-0123456789abcdef',?''',
+  '''const key = 'test-encryption-key-999';''',
+  '''const key = 'test-encryption-key-123';''',
+]

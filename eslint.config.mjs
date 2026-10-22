@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
+import security from 'eslint-plugin-security';
 import globals from 'globals';
 
 export default tseslint.config(
@@ -37,6 +38,34 @@ export default tseslint.config(
       'no-var': 'error',
       'object-shorthand': 'error',
       'prefer-template': 'error',
+    },
+  },
+
+  /**
+   * Security-focused static analysis (SEC-17).
+   *
+   * These rules run inside the required lint step, so a dangerous primitive
+   * (dynamic eval, a child process, a non-literal require, a weak RNG) fails CI
+   * without a second scanner to install. This is pattern-based SAST, not
+   * whole-program data-flow analysis: `eslint-plugin-security`'s taint-shaped
+   * rules (notably `detect-object-injection`) are intentionally off because
+   * they flag ordinary index access throughout this codebase, and a permanently
+   * noisy gate is a gate nobody reads. CodeQL is not used here because its
+   * SARIF upload requires `security-events: write`, which the workflow
+   * least-privilege guard (`tests/workflow-pinning.test.ts`) forbids.
+   */
+  {
+    files: ['src/**/*.ts', 'tests/**/*.ts'],
+    plugins: { security },
+    rules: {
+      'security/detect-eval-with-expression': 'error',
+      'security/detect-child-process': 'error',
+      'security/detect-non-literal-require': 'error',
+      'security/detect-buffer-noassert': 'error',
+      'security/detect-pseudoRandomBytes': 'error',
+      // Reported, not gated: the rule is heuristic about regex shape and the
+      // classifier patterns are reviewed separately (SEC-19 tracks ReDoS).
+      'security/detect-unsafe-regex': 'warn',
     },
   },
 

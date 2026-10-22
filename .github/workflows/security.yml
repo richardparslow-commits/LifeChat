@@ -1,0 +1,75 @@
+name: Security
+
+# SEC-17: the supply-chain gates that were missing from CI.
+#
+# SAST is not a separate job: `npm run lint` in ci.yml now runs
+# eslint-plugin-security's dangerous-primitive rules, so a dynamic eval, an
+# unguarded child process, a non-literal require or a weak RNG fails the
+# required lint step. This workflow adds the two checks that need their own
+# context: a full-history secret scan and a dependency review on pull requests.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # A secret can enter history long after the commit that introduced it becomes
+  # uninteresting; re-scan the whole repository weekly.
+  schedule:
+    - cron: '23 5 * * 1'
+
+# Read-only: neither gate needs repository access beyond reading. (CodeQL is
+# deliberately absent: SARIF upload requires a security-events scope, which
+# tests/workflow-pinning.test.ts forbids.)
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # Full history: a credential removed from the working tree is still
+          # exposed in the commit that added it. `.gitleaks.toml` allowlists
+          # only three verified historical test fixtures.
+          fetch-depth: 0
+
+      - name: Install gitleaks 8.30.1 (checksum-verified)
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gitleaks_8.30.1_linux_x64.tar.gz"
+          curl -sSfL -o "$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+
+      - name: Scan repository history
+        run: '"$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --redact --verbose --exit-code 1 --no-banner .'
+
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # A new high or critical advisory blocks the pull request. Moderate
+          # findings stay visible in the job summary without failing the build,
+          # matching the npm-audit policy in ci.yml.
+          fail-on-severity: high
+          # Read-only token: post the result in the job summary, never as a PR
+          # comment (which would need a scope this workflow does not grant).
+          comment-summary-in-pr: never
