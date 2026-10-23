@@ -14,6 +14,7 @@
 import { z } from 'zod';
 
 import { validateEmail, validatePhone } from '../consent/consent-model';
+import { normalizeTopicCategory } from './topic-category';
 
 /**
  * Session ids are client-generated but must be opaque and bounded: the prefix
@@ -43,7 +44,11 @@ export const ChatRequestSchema = z.object({
     .max(2000, 'message must be 2000 characters or fewer'),
   sourceUrl: OptionalTextSchema(2048),
   articleId: OptionalTextSchema(128),
-  topicCategory: OptionalTextSchema(64),
+  // Categorical, not free text: unknown labels become 'other' before they can
+  // reach analytics, the response, the lead record, or the abstention log.
+  topicCategory: OptionalTextSchema(64).transform(
+    (value) => normalizeTopicCategory(value) ?? undefined,
+  ),
   /** Intent flags — they advance a flow, they never grant consent. */
   userAgreesToMedicalReview: z.boolean().optional(),
   medicalReviewComplete: z.boolean().optional(),
@@ -65,14 +70,20 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export const ConsentRequestSchema = z
   .object({
     contactConsentAffirmed: z.boolean().optional(),
-    contactChannel: z.enum(['email', 'phone']).optional(),
+    // A consent record with no reachable channel is not usable consent: the
+    // broker cannot act on it, and TCPA proof requires the number/address the
+    // consumer consented to be contacted at. The channel is therefore
+    // required, and the matching value must be present for it.
+    contactChannel: z.enum(['email', 'phone']),
     email: OptionalTextSchema(254),
     phone: OptionalTextSchema(32),
     firstName: OptionalTextSchema(100),
     sessionId: SessionIdSchema.optional(),
     sourceUrl: OptionalTextSchema(2048),
     articleId: OptionalTextSchema(128),
-    topicCategory: OptionalTextSchema(64),
+    topicCategory: OptionalTextSchema(64).transform(
+      (value) => normalizeTopicCategory(value) ?? undefined,
+    ),
     consentText: z
       .string()
       .min(1, 'consentText is required')
@@ -81,7 +92,23 @@ export const ConsentRequestSchema = z
     medicalConsentAffirmed: z.boolean().optional(),
     medicalConsentVersion: OptionalTextSchema(32),
   })
-  .strip();
+  .strip()
+  .superRefine((value, ctx) => {
+    if (value.contactChannel === 'email' && !value.email) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['email'],
+        message: 'email is required for the email channel',
+      });
+    }
+    if (value.contactChannel === 'phone' && !value.phone) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['phone'],
+        message: 'phone is required for the phone channel',
+      });
+    }
+  });
 
 export type ConsentRequest = z.infer<typeof ConsentRequestSchema>;
 
@@ -115,9 +142,19 @@ export function validationError(error: z.ZodError): {
   };
 }
 
-/** Channel-aware contact validation shared by the schema and the route. */
+/**
+ * Channel-aware contact validation shared by the schema and the route.
+ *
+ * Returns false when the channel is absent or its value is missing/invalid —
+ * the earlier `return true` fallback made a channel-less record look valid,
+ * which is the opposite of what a consent artifact needs to be.
+ */
 export function contactFieldIsValid(data: ConsentRequest): boolean {
-  if (data.contactChannel === 'email' && data.email) return validateEmail(data.email);
-  if (data.contactChannel === 'phone' && data.phone) return validatePhone(data.phone);
-  return true;
+  if (data.contactChannel === 'email') {
+    return typeof data.email === 'string' && data.email.length > 0 && validateEmail(data.email);
+  }
+  if (data.contactChannel === 'phone') {
+    return typeof data.phone === 'string' && data.phone.length > 0 && validatePhone(data.phone);
+  }
+  return false;
 }

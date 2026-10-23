@@ -36,11 +36,16 @@ name: Deploy (Vercel)
 # VERCEL_ORG_ID and VERCEL_PROJECT_ID identify the project that receives the
 # secrets and the deploy, and both are required whenever VERCEL_KEY is set.
 # The sync addresses the project explicitly instead of letting the CLI infer a
-# link from the checkout: writing a secret to the wrong project would leave the
-# function that is being deployed running whatever value it already had. A
-# missing pair fails the run with a clear message rather than guessing. If
-# VERCEL_KEY is not set at all the job skips itself, so forks and pre-secret
-# states stay green rather than failing.
+# link from the checkout: storing a secret in the wrong project would leave the
+# function that is being deployed running whatever value it already had.
+#
+# The first step is the enable switch and the completeness check in one place.
+# If VERCEL_KEY is absent the pipeline is treated as disabled and the job skips
+# itself, so forks and pre-secret states stay green. If it is present, every
+# other name above must be too; a single missing value fails the run before
+# install or build and names everything that is absent, instead of letting the
+# gap surface later as a skipped step, a partial gate message, or a function
+# that cannot start.
 
 on:
   workflow_run:
@@ -68,39 +73,49 @@ jobs:
       github.event.workflow_run.event == 'push'
 
     steps:
-      - name: Check for the deploy token
-        id: token
+      # The pipeline is enabled by VERCEL_KEY. Once it is set, every value the
+      # deploy depends on must be present too: a missing key would otherwise
+      # only surface later (as a skipped step, a failed gate message, or a
+      # function that cannot start), and the run would look like a partial
+      # success. This step names everything that is absent in one place, before
+      # any time is spent on install and build.
+      - name: Check deploy configuration
+        id: config
         env:
           VERCEL_KEY: ${{ secrets.VERCEL_KEY }}
-        run: |
-          if [ -z "$VERCEL_KEY" ]; then
-            echo "VERCEL_KEY is not set — skipping the deploy (add the repository secret to enable it)."
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Fail before the build, not after it: the sync step addresses the
-      # project by ID, so a run without both IDs has nowhere to push the
-      # validated secrets, and deploying anyway would ship unchecked values.
-      - name: Require the project pin
-        if: steps.token.outputs.available == 'true'
-        env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          RECORD_ENCRYPTION_KEY: ${{ secrets.RECORD_ENCRYPTION_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          # The license is public: a repository variable is preferred, but an
+          # existing secret keeps working.
+          TEXAS_LICENSE_NUMBER: ${{ vars.TEXAS_LICENSE_NUMBER || secrets.TEXAS_LICENSE_NUMBER }}
         run: |
-          missing=""
-          [ -n "$VERCEL_ORG_ID" ] || missing="VERCEL_ORG_ID"
-          if [ -z "$VERCEL_PROJECT_ID" ]; then
-            missing="${missing:+$missing }VERCEL_PROJECT_ID"
+          if [ -z "$VERCEL_KEY" ]; then
+            echo "VERCEL_KEY is not set — the deploy pipeline is disabled; skipping (add the repository secret to enable it)."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+          missing=""
+          for name in VERCEL_ORG_ID VERCEL_PROJECT_ID ADMIN_API_KEY RECORD_ENCRYPTION_KEY LLM_API_KEY TEXAS_LICENSE_NUMBER; do
+            if [ -z "${!name:-}" ]; then
+              missing="${missing:+$missing }$name"
+            fi
+          done
+
           if [ -n "$missing" ]; then
-            echo "::error::Set the repository secret(s) $missing so the validated secrets and the deploy target the same Vercel project."
+            echo "::error::The deploy pipeline is enabled (VERCEL_KEY is set) but required configuration is missing: $missing"
+            echo "::error::Add each missing name under Settings -> Secrets and variables -> Actions. TEXAS_LICENSE_NUMBER may be a repository variable. The run stops here rather than deploying with absent or unchecked values."
             exit 1
           fi
 
+          echo "Deploy configuration complete: token, project pin, both runtime secrets, model key, and license are all present."
+
       - name: Checkout repository
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Deploy exactly the commit CI validated, not whatever main has
@@ -108,14 +123,14 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup Node.js
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: npm ci
 
       # Pre-deploy posture gate: the runtime refuses to start in production
@@ -125,7 +140,7 @@ jobs:
       # that cannot do its job. The report prints length and shape only, never
       # a value.
       - name: Pre-deploy posture gate (secrets + license)
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         env:
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
           RECORD_ENCRYPTION_KEY: ${{ secrets.RECORD_ENCRYPTION_KEY }}
@@ -138,7 +153,7 @@ jobs:
       # Audited before the CLI is installed: the gate is about the tree that
       # ships, not about the deploy tool's own transitive dependencies.
       - name: Dependency vulnerability audit
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: npm run audit
 
       # The CLI is pinned to an exact version. `vercel@latest` meant the deploy
@@ -146,19 +161,19 @@ jobs:
       # release would ship with no review. Bump this deliberately, the way a
       # dependency change is reviewed.
       - name: Install pinned Vercel CLI
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: npm install --no-save vercel@64.7.0
 
       - name: Lint
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: npm run lint
 
       - name: Typecheck
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: npm run typecheck
 
       - name: Build
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: npm run build
 
       # The gate checked the repository copy of these two secrets; this step
@@ -166,7 +181,7 @@ jobs:
       # sends each value over stdin (never argv), stores it as a Vercel Secret,
       # overwrites a stale value, and logs only the name and length.
       - name: Sync validated secrets to Vercel (production)
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_KEY }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -175,14 +190,22 @@ jobs:
           RECORD_ENCRYPTION_KEY: ${{ secrets.RECORD_ENCRYPTION_KEY }}
         run: bash scripts/sync-vercel-secrets.sh
 
+      # The deployment is built by Vercel from `vercel.json` (installCommand,
+      # buildCommand, includeFiles) — this job uploads source, not build output.
+      # `--prebuilt` would be wrong here: it uploads only `.vercel/output`,
+      # which is produced by `vercel build`, and nothing in this job runs that
+      # command. The CLI rejects the deploy outright in that case ("no prebuilt
+      # output found in .vercel/output"), so the flag would fail every run
+      # before a single file is uploaded. The Build step above stays as a
+      # parity gate: it is the same `npm run build` Vercel runs.
       - name: Deploy to Vercel (production)
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_KEY }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx --no-install vercel deploy --prebuilt --prod --yes \
+          npx --no-install vercel deploy --prod --yes \
             --scope "$VERCEL_ORG_ID" \
             --project "$VERCEL_PROJECT_ID" \
             --token "$VERCEL_TOKEN" 2>&1 | tee deploy.log
@@ -191,7 +214,7 @@ jobs:
           echo "Deployed to $URL"
 
       - name: Smoke check the deployment
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: |
           test -n "$DEPLOY_URL" || { echo "No deploy URL captured"; exit 1; }
           echo "Probing $DEPLOY_URL/health"
@@ -201,7 +224,7 @@ jobs:
           test "$CODE" = "200"
 
       - name: Deployment summary
-        if: steps.token.outputs.available == 'true'
+        if: steps.config.outputs.available == 'true'
         run: |
           {
             echo "## Deployment"

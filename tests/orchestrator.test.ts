@@ -99,7 +99,7 @@ describe('generateResponse retry-on-invalid-JSON', () => {
     const feedback = mockCallLLM.mock.calls[1][0].validationFeedback;
     expect(feedback).toBeDefined();
     expect(feedback).toContain('rejected');
-    expect(feedback).toContain('assistant_message, state, citations');
+    expect(feedback).toContain('assistant_message, state, intent, citations');
   });
 
   it('does not retry when the first response is valid', async () => {
@@ -341,5 +341,40 @@ describe('generateResponse — stateful re-offer guard (across turns)', () => {
     );
     expect(mockCallLLM).toHaveBeenCalledTimes(1);
     expect(response.risk_flags).not.toContain('decline_no_reoffer');
+  });
+});
+
+describe('generateResponse — provider detail never reaches the caller (SEC-05)', () => {
+  it('keeps the fallback summary to the stable error class', async () => {
+    mockCallLLM.mockResolvedValueOnce({
+      success: false,
+      content: null,
+      error: 'api_error_401: Incorrect API key sk-live-SECRET-ABC123 (org-LEAK-4)',
+      latencyMs: 5,
+    });
+
+    const logged: string[] = [];
+    const spy = jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      logged.push(args.map((arg) => String(arg)).join(' '));
+    });
+    let response: Awaited<ReturnType<typeof generateResponse>>['response'];
+    try {
+      ({ response } = await generateResponse(input));
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(response.risk_flags).toContain('static_fallback_used');
+    expect(response.action_arguments).toEqual({
+      handoff_reason: 'system_error',
+      summary: 'Fallback triggered: llm_call_failed',
+    });
+    expect(JSON.stringify(response)).not.toContain('SECRET');
+    expect(JSON.stringify(response)).not.toContain('org-LEAK');
+    // The log gets the same treatment (M-06): a value that is not a code is
+    // replaced, so provider text cannot arrive through the server log either.
+    expect(logged.join('\n')).not.toContain('SECRET');
+    expect(logged.join('\n')).not.toContain('org-LEAK');
+    expect(logged.join('\n')).toContain('unrecognized');
   });
 });

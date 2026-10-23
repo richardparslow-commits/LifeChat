@@ -50,6 +50,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # TDPSA rights channel: the privacy notice publishes one mailbox, and a
+      # request sent to a domain with no mail route bounces. `--allow-offline`
+      # tolerates a runner that cannot reach a resolver (treated as unverified),
+      # so a PR never fails on DNS; a release runs it without that flag.
+      - name: Rights channel (DSR mailbox) routing check
+        run: npm run rights:channel -- --allow-offline
+
       - name: Run tests
         run: npm test -- --verbose --coverage
 
@@ -60,6 +67,35 @@ jobs:
           name: test-coverage
           path: coverage/
           retention-days: 14
+
+  # Accessibility gate. The Jest contract runs the widget against a hand-written
+  # DOM, which cannot compute styles or lay anything out; this job renders the
+  # demo page in Chromium and runs axe-core over the closed launcher and the open
+  # panel, failing on serious or critical violations. It also checks that axe
+  # still reports a deliberately inaccessible control, so a blocked scan cannot
+  # pass silently.
+  accessibility-gate:
+    name: Accessibility Gate (axe-core)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from the lockfile
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the accessibility gate
+        run: npm run a11y:e2e
 
   # Dependency vulnerability gate. `npm run audit` is `npm audit --audit-level=high`,
   # so a high or critical advisory fails the build outright while moderate findings

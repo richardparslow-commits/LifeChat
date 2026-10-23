@@ -309,6 +309,59 @@ describe('scheduling wire contract', () => {
     expect(run.document.activeElement).toBe(status);
   });
 
+  it('replaces the held time when the visitor changes it through the widget', async () => {
+    const server = await freshServer();
+    mockCallLLM.mockResolvedValue({ success: true, content: schedulingReply(), latencyMs: 5 });
+
+    const visitor = await openSchedulingVisitor(server, 'Can I book an appointment?');
+    const { run, calls, sessionId, offered } = visitor;
+
+    slotButtons(run)[0].dispatch('click');
+    await waitFor(
+      () => callsTo(calls, '/api/scheduling/select')[0]?.status !== 0,
+      'the first selection response',
+    );
+    const firstId = String(offered[0].slot_id);
+    expect(server.store.getSelectedSlot(sessionId)).toBe(firstId);
+    await waitFor(() => slotButtons(run).length === 0, 'the first confirmation');
+
+    // "Change time" asks the server for current availability again and keeps
+    // the held time visible, rather than asking the conversation for a turn.
+    const change = byClass(run, 'lpp-slot-change')[0];
+    expect(change).toBeDefined();
+    const availabilityBefore = callsTo(calls, '/api/scheduling/slots').length;
+    change.dispatch('click');
+    await waitFor(
+      () =>
+        callsTo(calls, '/api/scheduling/slots').length === availabilityBefore + 1 &&
+        slotButtons(run).length > 0,
+      'the re-opened availability list',
+    );
+
+    const reopened = slotButtons(run);
+    expect(reopened[0].getAttribute('aria-checked')).toBe('true');
+    expect(run.document.activeElement).toBe(reopened[0]);
+    expect(byClass(run, 'lpp-slot-change')).toHaveLength(0);
+
+    const secondId = String(reopened[1].getAttribute('data-slot-id'));
+    expect(secondId).not.toBe(firstId);
+    reopened[1].dispatch('click');
+    await waitFor(
+      () => callsTo(calls, '/api/scheduling/select')[1]?.status !== 0,
+      'the replacement selection response',
+    );
+    expect(callsTo(calls, '/api/scheduling/select')[1].status).toBe(200);
+
+    // One held time per session: the server replaced the first choice, so the
+    // booking action can only name the latest one.
+    expect(server.store.getSelectedSlot(sessionId)).toBe(secondId);
+    expect(server.scheduling.verifySlot(secondId).ok).toBe(true);
+
+    await waitFor(() => slotButtons(run).length === 0, 'the second confirmation');
+    expect(byClass(run, 'lpp-slots-status')[0].textContent).toContain(offered[1].display);
+    expect(byClass(run, 'lpp-slot-change')).toHaveLength(1);
+  });
+
   it('refreshes from the server when another visitor took the time first', async () => {
     const server = await freshServer();
     mockCallLLM.mockResolvedValue({ success: true, content: schedulingReply(), latencyMs: 5 });

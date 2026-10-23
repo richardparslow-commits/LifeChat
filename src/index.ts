@@ -21,13 +21,17 @@ import {
   isAdminApiKeyConfigured,
   isAdminApiKeyStrong,
   isRecordEncryptionKeyConfigured,
+  wildcardAllowedOrigins,
   MIN_ADMIN_API_KEY_LENGTH,
 } from './config/app-config';
 import { createApp, PUBLIC_DIR } from './app';
 import { isDataPathsWritable, setDataPathsWritable } from './runtime-status';
+import { isArchilStorageConfigured, loadArchilConfig, toArchilObjectKey } from './archil/disk';
+import { verifyDurableStorage } from './config/durable-storage';
+import { resolveTrustProxy } from './config/trust-proxy';
 import { startSessionCleanup } from './llm/session-store';
 import { startRateLimitCleanup } from './security/security-controls';
-import { ensureLeadRecordsLoaded } from './consent/consent-model';
+import { ensureLeadRecordsLoaded, ensureSessionIndexLoaded } from './consent/consent-model';
 import { ensureDsrRecordsLoaded } from './privacy/dsr';
 import {
   isRecordEncryptionKeyStrong,
@@ -39,9 +43,15 @@ const app = createApp();
 // Hydrate the record caches at boot. The loaders stream the JSONL logs rather
 // than blocking startup; writes also await them, so a submission that races
 // boot is ordered after hydration instead of against a half-loaded cache.
-// Loaders resolve rather than reject, but a failed read must never crash the
-// process — the per-request write path still fails closed.
-void Promise.all([ensureLeadRecordsLoaded(), ensureDsrRecordsLoaded()]).catch(() => {});
+// The session index is PII-free and small, and hydrating it here means the
+// first chat turn does not pay for it (C-07). Loaders resolve rather than
+// reject, but a failed read must never crash the process — the per-request
+// write path still fails closed.
+void Promise.all([
+  ensureLeadRecordsLoaded(),
+  ensureSessionIndexLoaded(),
+  ensureDsrRecordsLoaded(),
+]).catch(() => {});
 
 /**
  * Startup preflight — report the environment the process actually resolved,
@@ -66,25 +76,76 @@ function runStartupPreflight(): void {
   // Record logs: report resolved paths, and verify (creating if needed) that
   // each parent directory is writable. Same directories the writers create on
   // demand, so this only makes a failure visible earlier.
-  const logPaths = [config.leadLogPath, config.dsrLogPath, config.abstentionLogPath];
-  const unwritable: string[] = [];
-  for (const logPath of new Set(logPaths)) {
-    const dir = path.dirname(path.resolve(logPath));
-    try {
-      mkdirSync(dir, { recursive: true });
-      accessSync(dir, constants.W_OK);
-    } catch {
-      unwritable.push(dir);
+  const logPaths = [
+    config.leadLogPath,
+    config.dsrLogPath,
+    config.abstentionLogPath,
+    config.erasureLogPath,
+    config.leadAccessLogPath,
+  ];
+  if (isArchilStorageConfigured()) {
+    const archilCfg = loadArchilConfig();
+    console.log(`  Archil disk: ${archilCfg.diskId} (${archilCfg.region})`);
+    for (const logPath of new Set(logPaths)) {
+      console.log(`  Records (Archil): ${toArchilObjectKey(logPath)}`);
     }
-    console.log(
-      `  Records: ${logPath}${unwritable.includes(dir) ? '  (DIRECTORY NOT WRITABLE)' : ''}`,
+    setDataPathsWritable(true);
+  } else {
+    const unwritable: string[] = [];
+    if (process.env.ARCHIL_CONTAINER_ID && process.env.ARCHIL_DISK_ID) {
+      console.log(
+        `  Archil Sandbox root disk: ${process.env.ARCHIL_DISK_ID} (${process.env.ARCHIL_REGION || 'mounted at /'})`,
+      );
+    }
+    for (const logPath of new Set(logPaths)) {
+      const dir = path.dirname(path.resolve(logPath));
+      try {
+        mkdirSync(dir, { recursive: true });
+        accessSync(dir, constants.W_OK);
+      } catch {
+        unwritable.push(dir);
+      }
+      console.log(
+        `  Records: ${logPath}${unwritable.includes(dir) ? '  (DIRECTORY NOT WRITABLE)' : ''}`,
+      );
+    }
+    setDataPathsWritable(unwritable.length === 0);
+    if (!isDataPathsWritable()) {
+      console.warn(
+        `WARN: record directories are not writable (${unwritable.join(', ')}). ` +
+          'Lead, DSR, and abstention writes will fail closed until this is fixed.',
+      );
+    }
+  }
+
+  // SEC-11: durability is proven at boot, not declared by an env flag. A
+  // serverless process whose record directories are ephemeral keeps failing
+  // closed, whatever DURABLE_STORAGE_CONFIGURED says.
+  const storage = verifyDurableStorage({
+    serverless: config.serverless,
+    archilConfigured: isArchilStorageConfigured(),
+    logPaths,
+  });
+  if (storage.verified) {
+    console.log(`  Record durability: verified (${storage.reason})`);
+  } else {
+    const legacyFlag = process.env.DURABLE_STORAGE_CONFIGURED === 'true';
+    const suffix = legacyFlag
+      ? ' DURABLE_STORAGE_CONFIGURED is ignored: it asserted durability without proving it.'
+      : '';
+    console.warn(
+      `WARN: record durability is NOT verified (${storage.reason}). Consent, DSR and audit writes will fail closed rather than acknowledge a record that may be lost.${suffix} Mount a durable volume or configure Archil.`,
     );
   }
-  setDataPathsWritable(unwritable.length === 0);
-  if (!isDataPathsWritable()) {
+
+  // M-08: abstention analytics are keyed, so without a key nothing is written
+  // (an unkeyed question digest is reversible by dictionary lookup). Report the
+  // contradiction at boot rather than as a silent gap in the editorial feed.
+  if (config.abstentionLoggingEnabled && !config.abstentionLogKey.trim()) {
     console.warn(
-      `WARN: record directories are not writable (${unwritable.join(', ')}). ` +
-        'Lead, DSR, and abstention writes will fail closed until this is fixed.',
+      'WARN: ABSTENTION_LOGGING_ENABLED is on but ABSTENTION_LOG_KEY is not configured, ' +
+        'so no abstention is recorded: an unkeyed question hash can be reversed by ' +
+        'dictionary lookup. Set the key, or set ABSTENTION_LOGGING_ENABLED=false.',
     );
   }
 
@@ -95,6 +156,38 @@ function runStartupPreflight(): void {
   console.log(
     `  Cross-origin embed: ${config.allowedOrigins.length > 0 ? config.allowedOrigins.join(', ') : 'same-origin only (ALLOWED_ORIGINS unset)'}`,
   );
+  // A wildcard is accepted for previews, and it is also a CORS grant to every
+  // site on that vendor domain. Name it at boot so an operator who copied a
+  // preview value into production sees what it admits before a stranger does.
+  const wildcardOrigins = wildcardAllowedOrigins();
+  if (wildcardOrigins.length > 0) {
+    console.warn(
+      `WARN: ALLOWED_ORIGINS contains a subdomain wildcard (${wildcardOrigins.join(', ')}). ` +
+        "A wildcard admits every site on that vendor's domain, not only yours: any tenant could " +
+        "spend this API's model budget and post consent or DSR records. Use it for the preview " +
+        'under test, and list exact origins in production.',
+    );
+  }
+  const trustProxy = resolveTrustProxy({
+    raw: config.trustProxy,
+    serverless: config.serverless,
+    vercel: process.env.VERCEL === '1',
+  });
+  console.log(
+    `  Proxy trust: ${trustProxy.setting === false ? 'none' : JSON.stringify(trustProxy.setting)}` +
+      `${trustProxy.source === 'vercel_default' ? ' (Vercel edge default)' : ''}`,
+  );
+
+  // SEC-18: with health data collection enabled and no key, /api/consent will
+  // refuse every medical profile rather than write it in plaintext. Report the
+  // contradiction at boot instead of letting the first visitor find it as 503.
+  if (!config.healthDataCollectionDisabled && !isRecordEncryptionKeyConfigured()) {
+    console.warn(
+      'WARN: health data collection is enabled but RECORD_ENCRYPTION_KEY is not configured. ' +
+        '/api/consent will refuse every medical profile with 503 rather than store it in plaintext ' +
+        '(SEC-18); set the key to enable the medical flow.',
+    );
+  }
 }
 
 /**

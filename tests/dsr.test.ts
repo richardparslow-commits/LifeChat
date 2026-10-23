@@ -23,6 +23,7 @@ import {
   listDsrRecords,
   submitDsr,
 } from '../src/privacy/dsr';
+import { config } from '../src/config/app-config';
 
 beforeEach(async () => {
   await clearAllDsrRecords();
@@ -78,15 +79,24 @@ describe('submitDsr — record creation', () => {
     expect(result.record.detail).toBeNull();
   });
 
-  test('trims and stores the optional detail', async () => {
+  test('keeps the request but withholds a detail that could not be encrypted (M-09)', async () => {
+    // No RECORD_ENCRYPTION_KEY in this suite, so the record would be plaintext.
+    // A consumer may paste an SSN or a diagnosis into this field: the request
+    // must still be taken, and the text must not go to disk.
     const result = await submitDsr({
       requestType: 'correction',
       contactEmail: 'user@example.com',
-      detail: '  my phone number changed  ',
+      detail: '  my SSN is 123-45-6789  ',
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.record.detail).toBe('my phone number changed');
+    expect(result.record.detail).toBeNull();
+    expect(result.record.detail_withheld).toBe(true);
+
+    const { readFileSync } = await import('fs');
+    const log = readFileSync(process.env.DSR_LOG_PATH as string, 'utf8');
+    expect(log).not.toContain('123-45-6789');
+    expect(log).not.toContain('my SSN');
   });
 
   test('45-day TDPSA response SLA is exposed', async () => {
@@ -155,7 +165,10 @@ describe('DSR persistence across restarts', () => {
     expect(found).toBeDefined();
     expect(found?.request_type).toBe('access');
     expect(found?.contact_email).toBe('persist@example.com');
-    expect(found?.detail).toBe('please send my data');
+    // No key in this suite, so the free text was withheld and the flag survives
+    // the restart with the record (M-09).
+    expect(found?.detail).toBeNull();
+    expect(found?.detail_withheld).toBe(true);
     expect(found?.status).toBe('received');
 
     // Cleanup: delete the JSONL file so it doesn't leak into other tests.
@@ -181,7 +194,9 @@ describe('DSR persistence across restarts', () => {
     expect(reloaded.listDsrRecords()).toHaveLength(3);
     expect((await reloaded.getDsrRecord(r1.record.request_id))?.request_type).toBe('access');
     expect((await reloaded.getDsrRecord(r2.record.request_id))?.request_type).toBe('deletion');
-    expect((await reloaded.getDsrRecord(r3.record.request_id))?.detail).toBe('fix my name');
+    const r3Record = await reloaded.getDsrRecord(r3.record.request_id);
+    expect(r3Record?.detail).toBeNull();
+    expect(r3Record?.detail_withheld).toBe(true);
 
     await reloaded.clearAllDsrRecords();
   });
@@ -252,11 +267,39 @@ describe('DSR at-rest encryption', () => {
     // No plaintext fields should appear on disk
     expect(line).not.toContain('encrypted@example.com');
     expect(line).not.toContain('sensitive PII detail');
-    // The line should be an AES-256-GCM envelope
-    expect(line).toContain('"v":1');
+    // The line should be a versioned AES-256-GCM envelope with a key id (SEC-15)
+    expect(line).toContain('"v":2');
+    expect(line).toContain('"kid"');
     expect(line).toContain('"alg":"aes-256-gcm"');
     expect(line).toContain('"iv"');
     expect(line).toContain('"data"');
+  });
+
+  test('stores the free-text detail inside the encrypted envelope (M-09)', async () => {
+    const mod = await loadEncryptedModule();
+    const result = await mod.submitDsr({
+      requestType: 'correction',
+      contactEmail: 'correction@example.com',
+      detail: '  my phone number changed  ',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Trimmed, kept, and never withheld — the record is encrypted.
+    expect(result.record.detail).toBe('my phone number changed');
+    expect(result.record.detail_withheld).toBeUndefined();
+
+    const { readFileSync } = await import('fs');
+    const line = readFileSync(encryptedLog, 'utf8').trim();
+    expect(line).not.toContain('my phone number changed');
+    expect(line).toContain('"v":2');
+
+    // The value survives a reload through the decrypt path.
+    jest.resetModules();
+    process.env.RECORD_ENCRYPTION_KEY = key;
+    process.env.DSR_LOG_PATH = encryptedLog;
+    const reloaded = await import('../src/privacy/dsr');
+    const found = await reloaded.getDsrRecord(result.record.request_id);
+    expect(found?.detail).toBe('my phone number changed');
   });
 
   test('decrypts encrypted records on reload so in-memory lookup still works', async () => {
@@ -315,7 +358,7 @@ describe('DSR fail-closed persistence', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toContain('could not securely store');
-      expect(result.reason).toContain('privacy@lifepolicypilot.blog');
+      expect(result.reason).toContain(config.dsrEmail);
     }
     // Nothing was added to the in-memory store either
     expect(mod.listDsrRecords()).toHaveLength(0);

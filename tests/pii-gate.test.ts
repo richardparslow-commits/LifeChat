@@ -27,9 +27,11 @@ const PHONE = '(512) 555-1234';
 const CARD = '4111 1111 1111 1111';
 
 describe('POST /api/chat — PII never reaches the orchestrator', () => {
+  const ADMIN_KEY = 'pii-admin-secret-0123456789abcdef';
   const previousEnv = {
     HEALTH_DATA_COLLECTION_DISABLED: process.env.HEALTH_DATA_COLLECTION_DISABLED,
     LLM_API_KEY: process.env.LLM_API_KEY,
+    ADMIN_API_KEY: process.env.ADMIN_API_KEY,
   };
 
   let app: Express;
@@ -42,6 +44,7 @@ describe('POST /api/chat — PII never reaches the orchestrator', () => {
     // that could otherwise carry an identifier past the health classification.
     process.env.HEALTH_DATA_COLLECTION_DISABLED = 'false';
     process.env.LLM_API_KEY = 'test-key';
+    process.env.ADMIN_API_KEY = ADMIN_KEY;
     jest.resetModules();
 
     const [{ createApp }, orchestrator, sessionStore] = await Promise.all([
@@ -138,7 +141,9 @@ describe('POST /api/chat — PII never reaches the orchestrator', () => {
     expect(JSON.stringify(generateResponse.mock.calls)).toContain('REDACTED');
     expect(JSON.stringify(generateResponse.mock.calls)).not.toContain(EMAIL);
 
-    const history = await request(app).get(`/api/session/${sessionId}/history`);
+    const history = await request(app)
+      .get(`/api/session/${sessionId}/history`)
+      .set('x-admin-key', ADMIN_KEY);
     expect(JSON.stringify(history.body)).not.toContain(EMAIL);
   });
 

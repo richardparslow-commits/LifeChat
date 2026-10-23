@@ -8,6 +8,8 @@
 
 import { z } from 'zod';
 
+import { TopicCategorySchema } from './topic-category';
+
 /**
  * Citation object — title and canonical URL of an approved source.
  */
@@ -106,6 +108,44 @@ export const ConsentSchema = z.object({
 });
 
 /**
+ * The turn's declared intent (C-06).
+ *
+ * These are schema-validated booleans, never free prose: the application uses
+ * them to drive the conversation state machine, and a missing or malformed
+ * block is rejected like any other schema violation. They are claims about the
+ * conversation, not authorization — every side effect is still gated on
+ * server-verified consent, a recorded slot, and tool authorization.
+ */
+export const TurnIntentSchema = z.object({
+  /** The assistant answered the visitor's question with grounded information. */
+  value_delivered: z.boolean().default(false),
+  /** The visitor's request is too ambiguous to answer without one clarifying question. */
+  needs_clarification: z.boolean().default(false),
+  /** The visitor showed interest in talking to the licensed broker. */
+  interest_in_contact: z.boolean().default(false),
+  /**
+   * The visitor explicitly asked to be contacted or to speak with the licensed
+   * broker. Distinct from soft interest: an explicit request is the only thing
+   * that reopens contact after a decline (Section 4.4, no repeated offers).
+   */
+  requests_contact: z.boolean().default(false),
+  /** The visitor agreed to the optional qualification questions. */
+  agrees_to_qualification: z.boolean().default(false),
+  /** The visitor declined an offer or ended the flow. */
+  declines_or_ends: z.boolean().default(false),
+});
+
+/** The neutral intent block: no transition is asserted. */
+export const EMPTY_TURN_INTENT: TurnIntent = {
+  value_delivered: false,
+  needs_clarification: false,
+  interest_in_contact: false,
+  requests_contact: false,
+  agrees_to_qualification: false,
+  declines_or_ends: false,
+};
+
+/**
  * Allowed proposed actions the model may emit.
  * The application layer validates and authorizes before executing.
  */
@@ -189,7 +229,7 @@ export const AnalyticsSchema = z.object({
     ])
     .nullable()
     .default(null),
-  topic_category: z.string().nullable().default(null),
+  topic_category: TopicCategorySchema.default(null),
   conversation_stage: z.string().nullable().default(null),
   fallback_type: z.string().nullable().default(null),
   handoff_reason: z.string().nullable().default(null),
@@ -242,6 +282,11 @@ export const AssistantResponseSchema = z.object({
     'standby',
     'dime_estimator',
   ]),
+  /**
+   * Declared intent for this turn. The application — not this block's state
+   * value — decides the persisted conversation state (C-06).
+   */
+  intent: TurnIntentSchema.default(() => ({ ...EMPTY_TURN_INTENT })),
   citations: z.array(CitationSchema).default([]),
   lead_data: LeadDataSchema,
   consent: ConsentSchema,
@@ -277,6 +322,7 @@ export type Citation = z.infer<typeof CitationSchema>;
 export type MedicalProfilePayload = z.infer<typeof MedicalProfileSchema>;
 export type LeadData = z.infer<typeof LeadDataSchema>;
 export type Consent = z.infer<typeof ConsentSchema>;
+export type TurnIntent = z.infer<typeof TurnIntentSchema>;
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
 export type Analytics = z.infer<typeof AnalyticsSchema>;
 export type DimeEstimator = z.infer<typeof DimeEstimatorSchema>;
@@ -418,6 +464,7 @@ export const STATIC_SAFE_FALLBACK: AssistantResponse = {
   assistant_message:
     "I'm sorry, I wasn't able to process that. You can continue browsing our educational articles, or I can connect you with Richard Parslow, a licensed Texas life-insurance broker, for personalized help.",
   state: 'standby',
+  intent: { ...EMPTY_TURN_INTENT },
   citations: [],
   lead_data: {
     first_name: null,

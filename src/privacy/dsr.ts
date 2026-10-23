@@ -26,7 +26,7 @@ import { config, isEphemeralServerlessPath } from '../config/app-config';
 import { BoundedLruCache } from '../persistence/bounded-lru';
 import {
   appendJsonlLine,
-  findJsonlRecord,
+  findLastJsonlRecord,
   readJsonlLines,
   removeLogFile,
 } from '../persistence/jsonl-log';
@@ -34,6 +34,8 @@ import {
   encryptRecordLine,
   decryptRecordLine,
   isEncryptedRecordLine,
+  isLegacyPlaintextRecordAllowed,
+  isLegacyPlaintextRecordLine,
   isRecordEncryptionConfigured,
 } from './record-encryption';
 import { validateEmail } from '../consent/consent-model';
@@ -52,6 +54,25 @@ export type DsrRequestType = (typeof DSR_REQUEST_TYPES)[number];
 /** TDPSA requires responding to a verified request within 45 days. */
 export const DSR_RESPONSE_SLA_DAYS = 45;
 
+/**
+ * The lifecycle of a request: intake → identity verification → fulfilment.
+ *
+ * `received` means only that the intake accepted the submission. `verifying`
+ * means an operator has confirmed the requester controls the address (which is
+ * also what grants suppression authority). `fulfilled` means the requested
+ * action — for a deletion, the erasure — completed and was recorded.
+ */
+export type DsrStatus = 'received' | 'verifying' | 'fulfilled';
+
+/**
+ * Placeholder written over a contact address once it has been erased.
+ *
+ * The tombstone keeps the request id, type, timestamps and status so the
+ * deletion itself remains auditable, while removing the PII. It is not a
+ * valid address and never matches a consent record.
+ */
+export const ERASED_CONTACT_MARKER = 'erased';
+
 export interface DsrRecord {
   /** Server-generated UUID */
   request_id: string;
@@ -60,9 +81,33 @@ export interface DsrRecord {
   request_type: DsrRequestType;
   /** Contact email where the response is sent */
   contact_email: string;
-  /** Optional free-text detail — NOT used for analytics, never PII-logged */
+  /**
+   * Optional free-text detail — NOT used for analytics, never PII-logged.
+   *
+   * Only ever stored inside the encrypted envelope (M-09): a consumer may paste
+   * an SSN, a diagnosis or an account number into it, and pilot mode used to
+   * write that in clear. When no key is configured the intake keeps the request
+   * and drops the text, setting `detail_withheld` so the operator knows to ask.
+   */
   detail: string | null;
-  status: 'received';
+  /**
+   * True when a free-text detail was submitted but not stored because records
+   * are not encrypted on this deployment. The request itself is still accepted.
+   */
+  detail_withheld?: boolean;
+  status: DsrStatus;
+  /**
+   * True once an operator has confirmed the requester controls the address.
+   *
+   * The public intake is unauthenticated, so a submitted address proves
+   * nothing. Only a verified request may suppress contact with that address
+   * (see verified-actions); an unverified one is a claim, not an authority.
+   */
+  verified: boolean;
+  /** Server timestamp of verification, null while unverified. */
+  verified_at: string | null;
+  /** Server timestamp of fulfilment (erasure completed), null until then. */
+  fulfilled_at: string | null;
 }
 
 /**
@@ -84,6 +129,7 @@ async function loadDsrRecordsFromDisk(): Promise<void> {
   const lines = await readJsonlLines(logPath);
   let skippedMissingKey = 0;
   let skippedUndecodable = 0;
+  let skippedPlaintext = 0;
 
   for (const line of lines) {
     try {
@@ -98,12 +144,28 @@ async function loadDsrRecordsFromDisk(): Promise<void> {
           } else {
             skippedMissingKey++;
           }
+        } else if (isLegacyPlaintextRecordLine(line) && !isLegacyPlaintextRecordAllowed()) {
+          // SEC-15: an unauthenticated line is refused outside pilot mode. It is
+          // reported, not silently ignored, so an operator knows to rekey.
+          skippedPlaintext++;
         }
         continue; // cannot decode — skip
       }
-      const parsed = JSON.parse(plain) as DsrRecord;
+      const parsed = JSON.parse(plain) as Partial<DsrRecord>;
       if (parsed && parsed.request_id && parsed.request_type) {
-        dsrRecords.set(parsed.request_id, parsed);
+        // Records written before verification existed carry no `verified`
+        // field. Treat them as unverified rather than trusting a truthy
+        // default: an old record must not silently gain suppression power.
+        dsrRecords.set(parsed.request_id, {
+          ...parsed,
+          verified: parsed.verified === true,
+          verified_at: typeof parsed.verified_at === 'string' ? parsed.verified_at : null,
+          fulfilled_at: typeof parsed.fulfilled_at === 'string' ? parsed.fulfilled_at : null,
+          status:
+            parsed.status === 'verifying' || parsed.status === 'fulfilled'
+              ? parsed.status
+              : 'received',
+        } as DsrRecord);
       }
     } catch {
       // skip malformed lines
@@ -121,6 +183,13 @@ async function loadDsrRecordsFromDisk(): Promise<void> {
     console.warn(
       `WARNING: ${skippedUndecodable} encrypted DSR record(s) in ${logPath} could not be decoded ` +
         'with the configured key — the key may have changed or the data may be corrupt.',
+    );
+  }
+  if (skippedPlaintext > 0) {
+    console.warn(
+      `WARNING: ${skippedPlaintext} unencrypted DSR record(s) in ${logPath} were refused because ` +
+        'plaintext records are not accepted outside pilot mode. Run `npm run records:rekey` to ' +
+        'encrypt them under RECORD_ENCRYPTION_KEY.',
     );
   }
 }
@@ -151,7 +220,15 @@ async function persistDsrRecord(record: DsrRecord): Promise<boolean> {
     return false;
   }
   try {
-    return await appendJsonlLine(logPath, encryptRecordLine(JSON.stringify(record)));
+    const line = encryptRecordLine(JSON.stringify(record));
+    // Belt for M-09: whatever the key state, a record carrying free text is
+    // never written as anything but an authenticated envelope. If encryption
+    // silently degraded, the write fails instead of the text going to disk.
+    if (record.detail !== null && !isEncryptedRecordLine(line)) {
+      console.error('[dsr] refusing to persist a free-text detail outside the encrypted envelope');
+      return false;
+    }
+    return await appendJsonlLine(logPath, line);
   } catch {
     // Fail closed: any unexpected error is a failed write, never a rejection
     // that would surface as a hanging request under Express 4.
@@ -179,13 +256,27 @@ export async function submitDsr(input: {
     return { ok: false, reason: 'A valid contact email is required so we can respond' };
   }
 
+  // M-09: the free text is the one field a consumer is invited to fill with
+  // anything ("my SSN is ...", "I was diagnosed with ..."). Without a key the
+  // whole record would be plaintext, so the request is kept and the text is
+  // dropped — a TDPSA intake must still work — and the record says so.
+  const requestedDetail = input.detail?.trim() ? input.detail.trim().slice(0, 2000) : null;
+  const detail =
+    requestedDetail !== null && isRecordEncryptionConfigured() ? requestedDetail : null;
+  const detailWithheld = requestedDetail !== null && detail === null;
+
   const record: DsrRecord = {
     request_id: uuidv4(),
     created_at: new Date().toISOString(),
     request_type: input.requestType as DsrRequestType,
     contact_email: input.contactEmail,
-    detail: input.detail?.trim() ? input.detail.trim().slice(0, 2000) : null,
+    detail,
+    ...(detailWithheld ? { detail_withheld: true } : {}),
     status: 'received',
+    // Verification is an operator action, never something the intake creates.
+    verified: false,
+    verified_at: null,
+    fulfilled_at: null,
   };
 
   // Fail closed: only acknowledge the request if it was durably persisted.
@@ -203,15 +294,25 @@ export async function submitDsr(input: {
 }
 
 /**
- * Reads one DSR record straight from the JSONL log, decrypting each line.
- * Used only when the cache does not hold the id.
+ * Reads one DSR record straight from the JSONL log, decrypting each line and
+ * taking the LAST line for the id.
+ *
+ * Verification is append-only: it writes a second line with the same
+ * request_id. The bulk loader is last-wins, so a cache-miss lookup must be
+ * too — otherwise an evicted record would read back as its original,
+ * unverified version and an operator's confirmation would silently vanish.
  */
 async function findDsrRecordOnDisk(requestId: string): Promise<DsrRecord | undefined> {
-  return findJsonlRecord<DsrRecord>(config.dsrLogPath, (line) => {
+  return findLastJsonlRecord<DsrRecord>(config.dsrLogPath, (line) => {
     const plain = decryptRecordLine(line);
     if (plain === null) return null;
-    const parsed = JSON.parse(plain) as DsrRecord;
-    return parsed && parsed.request_id === requestId ? parsed : null;
+    const parsed = JSON.parse(plain) as Partial<DsrRecord>;
+    if (!parsed || parsed.request_id !== requestId) return null;
+    return {
+      ...parsed,
+      verified: parsed.verified === true,
+      verified_at: typeof parsed.verified_at === 'string' ? parsed.verified_at : null,
+    } as DsrRecord;
   });
 }
 
@@ -244,11 +345,100 @@ export async function getDsrRecord(requestId: string): Promise<DsrRecord | undef
 }
 
 /**
+ * Marks a DSR as verified, which is what gives a deletion request the
+ * authority to suppress contact (see hasPendingDeletion). Only an admin route
+ * may call this: the public intake cannot prove the requester controls the
+ * address, so self-verification would defeat the control.
+ *
+ * Appends an updated record; the loader is last-wins, so the most recent line
+ * is authoritative. A failed append returns null and leaves the cached record
+ * untouched — a verification must be durable, or it would silently disappear
+ * on the next restart.
+ */
+export async function verifyDsrRecord(requestId: string): Promise<DsrRecord | null> {
+  const existing = await getDsrRecord(requestId);
+  if (!existing) return null;
+  if (existing.verified === true) return existing;
+
+  const verified: DsrRecord = {
+    ...existing,
+    status: 'verifying',
+    verified: true,
+    verified_at: new Date().toISOString(),
+  };
+
+  if (!(await persistDsrRecord(verified))) {
+    return null;
+  }
+
+  dsrRecords.set(verified.request_id, verified);
+  return verified;
+}
+
+/**
+ * Re-reads the DSR log after an out-of-band rewrite (erasure or retention),
+ * replacing the in-memory cache with what is actually on disk.
+ *
+ * Erasure runs in the request path of an admin call on the same instance, so a
+ * stale cache would keep serving a record whose email was just deleted. The
+ * reload is the same loader used at boot, so cache and log cannot disagree
+ * about which records exist.
+ */
+export async function reloadDsrRecords(): Promise<void> {
+  dsrRecords.clear();
+  loadPromise = loadDsrRecordsFromDisk();
+  await loadPromise;
+}
+
+/**
  * Lists cached DSR records, oldest first. The JSONL log remains the full
  * record set; this is capped at MAX_CACHED_DSR_RECORDS entries.
  */
 export function listDsrRecords(): DsrRecord[] {
   return dsrRecords.values();
+}
+
+/**
+ * Every DSR in the durable log, de-duplicated by request id.
+ *
+ * This is the suppression read path for the lead export. The serving cache is
+ * bounded, so a missing entry there is not proof no deletion request exists,
+ * and treating it as proof would show a suppressed address as contactable.
+ * `unreadable` counts lines that could not be decoded so the caller can refuse
+ * to guess rather than assume consent. A later line for the same request id
+ * supersedes an earlier one, matching the append-only log's semantics.
+ */
+export async function listAllDsrRecords(): Promise<{
+  records: DsrRecord[];
+  unreadable: number;
+}> {
+  const lines = await readJsonlLines(config.dsrLogPath);
+  const byId = new Map<string, DsrRecord>();
+  let unreadable = 0;
+
+  for (const line of lines) {
+    let parsed: DsrRecord | null = null;
+    try {
+      const plain = decryptRecordLine(line);
+      if (plain !== null) {
+        parsed = JSON.parse(plain) as DsrRecord;
+      }
+    } catch {
+      parsed = null;
+    }
+    if (
+      !parsed ||
+      typeof parsed.request_id !== 'string' ||
+      parsed.request_id.length === 0 ||
+      typeof parsed.contact_email !== 'string'
+    ) {
+      unreadable += 1;
+      continue;
+    }
+    byId.set(parsed.request_id, parsed);
+  }
+
+  return { records: [...byId.values()], unreadable };
 }
 
 /**

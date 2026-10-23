@@ -661,7 +661,7 @@ export const ACCESSIBILITY_WALKTHROUGH_CHECKS: readonly WalkthroughCheck[] = [
     id: 'AT-02',
     area: 'Announcements',
     check: 'open the panel and listen to how the container is announced',
-    expected: 'it is announced as a dialog named "Life Policy Pilot — AI Educational Assistant"',
+    expected: 'it is announced as a dialog named "LifeChat by Life Insurance Broker Advocate"',
   },
   {
     id: 'AT-03',

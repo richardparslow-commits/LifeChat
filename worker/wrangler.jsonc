@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lifechat-sites-preview",
+  "main": "sites-entry.mjs",
+  // Node compatibility is on by default from 2026-08-04; naming the flag keeps
+  // this config working if the date is ever pinned earlier.
+  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_date": "2026-10-20",
+  "assets": {
+    "directory": "../public",
+    "binding": "ASSETS",
+    // Serve demo.html at its exact URL; the default router redirects the
+    // .html form to /demo, while the long-running server answers it directly.
+    "html_handling": "none"
+  },
+  // Express 4's body parser loads iconv-lite, whose CommonJS stream require
+  // cannot run in Workers. This shim supplies the UTF-8 decoder raw-body uses.
+  "alias": {
+    "iconv-lite": "./iconv-lite-shim.cjs"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

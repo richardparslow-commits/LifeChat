@@ -18,6 +18,7 @@ import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
 const leadLog = tempLogPath('reload-lead');
 const dsrLog = tempLogPath('reload-dsr');
 const encryptedLeadLog = tempLogPath('reload-lead-encrypted');
+const RELOAD_ADMIN_KEY = 'reload-admin-secret-0123456789abcdef';
 
 // One cached entry per store: the second write evicts the first.
 jest.mock('../src/persistence/bounded-lru', () => {
@@ -44,9 +45,8 @@ describe('record lookups reload evicted entries from the JSONL log', () => {
   beforeAll(async () => {
     process.env.LEAD_LOG_PATH = leadLog;
     process.env.DSR_LOG_PATH = dsrLog;
-    // Operator routes are open with no admin key configured (pilot mode); make
-    // sure an unrelated value in the shell cannot turn this into a 401 test.
-    delete process.env.ADMIN_API_KEY;
+    // Operator routes require a key even in pilot mode (C-01).
+    process.env.ADMIN_API_KEY = RELOAD_ADMIN_KEY;
     jest.resetModules();
 
     const [leadStore, dsrStore, appModule] = await Promise.all([
@@ -98,7 +98,7 @@ describe('record lookups reload evicted entries from the JSONL log', () => {
     expect(await leads.getLeadRecord(first.lead_id)).toBe(found);
   });
 
-  it('reloads an evicted DSR and keeps its response detail intact', async () => {
+  it('reloads an evicted DSR and keeps its withheld-detail flag intact', async () => {
     const first = await dsrs.submitDsr({
       requestType: 'access',
       contactEmail: 'first@example.com',
@@ -118,7 +118,11 @@ describe('record lookups reload evicted entries from the JSONL log', () => {
     const found = await dsrs.getDsrRecord(first.record.request_id);
     expect(found?.request_type).toBe('access');
     expect(found?.contact_email).toBe('first@example.com');
-    expect(found?.detail).toBe('please send my data');
+    // This suite has no record-encryption key, so the free text is withheld at
+    // intake (M-09); the flag that says so must survive the reload with the
+    // rest of the record, or an operator would never know to ask for it.
+    expect(found?.detail).toBeNull();
+    expect(found?.detail_withheld).toBe(true);
   });
 
   it('serves an evicted DSR through the operator lookup route', async () => {
@@ -135,10 +139,36 @@ describe('record lookups reload evicted entries from the JSONL log', () => {
 
     // The route must not report "not found" for a record that exists on disk,
     // merely because the bounded cache dropped it.
-    const res = await request(app).get(`/api/dsr/${first.record.request_id}`);
+    const res = await request(app)
+      .get(`/api/dsr/${first.record.request_id}`)
+      .set('x-admin-key', RELOAD_ADMIN_KEY);
     expect(res.status).toBe(200);
     expect(res.body.requestId).toBe(first.record.request_id);
     expect(res.body.requestType).toBe('portability');
+  });
+
+  it('preserves a verification appended after the original record', async () => {
+    const first = await dsrs.submitDsr({
+      requestType: 'deletion',
+      contactEmail: 'verified@example.com',
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const verified = await dsrs.verifyDsrRecord(first.record.request_id);
+    expect(verified?.verified).toBe(true);
+
+    // Verification appends a second line for the same id. Evict it from the
+    // one-entry cache; the disk fallback must read the LAST line, not the
+    // original unverified one.
+    await dsrs.submitDsr({ requestType: 'access', contactEmail: 'other@example.com' });
+    expect(dsrs.listDsrRecords().map((record) => record.request_id)).not.toContain(
+      first.record.request_id,
+    );
+
+    const found = await dsrs.getDsrRecord(first.record.request_id);
+    expect(found?.verified).toBe(true);
+    expect(found?.verified_at).toEqual(expect.any(String));
   });
 
   it('returns undefined for an id that is neither cached nor in the log', async () => {

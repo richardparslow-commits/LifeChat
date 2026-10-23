@@ -1,4 +1,4 @@
-# Compliance Classification Matrix — Life Policy Pilot AI Assistant
+# Compliance Classification Matrix — LifeChat AI Assistant by Life Insurance Broker Advocate
 
 **Phase 0 deliverable (Section 6 of the specification):** Texas insurance counsel classifies each
 conversation flow under applicable insurance-advertising and privacy law, and approves which flows
@@ -80,7 +80,9 @@ These are enforced in code and must pass the **100% critical-compliance test gat
   personal data, purposes, third-party sharing categories, third-party categories, and how to exercise
   rights); linked from the disclosure and consent flows (`PRIVACY_NOTICE_URL`).
 - **Consumer rights / DSR** — access, deletion, correction, and portability requests accepted via
-  `POST /api/dsr` and the published contact (`DSR_EMAIL`, default `privacy@lifepolicypilot.blog`),
+  `POST /api/dsr` and the published contact (`DSR_CONTACT_EMAIL`, default
+  `richardparslow@lifepolicypilot.blog`; `DSR_EMAIL` accepted as the legacy
+  name), whose mail route is checked by `npm run rights:channel`,
   with a 45-day TDPSA response window.
 - **PII-safe** — forbidden chat fields never collected; sensitive keys redacted from tool arguments;
   analytics events carry no PII.

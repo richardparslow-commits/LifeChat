@@ -9,6 +9,7 @@ import {
   AssistantResponseSchema,
   validateSchemaRules,
   STATIC_SAFE_FALLBACK,
+  EMPTY_TURN_INTENT,
   type AssistantResponse,
 } from '../src/schema/response-schema';
 
@@ -17,6 +18,7 @@ function makeValidResponse(overrides: Partial<AssistantResponse> = {}): Assistan
   return {
     assistant_message: 'Term life insurance provides coverage for a specific period.',
     state: 'education',
+    intent: { ...EMPTY_TURN_INTENT },
     citations: [
       { title: 'Term vs Whole Life', url: 'https://lifepolicypilot.blog/term-vs-whole/' },
     ],

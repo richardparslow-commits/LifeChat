@@ -1,7 +1,7 @@
 /**
  * URL → Article Mapping (Contextual Content Bridge)
  *
- * Maps the URL a user is reading to a known Life Policy Pilot article so the
+ * Maps the URL a user is reading to a known Life Insurance Broker Advocate article so the
  * bridge can prioritize its content in RAG retrieval and build a contextual
  * opening message. All text here is compliance-reviewed educational prompts:
  * they reference the article TOPIC as a signal of interest, never the user's
@@ -26,6 +26,67 @@ export interface ArticleMapping {
 
 /** Ordered list of URL→article mappings. First match wins. */
 const articleMappings: ArticleMapping[] = [
+  // ── Interactive tools on the Lovable site ──
+  // These are checked before the generic /tools entry so each calculator gets
+  // its own opening message instead of one generic tools sentence.
+  {
+    urlPattern: /health-class-predictor/i,
+    articleId: 'article_health_class',
+    topic: 'Life insurance health classes',
+    contextualPrompt:
+      "I see you're using the Health Class Predictor. I can explain how insurers generally think about health classes and underwriting, or we can explore policy types, coverage needs, or Texas-specific rules.",
+  },
+  {
+    urlPattern: /ibc-lab|infinite-banking/i,
+    articleId: 'article_ibc',
+    topic: 'Infinite banking and whole life cash value',
+    contextualPrompt:
+      "I see you're exploring the Infinite Banking Lab. I can explain how whole life cash value generally works and where the approach has trade-offs, or we can explore other policy types or Texas-specific rules.",
+  },
+  {
+    urlPattern: /term-ladder|term-life-laddering/i,
+    articleId: 'article_term_ladder',
+    topic: 'Term laddering',
+    contextualPrompt:
+      "I see you're working with the Term Ladder Calculator. I can explain how layering term policies generally works, or we can explore coverage needs or Texas-specific rules.",
+  },
+  {
+    urlPattern: /product-navigator/i,
+    articleId: 'article_product_navigator',
+    topic: 'Comparing life insurance product types',
+    contextualPrompt:
+      "I see you're using the Product Navigator. I can explain the general differences between term, whole, and universal life, or we can explore coverage needs or Texas-specific rules.",
+  },
+  {
+    urlPattern: /\/tools(\/|$|\?)/i,
+    articleId: 'tools_hub',
+    topic: 'Life insurance calculators',
+    contextualPrompt:
+      "I see you're exploring the calculator suite. I can explain what each general concept means, or we can talk through policy types, coverage needs, or Texas-specific rules.",
+  },
+  // ── Author / brokerage pages ──
+  {
+    urlPattern: /\/author\/|\/about(\/|$|\?)/i,
+    articleId: 'about_broker',
+    topic: 'About the licensed broker',
+    contextualPrompt:
+      "I see you're reading about Richard Parslow and the brokerage. I can answer general questions about how the educational assistant works, or we can explore policy types, coverage needs, or Texas-specific rules.",
+  },
+  // ── New-site article slugs without a legacy equivalent ──
+  {
+    urlPattern: /how-much-does-life-insurance-cost/i,
+    articleId: 'factors-affecting-cost',
+    topic: 'What affects life insurance cost',
+    contextualPrompt:
+      "I see you're reading about what affects life insurance costs. I can explain the general factors, or we can explore policy types, coverage needs, or Texas-specific rules.",
+  },
+  {
+    urlPattern: /beneficiary/i,
+    articleId: 'article_beneficiaries',
+    topic: 'Life insurance beneficiaries',
+    contextualPrompt:
+      "I see you're reading about life insurance beneficiaries. I can answer general questions about that topic, or we can explore policy types or Texas-specific rules.",
+  },
   {
     urlPattern: /life-insurance-for-diabetics/i,
     articleId: 'article_diabetes_texas',

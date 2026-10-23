@@ -5,6 +5,8 @@
  * that can monitor, recover from, and repair errors (NIST AI 600-1).
  */
 
+import { publicationUrl } from '../config/app-config';
+
 /**
  * Latency targets and timeout behavior (Section 4.11).
  */
@@ -139,12 +141,12 @@ export function canCallService(serviceName: string): boolean {
 export const STATIC_FALLBACK_RESOURCES = [
   {
     title: 'Life Insurance Basics',
-    url: 'https://lifepolicypilot.blog/',
+    url: publicationUrl('/'),
     description: 'Browse our educational articles about life insurance.',
   },
   {
     title: 'Contact Richard Parslow',
-    url: 'https://lifepolicypilot.blog/contact/',
+    url: publicationUrl('contact'),
     description: 'Connect with a licensed Texas life-insurance broker directly.',
   },
   {

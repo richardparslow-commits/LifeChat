@@ -50,7 +50,7 @@ function consent(
 ) {
   return {
     medical_consent_affirmed: true,
-    medical_consent_version: '1.0.0',
+    medical_consent_version: '1.1.0',
     ...overrides,
   };
 }
@@ -812,6 +812,9 @@ async function loadApp(flagValue: string): Promise<LoadedApp> {
   process.env.LLM_API_KEY = '';
   const leadLogPath = tempLogPath('lead-crosswalk-test');
   process.env.LEAD_LOG_PATH = leadLogPath;
+  // SEC-18: a consented medical profile is refused unless record encryption is
+  // configured, in pilot mode too. These tests store real medical payloads.
+  process.env.RECORD_ENCRYPTION_KEY = TEST_RECORD_ENCRYPTION_KEY;
 
   const { app, server } = (await import('../src/index')) as {
     app: Express;
@@ -829,6 +832,7 @@ async function loadApp(flagValue: string): Promise<LoadedApp> {
           'LIFECHAT_PORT',
           'LLM_API_KEY',
           'LEAD_LOG_PATH',
+          'RECORD_ENCRYPTION_KEY',
         ]) {
           if (previous[key] === undefined) {
             delete process.env[key];
@@ -840,6 +844,9 @@ async function loadApp(flagValue: string): Promise<LoadedApp> {
       }),
   };
 }
+
+/** A synthetic, low-entropy key long enough for the 32-character floor. */
+const TEST_RECORD_ENCRYPTION_KEY = 'test-key-'.repeat(4);
 
 const consentBody = {
   contactConsentAffirmed: true,
@@ -879,7 +886,7 @@ describe('/api/consent — medical profile is refused while capture is disabled'
         ...consentBody,
         medicalProfile,
         medicalConsentAffirmed: true,
-        medicalConsentVersion: '1.0.0',
+        medicalConsentVersion: '1.1.0',
       });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Medical capture is disabled');
@@ -916,12 +923,12 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
     const before = listLeadRecords().length;
 
     for (const body of [
-      { medicalProfile, medicalConsentAffirmed: false, medicalConsentVersion: '1.0.0' },
+      { medicalProfile, medicalConsentAffirmed: false, medicalConsentVersion: '1.1.0' },
       { medicalProfile, medicalConsentAffirmed: true },
       {
         medicalProfile: { diabetes: 'yes' },
         medicalConsentAffirmed: true,
-        medicalConsentVersion: '1.0.0',
+        medicalConsentVersion: '1.1.0',
       },
     ]) {
       const res = await request(loaded.app)
@@ -941,7 +948,7 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
         ...consentBody,
         medicalProfile,
         medicalConsentAffirmed: true,
-        medicalConsentVersion: '1.0.0',
+        medicalConsentVersion: '1.1.0',
       });
     expect(res.status).toBe(200);
     expect(res.body.leadId).toBeTruthy();
@@ -962,7 +969,7 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
 
     const lead = await getLeadRecord(res.body.leadId);
     expect(lead).toBeDefined();
-    expect(lead!.medical_consent_version).toBe('1.0.0');
+    expect(lead!.medical_consent_version).toBe('1.1.0');
     expect(lead!.medical_consent_timestamp).toBeTruthy();
     // Stated wording is preserved verbatim — the crosswalk is additive.
     expect(lead!.medical_profile!.medical_conditions).toEqual(medicalProfile.medical_conditions);
@@ -1011,7 +1018,7 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
             medical_conditions: ['urethral stricture'],
           },
           medicalConsentAffirmed: true,
-          medicalConsentVersion: '1.0.0',
+          medicalConsentVersion: '1.1.0',
         });
       expect(res.status).toBe(200);
 
@@ -1033,7 +1040,7 @@ describe('/api/consent — consented medical profile is crosswalked and stored',
         ...consentBody,
         medicalProfile: { ...medicalProfile, medical_conditions: stated },
         medicalConsentAffirmed: true,
-        medicalConsentVersion: '1.0.0',
+        medicalConsentVersion: '1.1.0',
       });
     expect(res.status).toBe(200);
 

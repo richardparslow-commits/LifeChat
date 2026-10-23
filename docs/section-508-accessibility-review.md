@@ -12,16 +12,18 @@ shipped `public/widget.js` against a minimal DOM rather than a copy of it.
 
 ## Status
 
-| Part of the review                             | State                                                                                                 |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Manual code review of the three UI surfaces    | **Complete** — 15 findings (ACC-1 … ACC-15)                                                           |
-| Defects fixed                                  | **15 of 15 fixed** — ACC-15 resolved by the focus-collapse toggle and automatic fold                  |
-| Contrast recomputed from source                | **Complete** — every documented pair recomputed, 12 pairs                                             |
-| Focus indicators measured per control          | **Complete** — 4 indicators, 8 boundaries                                                             |
-| DOM contract asserted in CI                    | **Green** — 62 tests, `npx jest tests/widget-accessibility.test.ts`                                   |
-| Rendered browser verification (`/demo.html`)   | **Complete for geometry, tree, and behaviour** (see below)                                            |
-| Walkthrough instrument (checklist + receipt)   | **Runnable** — `npm run a11y:checklist`; results recorded in `docs/accessibility-matrix-receipt.json` |
-| Browser + assistive-technology walkthrough × 5 | **Not performed** — 0 of 5 rows; needs a human at the keyboard, see the matrix                        |
+| Part of the review                             | State                                                                                                                                                                              |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Manual code review of the three UI surfaces    | **Complete** — 15 findings (ACC-1 … ACC-15)                                                                                                                                        |
+| Defects fixed                                  | **15 of 15 fixed** — ACC-15 resolved by the focus-collapse toggle and automatic fold                                                                                               |
+| Contrast recomputed from source                | **Complete** — every documented pair recomputed, 12 pairs                                                                                                                          |
+| Focus indicators measured per control          | **Complete** — 4 indicators, 8 boundaries                                                                                                                                          |
+| DOM contract asserted in CI                    | **Green** — the full suite, `npx jest tests/widget-accessibility.test.ts`                                                                                                          |
+| Automated axe gate in Chromium                 | **Green** — `npm run a11y:e2e`; 0 serious/critical in the closed widget, the open widget, and the open widget under a dark host theme; control probe detects an injected violation |
+| Rendered browser verification (`/demo.html`)   | **Complete for geometry, tree, and behaviour** (see below)                                                                                                                         |
+| Appointment picker keyboard pass (2026-10-20)  | **Complete in Chromium 156** — screen-reader half **not performed** (see below)                                                                                                    |
+| Walkthrough instrument (checklist + receipt)   | **Runnable** — `npm run a11y:checklist`; results recorded in `docs/accessibility-matrix-receipt.json`                                                                              |
+| Browser + assistive-technology walkthrough × 5 | **Not performed** — 0 of 5 rows; needs a human at the keyboard, see the matrix                                                                                                     |
 
 The last row is the honest gap. Nothing in this repository can drive NVDA, VoiceOver, or TalkBack,
 so the review does not claim those passes. What it does claim is that the gap is now an instrument:
@@ -61,23 +63,23 @@ WordPress/Elementor theme around the block, which is not in this repository.
 
 Full text, evidence, and resolution for each are in `SECTION_508_FINDINGS`. Summary:
 
-| ID     | Finding                                                                      | Severity | Criteria              | Status    |
-| ------ | ---------------------------------------------------------------------------- | -------- | --------------------- | --------- |
-| ACC-1  | Focus indicator measured 2.305:1 / 2.945:1 (below 3:1)                       | high     | 1.4.11, 2.4.13 (AAA)  | Fixed     |
-| ACC-2  | Nested polite live regions announced every message twice                     | high     | 4.1.3, 1.3.1          | Fixed     |
-| ACC-3  | Speaker identity conveyed by bubble colour alone                             | high     | 1.3.1, 1.4.1, 4.1.2   | Fixed     |
-| ACC-4  | Scrollable transcript unreachable by keyboard                                | high     | 2.1.1                 | Fixed     |
-| ACC-5  | Focus taken on load, stranded on close, no way to reopen                     | high     | 2.4.3, 3.2.1, 2.1.1   | Fixed     |
-| ACC-6  | Overflow at 320px width and on short viewports                               | high     | 1.4.10, 1.4.4, 2.4.11 | Fixed     |
-| ACC-7  | Typing indicator announced as "…" and could delete a user message            | medium   | 4.1.3, 1.3.1          | Fixed     |
-| ACC-8  | Errors announced politely, contradicting `ARIA_LIVE_CONFIG.ERRORS`           | medium   | 4.1.3                 | Fixed     |
-| ACC-9  | Widget text had no `lang` of its own                                         | medium   | 3.1.2                 | Fixed     |
-| ACC-10 | Accessible name duplicated visible text; label and instructions unassociated | medium   | 2.5.3, 3.3.2, 1.3.1   | Fixed     |
-| ACC-11 | Focus bands drawn only as `box-shadow` vanish in forced-colors mode          | medium   | 1.4.11, 508 §502.2    | Fixed     |
-| ACC-12 | Two rendered colours absent from the verified palette                        | medium   | 1.4.3                 | Fixed     |
-| ACC-13 | A second copy of the script duplicated the dialog and its ids                | low      | 1.3.1, 4.1.2          | Fixed     |
-| ACC-14 | Buttons had no `type`; Enter could double-send under IME/voice input         | low      | 2.1.1, 3.3.2          | Fixed     |
-| ACC-15 | A fixed overlay could obscure focused page content                           | medium   | 2.4.11                | Fixed     |
+| ID     | Finding                                                                      | Severity | Criteria              | Status |
+| ------ | ---------------------------------------------------------------------------- | -------- | --------------------- | ------ |
+| ACC-1  | Focus indicator measured 2.305:1 / 2.945:1 (below 3:1)                       | high     | 1.4.11, 2.4.13 (AAA)  | Fixed  |
+| ACC-2  | Nested polite live regions announced every message twice                     | high     | 4.1.3, 1.3.1          | Fixed  |
+| ACC-3  | Speaker identity conveyed by bubble colour alone                             | high     | 1.3.1, 1.4.1, 4.1.2   | Fixed  |
+| ACC-4  | Scrollable transcript unreachable by keyboard                                | high     | 2.1.1                 | Fixed  |
+| ACC-5  | Focus taken on load, stranded on close, no way to reopen                     | high     | 2.4.3, 3.2.1, 2.1.1   | Fixed  |
+| ACC-6  | Overflow at 320px width and on short viewports                               | high     | 1.4.10, 1.4.4, 2.4.11 | Fixed  |
+| ACC-7  | Typing indicator announced as "…" and could delete a user message            | medium   | 4.1.3, 1.3.1          | Fixed  |
+| ACC-8  | Errors announced politely, contradicting `ARIA_LIVE_CONFIG.ERRORS`           | medium   | 4.1.3                 | Fixed  |
+| ACC-9  | Widget text had no `lang` of its own                                         | medium   | 3.1.2                 | Fixed  |
+| ACC-10 | Accessible name duplicated visible text; label and instructions unassociated | medium   | 2.5.3, 3.3.2, 1.3.1   | Fixed  |
+| ACC-11 | Focus bands drawn only as `box-shadow` vanish in forced-colors mode          | medium   | 1.4.11, 508 §502.2    | Fixed  |
+| ACC-12 | Two rendered colours absent from the verified palette                        | medium   | 1.4.3                 | Fixed  |
+| ACC-13 | A second copy of the script duplicated the dialog and its ids                | low      | 1.3.1, 4.1.2          | Fixed  |
+| ACC-14 | Buttons had no `type`; Enter could double-send under IME/voice input         | low      | 2.1.1, 3.3.2          | Fixed  |
+| ACC-15 | A fixed overlay could obscure focused page content                           | medium   | 2.4.11                | Fixed  |
 
 ### The findings worth reading in full
 
@@ -115,8 +117,8 @@ borders added to the width on top of that. The panel is now `min(360px, 100vw)` 
 `calc(100vh - 16px)` (with a `100dvh` override where it exists), the input is `flex: 1 1 auto` with
 `min-width: 0`, and the transcript is `flex: 1 1 auto` with `min-height: 0`.
 
-**ACC-15 — a fixed panel cannot promise 2.4.11, so the panel folds.** *Focus Not Obscured
-(Minimum)* asks that a component receiving focus is not entirely hidden by author-created content.
+**ACC-15 — a fixed panel cannot promise 2.4.11, so the panel folds.** _Focus Not Obscured
+(Minimum)_ asks that a component receiving focus is not entirely hidden by author-created content.
 A `position: fixed` panel at `z-index: 9999` can always cover a page element a visitor is tabbing
 to, and the previous mitigation — "closing collapses it to a launcher" — only helped a visitor who
 had already stopped using the panel. The fix is behavioural rather than geometric:
@@ -221,8 +223,8 @@ established, and what it could not:
 - **Reflow**: driving the panel down to 288px and then 240px left the input row with no overflow
   inside it (input shrank to 178px, then 130px; the send button stayed 66px) and the header
   remained on screen.
-- **Accessibility tree as the platform exposes it**: one `dialog` named "Life Policy Pilot — AI
-  Educational Assistant", a `button "Close chat"`, a focusable `log "Conversation"` whose content
+- **Accessibility tree as the platform exposes it**: one `dialog` named "LifeChat by Life
+  Insurance Broker Advocate", a `button "Close chat"`, a focusable `log "Conversation"` whose content
   reads "Assistant said: …", a `textbox "Type your question"` labelled by a real `<label>`, and
   `button "Send message"`. The launcher is absent while the panel is open (it is `display: none`).
 - **Messages**: a click on Send, and separately a dispatched `keydown` Enter, each appended
@@ -230,7 +232,8 @@ established, and what it could not:
   its announced text read "Assistant said: …Assistant is typing", and it was gone once the reply
   landed.
 - **Close**: the panel hid, the launcher appeared with `aria-expanded="false"` and the accessible
-  name "Chat with the Life Policy Pilot AI Educational Assistant", and **focus moved to the
+  name "Chat with LifeChat, the AI educational assistant from Life Insurance Broker
+  Advocate", and **focus moved to the
   launcher** rather than being stranded.
 
 **Could not be verified here, and why**
@@ -243,8 +246,94 @@ established, and what it could not:
   of the pending human walkthrough.
 - No screen reader, mobile device, or Windows High Contrast session.
 
+## Appointment slot picker — keyboard and accessibility-tree pass (2026-10-20)
+
+The scheduling picker was added after the 2026-09-19 review, so it was driven
+through its real code paths separately. This is a **keyboard and
+accessibility-tree** pass, not a screen-reader pass: no NVDA, VoiceOver, or
+TalkBack session was possible in this environment (see "What this does not
+establish").
+
+**Method.** The shipped `public/widget.js` was loaded into Chromium
+156.0.8078.4 (Playwright 1.64.1, headless, macOS 27.0.1, 900×700 viewport) on a
+probe page with one host-page link. The widget's API requests were answered by
+route fixtures (disclosure, one scheduling reply, a two-slot availability
+payload, successful selects). Every interaction below was a real key event
+sent to the browser; nothing was dispatched from script. The browser reported
+`document.hasFocus() === true`, so `:focus` and `:focus-visible` participated
+normally (unlike the preview frame in the earlier browser run).
+
+| Step             | Keys                                                                       | Observed                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Load             | —                                                                          | Focus not taken: `document.activeElement` is `body`.                                                                                                                                                                                                                                                                                                                                                                 |
+| Reach the widget | Tab ×2                                                                     | Host link, then the launcher (`aria-expanded="false"`); each target matches `:focus-visible` and shows its ring.                                                                                                                                                                                                                                                                                                     |
+| Open             | Enter on launcher                                                          | Panel open (`aria-expanded="true"`), focus in the textbox; computed ring `rgb(26, 26, 26) solid 3px`.                                                                                                                                                                                                                                                                                                                |
+| Ask for times    | Type + Enter                                                               | Scheduling reply and picker render; 2 radios, group labelled by "Available appointment times"; focus stays in the textbox.                                                                                                                                                                                                                                                                                           |
+| Enter the group  | Shift+Tab from textbox                                                     | The group's single tab stop: first radio, `tabindex="0"`, `aria-checked="false"`, `:focus-visible` true, ring `rgb(26, 26, 26) solid 3px`.                                                                                                                                                                                                                                                                           |
+| Move             | ArrowRight / ArrowLeft / Home / End                                        | Focus moves and wraps; exactly one radio carries `tabindex="0"`; checked state unchanged; no `/api/scheduling/select` request.                                                                                                                                                                                                                                                                                       |
+| Select           | Enter on a radio                                                           | `POST /api/scheduling/select` sent once; status reads "Selected Wed, Oct 21, 9:00 AM. Reply in the chat to confirm, or change the time."; focus moves to that status (`tabindex="-1"`).                                                                                                                                                                                                                              |
+| Change           | Tab from the status, then Enter on **Change time**                         | The status is followed in the tab order by the Change time button; Enter re-fetches availability and re-opens the group with the chosen time checked (`aria-checked="true"`, sole `tabindex="0"`, inset 2px band and 600 weight: 7.392:1 band, 14.118:1 label), focus on that radio, and the button removed. One availability request and no select request; the button is disabled while that request is in flight. |
+| Choose another   | ArrowLeft / ArrowRight, then Enter                                         | The newly focused time is posted for the same session; the status reads "Selected Wed, Oct 21, 9:00 AM. Reply in the chat to confirm, or change the time."; focus moves to the status, one group and one Change time button remain, and the earlier choice is no longer represented.                                                                                                                                 |
+| Replacement      | Send again, Shift+Tab into the old list, then release the scheduling reply | One picker remains; focus lands on the replacement's title (`tabindex="-1"`, inside the picker), not the body; the new slots load with focus still on the title.                                                                                                                                                                                                                                                     |
+
+**Accessibility tree as Chromium exposes it** (not speech): `dialog "Life
+Policy Pilot — AI Educational Assistant"`, `radiogroup "Available appointment
+times"`, `radio "Wed, Oct 21, 9:00 AM" checked=false focused=true`, the second
+radio with `checked=false`, and a `status` region. No duplicate or unnamed
+radios appeared, and the old group was absent from the tree after replacement.
+After a selection the tree adds `button "Change time"` after the status; the
+re-opened group reports the chosen radio as `checked=true focused=true` and the
+other as `checked=false`, with no second group present.
+
+## Host-page style isolation — browser check (2026-10-21)
+
+The audit flagged that the widget's light-DOM styles could be overridden by a
+host theme. The widget now renders into an open shadow root attached to one
+unstyled light-DOM host; a `.lpp-chat-root` wrapper applies `all: initial` and
+then declares the widget's own typography, so inherited properties cannot be
+carried in from the page either.
+
+**Method.** The shipped widget was loaded in Chromium from `/demo.html`, then a
+hostile stylesheet was appended to the page: `body { font-size: 40px;
+letter-spacing: 12px }`, `button { font-size: 9px !important; letter-spacing:
+20px !important }` and `* { text-transform: uppercase }`. Computed styles were
+read for a light-DOM button added to the page and for the widget's launcher, a
+shadow button and the input.
+
+**Observed.** The light-DOM button took every hostile rule (9px, 20px,
+uppercase). The widget's controls did not: launcher 14px, a shadow button 12px,
+input 15px, all with `letter-spacing: normal` and no `text-transform`.
+`document.getElementById` found none of the widget's internals, while
+`host.shadowRoot` found all of them. Focus retargeting was checked too: with
+focus in the shadow tree, `document.activeElement` is the host and
+`shadowRoot.activeElement` the input; focusing a light-DOM control folded the
+panel (ACC-15), and returning to the input left it expanded. No console errors
+were produced.
+
+**Limit.** Browsers without `attachShadow` keep the light-DOM fallback and
+therefore the old exposure. The DOM contract pins the shadow path and its reset
+rule; it cannot simulate a real theme's cascade.
+
+**What this does not establish**
+
+- **No screen reader was run.** This environment cannot drive NVDA, VoiceOver,
+  or TalkBack, and the matrix rows remain `not_performed`; the receipt was not
+  changed, so no row claims a pass. Unverified speech includes the group's name
+  and position ("1 of 2"), each radio's checked state, whether the live status
+  is announced in addition to the focus move to it, and how the replacement
+  heading is announced.
+- The 13-check walkthrough instrument predates the picker and has no
+  picker-specific step. The table above is the procedure a human screen-reader
+  pass should run, recorded here rather than converted into a claimed result.
+- Headless Chromium is not a supported end-user browser matrix row; the matrix's
+  Chrome/NVDA and Safari/VoiceOver rows still need their own sessions.
+
 ## Residual risks
 
+- **Style isolation depends on `attachShadow`.** Every browser the widget
+  targets implements it, but the light-DOM fallback that keeps very old browsers
+  rendering is not isolated from host-page CSS. Do not advertise isolation for a
+  browser without shadow DOM.
 - **ACC-15 is fixed by behaviour, but its geometry is unproven here.** The fold toggle and the
   automatic collapse when focus leaves the widget are exercised by the DOM contract; a real browser
   still has to confirm that the fold happens before the focused page element is painted underneath
@@ -265,6 +354,12 @@ established, and what it could not:
 # The DOM contract, against the real widget source
 npx jest tests/widget-accessibility.test.ts tests/accessibility-checklist.test.ts
 
+# The rendered gate: axe-core over /demo.html in Chromium (fails on
+# serious/critical violations, scans a dark host theme too, and proves the
+# scan can still detect one).
+# Once: npx playwright install chromium
+npm run a11y:e2e
+
 # The walkthrough instrument and the receipt the gate reads
 npm run a11y:checklist
 
@@ -283,5 +378,6 @@ receipt does not support.
 | Code-level review       | complete (this document, 2026-09-19)                                                                                                                                  |
 | Automated contract      | green — `npx jest tests/widget-accessibility.test.ts`                                                                                                                 |
 | Walkthrough instrument  | green — `npm run a11y:checklist` prints 5 rows × 13 checks, no gaps                                                                                                   |
+| Picker keyboard pass    | complete — Chromium 156.0.8078.4 on macOS 27.0.1, 2026-10-20; screen-reader half not performed                                                                        |
 | AT walkthrough (5 rows) | **outstanding** — 0 of 5 rows. Run `npm run a11y:checklist`, fill `docs/accessibility-matrix-receipt.json`, then set the row's value in `WALKTHROUGH_RECORDED_STATUS` |
 | Next review trigger     | any widget layout, control, or message-path change; before launch                                                                                                     |

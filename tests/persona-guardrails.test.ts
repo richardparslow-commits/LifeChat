@@ -83,7 +83,7 @@ describe('Persona guardrails — detector accuracy', () => {
   test('approved, grounded output is NOT flagged as fabricated', () => {
     expect(
       containsFabricatedHistory(
-        'We define term life as coverage for a set number of years. Sources: Life Policy Pilot, term vs whole life.',
+        'We define term life as coverage for a set number of years. Sources: Life Insurance Broker Advocate, term vs whole life.',
       ),
     ).toBe(false);
   });

@@ -1,7 +1,7 @@
-# Privacy Notice — Life Policy Pilot / Richard Parslow, Independent Texas Life Insurance Broker
+# Privacy Notice — LifeChat by Life Insurance Broker Advocate / Richard Parslow, Independent Texas Life Insurance Broker
 
 **Version:** 1.3.0 (draft for attorney review) · **Last updated:** 2026-08-30 · **Effective when published**
-**Contact:** privacy@lifepolicypilot.blog
+**Contact:** richardparslow@lifepolicypilot.blog
 
 > **Important caveat before you publish.** This notice is a working draft, not legal advice. Before
 > publishing it on the blog it must be reviewed by a Texas-licensed attorney familiar with insurance
@@ -18,7 +18,7 @@ This Privacy Notice describes how **Richard Parslow, an independent life insuran
 in the State of Texas (Texas License #3090432)**, collects, uses, shares, and protects your personal
 information when you:
 
-- Visit the Life Policy Pilot blog (lifepolicypilot.blog)
+- Visit Life Insurance Broker Advocate (lifeinsurancebrokeradvocate.com)
 - Interact with the LifeChat AI Educational Assistant
 - Submit a request for a consultation or appointment
 - Communicate with us by email, phone, or other means
@@ -97,6 +97,15 @@ work for us. We share your personal information with the following **categories 
 | **Service providers**            | Companies we hire to run the site and the assistant (hosting, chat/AI infrastructure, analytics, and scheduling) | Bound by contract to protect your information, follow our instructions, and help us respond to your requests         |
 | **Regulators & law enforcement** | Texas Department of Insurance, courts, law enforcement                                                           | As required by law when legally required                                                                             |
 
+**AI processing.** When you use the LifeChat assistant, your message and the recent turns of
+that conversation are sent to an AI model provider so it can write a reply. We do not send
+your name, email address, phone number, or health information: direct identifiers and health
+details are blocked before the request, and the conversation stored on our side keeps a
+redacted placeholder for any message that contained them. The provider, its processing
+region, its retention setting and our contract with it are recorded in our **subprocessor
+register** (published with this notice, `docs/subprocessors.md`). We do not use the
+assistant to make automated decisions about you.
+
 We do **not** share your personal information with:
 
 - Third-party marketers
@@ -106,14 +115,14 @@ We do **not** share your personal information with:
 
 We do **not** sell your personal information, and we do not share it for marketing. **Your right to
 opt out:** you can ask us at any time not to share your information for marketing purposes (we do
-not do this today) by emailing privacy@lifepolicypilot.blog.
+not do this today) by emailing richardparslow@lifepolicypilot.blog.
 
 ## 6. Your Rights (TDPSA Consumer Rights)
 
 You may request to **access, correct, delete, or obtain a portable copy** of your personal data, or
 **withdraw consent**, at any time:
 
-- **Email:** privacy@lifepolicypilot.blog
+- **Email:** richardparslow@lifepolicypilot.blog
 - **Via the assistant:** the chat disclosure directs you here; the chat itself is not the place to
   share sensitive data needed to verify a request.
 
@@ -142,6 +151,11 @@ We keep personal information only as long as needed for the purpose it was colle
 counsel-approved retention schedule, and then delete it unless a legal hold applies. You can request
 deletion at any time through the contact below.
 
+Records we hold are deleted or redacted by the retention sweep described in
+[`docs/data-lifecycle-runbook.md`](data-lifecycle-runbook.md). Any copy a service provider keeps
+(the AI provider's request logs, the hosting platform's logs) is governed by that provider's
+retention setting, which is recorded in [`docs/subprocessors.md`](subprocessors.md).
+
 ## 9. Children
 
 The blog and the LifeChat assistant are not directed at children under 18, and we do not knowingly
@@ -155,8 +169,9 @@ in the compliance matrix.
 
 ## 11. Questions or Requests
 
-Email **privacy@lifepolicypilot.blog** or use the contact page. This notice covers only Life Policy
-Pilot and Richard Parslow; each carrier you work with has its own privacy notice.
+Email **richardparslow@lifepolicypilot.blog** or use the contact page. This notice covers only LifeChat
+and Life Insurance Broker Advocate (Richard Parslow); each carrier you work with has its own privacy
+notice.
 
 ---
 

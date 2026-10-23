@@ -12,6 +12,8 @@
  * change.
  */
 
+import { publicationUrl } from '../config/app-config';
+
 export type CardType =
   | 'comparison_table'
   | 'bullet_list'
@@ -387,7 +389,7 @@ export const cardLibrary: CardDefinition[] = [
     title: 'Related Article',
     content: {
       description: 'Learn more about Texas life insurance laws and regulations.',
-      url: 'https://lifepolicypilot.blog/texas-life-insurance-laws/',
+      url: publicationUrl('blog/texas-life-insurance-tdi-rules-taxes-claims'),
       link_text: 'Read the full article',
     },
     disclaimer: null,
@@ -402,7 +404,7 @@ export const cardLibrary: CardDefinition[] = [
     content: {
       description:
         'Learn how to estimate your life insurance coverage needs using the DIME method.',
-      url: 'https://lifepolicypilot.blog/how-much-life-insurance-do-i-need/',
+      url: publicationUrl('tools'),
       link_text: 'Read the full article',
     },
     disclaimer: null,

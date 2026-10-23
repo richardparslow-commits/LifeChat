@@ -22,7 +22,11 @@ import type { LLMMessage } from './llm-client';
 import { BoundedLruCache } from '../persistence/bounded-lru';
 import { EMPTY_DIME_INPUTS, type DimeInputs } from '../estimator/dime-estimator';
 import type { PageContext } from '../contextual/page-context';
-import type { ConversationState } from '../state-machine/state-machine';
+import {
+  EMPTY_LOOP_CONTROLS,
+  type ConversationState,
+  type LoopControlState,
+} from '../state-machine/state-machine';
 
 /** Maximum number of conversation turns to retain per session. */
 const MAX_TURNS = 20;
@@ -40,6 +44,15 @@ interface SessionData {
   declinedFields: Set<string>;
   /** Whether qualification was already offered this session. */
   qualificationOffered: boolean;
+  /** Clarifying questions already asked in the current ambiguity streak. */
+  clarificationFailures: number;
+  /** Qualification questions the assistant has asked this session. */
+  qualificationQuestionsAsked: number;
+  /**
+   * The visitor declined an optional offer; automatic re-offers are suppressed
+   * for the rest of the session (Section 4.4).
+   */
+  offerDeclined: boolean;
   /** Whether contact/booking was already offered this session. */
   contactOffered: boolean;
   /** Count of consecutive failures for loop control. */
@@ -211,6 +224,50 @@ export function markContactOffered(sessionId: string): void {
 export function wasContactOffered(sessionId: string): boolean {
   const session = sessions.get(sessionId);
   return session ? session.contactOffered : false;
+}
+
+/**
+ * Returns the session's loop-control counters (Section 4.4). A session that
+ * has not tripped any control yet reads as zeroes.
+ */
+export function getLoopControlState(sessionId: string): LoopControlState {
+  const session = sessions.get(sessionId);
+  if (!session) return { ...EMPTY_LOOP_CONTROLS };
+  session.lastActivity = Date.now();
+  return {
+    clarificationFailures: session.clarificationFailures,
+    qualificationQuestionsAsked: session.qualificationQuestionsAsked,
+    offerDeclined: session.offerDeclined,
+  };
+}
+
+/** Records one completed clarifying question for the ambiguity streak. */
+export function recordClarificationAttempt(sessionId: string): void {
+  const session = getOrCreateSession(sessionId);
+  session.clarificationFailures += 1;
+  session.lastActivity = Date.now();
+}
+
+/** Clears the ambiguity streak once the conversation leaves `clarify`. */
+export function resetClarificationAttempts(sessionId: string): void {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  session.clarificationFailures = 0;
+  session.lastActivity = Date.now();
+}
+
+/** Records one qualification question asked (cap: MAX_QUALIFICATION_QUESTIONS). */
+export function recordQualificationQuestion(sessionId: string): void {
+  const session = getOrCreateSession(sessionId);
+  session.qualificationQuestionsAsked += 1;
+  session.lastActivity = Date.now();
+}
+
+/** Marks that the visitor declined an optional offer this session. */
+export function recordOfferDeclined(sessionId: string): void {
+  const session = getOrCreateSession(sessionId);
+  session.offerDeclined = true;
+  session.lastActivity = Date.now();
 }
 
 /**
@@ -388,6 +445,9 @@ function getOrCreateSession(sessionId: string): SessionData {
       lastActivity: Date.now(),
       declinedFields: new Set(),
       qualificationOffered: false,
+      clarificationFailures: 0,
+      qualificationQuestionsAsked: 0,
+      offerDeclined: false,
       contactOffered: false,
       consecutiveFailures: 0,
       dimeInputs: { ...EMPTY_DIME_INPUTS },

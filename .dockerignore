@@ -1,0 +1,21 @@
+# Keep the build context to what the image build reads. The Dockerfile copies
+# package.json, the lockfile, tsconfig.json, src/, and public/; everything below
+# would only slow the upload or risk shipping local state.
+.git
+.gitignore
+.github
+node_modules
+dist
+coverage
+data
+tests
+docs
+scripts
+.freebuff
+*.log
+*.tmp.mjs
+.env
+.env.*
+Dockerfile
+.dockerignore
+README.md

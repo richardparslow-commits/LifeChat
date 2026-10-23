@@ -47,6 +47,7 @@ import {
   executeWidget,
   flushPromises,
   runWidget,
+  widgetElement,
   type WidgetRun,
 } from './helpers/dom-shim';
 
@@ -56,7 +57,16 @@ const ELEMENTOR_CSS = readFileSync(
   'utf8',
 );
 
-const DISCLOSURE = { firstMessage: 'I am the Life Policy Pilot AI Educational Assistant.' };
+/**
+ * The disclosure envelope as `GET /api/disclosure` serves it. `banner` is the
+ * server-owned before-chat notice; the widget renders this text and does not
+ * keep its own copy.
+ */
+const DISCLOSURE = {
+  firstMessage: 'I am LifeChat, the AI educational assistant from Life Insurance Broker Advocate.',
+  banner:
+    'You are chatting with an AI educational assistant. Do not enter medical, financial-account, Social Security, or other highly sensitive information.',
+};
 const REPLY = {
   assistant_message: 'Term life covers a set period.',
   state: 'education',
@@ -387,7 +397,7 @@ describe('widget session identity', () => {
     executeWidget(WIDGET_SOURCE, env);
     await env.fetch.respond(DISCLOSURE);
 
-    const input = env.document.getElementById('lpp-chat-input')!;
+    const input = widgetElement(env.document, 'lpp-chat-input');
     const chats = () => env.fetch.calls.filter((call) => call.url.includes('/api/chat'));
 
     input.value = 'first';
@@ -412,7 +422,7 @@ describe('widget session identity', () => {
     executeWidget(WIDGET_SOURCE, env);
     await env.fetch.respond(DISCLOSURE);
 
-    const input = env.document.getElementById('lpp-chat-input')!;
+    const input = widgetElement(env.document, 'lpp-chat-input');
     input.value = 'hello';
     input.dispatch('keydown', { key: 'Enter', shiftKey: false });
 
@@ -434,7 +444,7 @@ describe('widget session identity', () => {
     executeWidget(WIDGET_SOURCE, env);
     await env.fetch.respond(DISCLOSURE);
 
-    const input = env.document.getElementById('lpp-chat-input')!;
+    const input = widgetElement(env.document, 'lpp-chat-input');
     input.value = 'hello';
     input.dispatch('keydown', { key: 'Enter', shiftKey: false });
 
@@ -646,7 +656,9 @@ describe('widget reflow and geometry (ACC-6)', () => {
   it('sizes the panel so it cannot exceed the viewport', async () => {
     const run = await start();
     expect(run.widget.styleValue('width')).toBe('min(360px, 100vw)');
-    expect(run.widget.styleValue('max-height')).toBe('calc(100vh - 16px)');
+    expect(run.widget.styleValue('max-height')).toBe(
+      'calc(100vh - 16px - env(safe-area-inset-bottom, 0px))',
+    );
     expect(run.styleTag.textContent).toContain('100dvh');
     expect(run.styleTag.textContent).toContain(
       '.lpp-chat-widget, .lpp-chat-widget * { box-sizing: border-box; }',
@@ -749,13 +761,26 @@ describe('widget status messages (ACC-7, ACC-8)', () => {
     expect(failure.textContent).toMatch(/trouble responding/i);
   });
 
-  it('does not dress the disclosure fallback as an error', async () => {
-    // The fallback is the disclosure itself, so it is announced politely.
+  it('reports a failed disclosure instead of inventing a greeting', async () => {
+    // The approved disclosure is server-owned copy. When it cannot be read the
+    // widget must not present substitute wording as the disclosure: it says
+    // the conversation has not started, and announces that as an alert.
     const run = runWidget(WIDGET_SOURCE);
     await run.fetch.fail();
     const first = bubbles(run)[0];
-    expect(first.textContent).toMatch(/Life Policy Pilot AI Educational Assistant/);
-    expect(first.hasAttribute('role')).toBe(false);
+    expect(first.textContent).toMatch(/approved disclosure .* could not be loaded/i);
+    expect(first.textContent).not.toMatch(/How can I help you learn about life insurance today/);
+    expect(first.getAttribute('role')).toBe('alert');
+    // The banner follows the same rule: no invented notice is left standing.
+    expect(run.banner.textContent).toMatch(/could not be loaded/);
+  });
+
+  it('renders the banner the server approved', async () => {
+    const run = runWidget(WIDGET_SOURCE);
+    await run.fetch.respond({ ...DISCLOSURE, banner: 'Approved notice from the API.' });
+    expect(run.banner.textContent).toBe('Approved notice from the API.');
+    // Still associated with the input, so the notice is read with the field.
+    expect(run.input.getAttribute('aria-describedby')).toBe(run.banner.id);
   });
 });
 
@@ -763,7 +788,7 @@ describe('widget accessible names and associations (ACC-10)', () => {
   it('takes the dialog name from the visible title', async () => {
     const run = await start();
     expect(run.widget.getAttribute('aria-labelledby')).toBe(run.title.id);
-    expect(run.title.textContent).toBe('Life Policy Pilot — AI Educational Assistant');
+    expect(run.title.textContent).toBe('LifeChat by Life Insurance Broker Advocate');
     // No second, hidden name that could drift from the visible one.
     expect(run.widget.hasAttribute('aria-label')).toBe(false);
   });
@@ -805,14 +830,160 @@ describe('widget accessible names and associations (ACC-10)', () => {
   });
 });
 
+describe('widget contact and privacy forms (ACC-10, C-08)', () => {
+  const CONSENT_TEXT = {
+    emailConsentCopy: 'I agree to be contacted about my life-insurance inquiry.',
+    phoneConsentCopy: 'Optional: I agree that Life Insurance Broker Advocate may call or text me.',
+    privacyNoticeUrl: 'https://lifeinsurancebrokeradvocate.com/privacy',
+  };
+
+  /** Opens the contact form and answers its consent-text request. */
+  async function openContact(): Promise<WidgetRun> {
+    const run = await start();
+    open(run);
+    widgetElement(run.document, 'lpp-contact-toggle').dispatch('click');
+    await run.fetch.respond(CONSENT_TEXT);
+    return run;
+  }
+
+  it('labels every contact control with a real label', async () => {
+    const run = await openContact();
+    const byId = (id: string) => widgetElement(run.document, id);
+    const labels = run.widget
+      .descendants()
+      .filter((node) => node.tagName === 'LABEL' && node.getAttribute('for'));
+
+    const labelFor = (id: string) =>
+      labels.find((node) => node.getAttribute('for') === id)?.textContent;
+    expect(labelFor('lpp-contact-name')).toContain('First name');
+    expect(labelFor('lpp-contact-email')).toBe('Email address');
+    expect(labelFor('lpp-contact-phone')).toBe('Phone number');
+    expect(labelFor('lpp-contact-consent')).toContain(CONSENT_TEXT.emailConsentCopy);
+    expect(labelFor('lpp-dsr-email')).toBe('Email address for this request');
+    expect(labelFor('lpp-dsr-type')).toBe('What would you like us to do?');
+    expect(labelFor('lpp-dsr-detail')).toContain('Anything else');
+
+    // The channel choice is a named group, not two unlabelled radios.
+    const fieldset = run.widget.descendants().find((node) => node.tagName === 'FIELDSET');
+    expect(fieldset).toBeDefined();
+    expect(fieldset!.descendants().find((node) => node.tagName === 'LEGEND')!.textContent).toBe(
+      'How should Richard reach you?',
+    );
+    expect(byId('lpp-contact-channel-email').getAttribute('name')).toBe('lpp-contact-channel');
+    expect(byId('lpp-contact-channel-phone').getAttribute('name')).toBe('lpp-contact-channel');
+  });
+
+  it('names its toggles and keeps aria-expanded in step with the panel', async () => {
+    const run = await start();
+    open(run);
+    const contactToggle = widgetElement(run.document, 'lpp-contact-toggle');
+    const dsrToggle = widgetElement(run.document, 'lpp-dsr-toggle');
+    const contactPanel = widgetElement(run.document, 'lpp-contact-panel');
+
+    for (const toggle of [contactToggle, dsrToggle]) {
+      expect(toggle.type).toBe('button');
+      expect(toggle.visibleText().length).toBeGreaterThan(0);
+      expect(toggle.getAttribute('aria-controls')).toBeTruthy();
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    }
+
+    contactToggle.dispatch('click');
+    await run.fetch.respond(CONSENT_TEXT);
+    expect(contactToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(contactPanel.hasAttribute('hidden')).toBe(false);
+    // Opening a task moves focus to its first field.
+    expect(run.document.activeElement).toBe(widgetElement(run.document, 'lpp-contact-email'));
+
+    // The privacy form and the contact form are never open together.
+    dsrToggle.dispatch('click');
+    expect(contactToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(contactPanel.hasAttribute('hidden')).toBe(true);
+    expect(dsrToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(run.document.activeElement).toBe(widgetElement(run.document, 'lpp-dsr-email'));
+  });
+
+  it('uses an explicit type on every new button', async () => {
+    const run = await start();
+    expect(widgetElement(run.document, 'lpp-contact-toggle').type).toBe('button');
+    expect(widgetElement(run.document, 'lpp-dsr-toggle').type).toBe('button');
+    expect(widgetElement(run.document, 'lpp-contact-submit').type).toBe('submit');
+    expect(widgetElement(run.document, 'lpp-dsr-submit').type).toBe('submit');
+  });
+
+  it('announces form outcomes through status and alert, not a second live region', async () => {
+    const run = await openContact();
+    const live = run.widget
+      .descendants()
+      .filter((node) => node.hasAttribute('aria-live') || node.getAttribute('role') === 'log');
+    expect(live).toHaveLength(ARIA_LIVE_CONFIG.MAX_LIVE_REGIONS_PER_WIDGET);
+    expect(widgetElement(run.document, 'lpp-contact-status').getAttribute('role')).toBe('status');
+    expect(widgetElement(run.document, 'lpp-contact-alert').getAttribute('role')).toBe('alert');
+    expect(widgetElement(run.document, 'lpp-dsr-status').getAttribute('role')).toBe('status');
+    expect(widgetElement(run.document, 'lpp-dsr-alert').getAttribute('role')).toBe('alert');
+  });
+
+  it('shows the fetched canonical copy and links the privacy notice', async () => {
+    const run = await openContact();
+    const copy = run.widget
+      .descendants()
+      .find((node) => node.className.split(/\s+/).includes('lpp-contact-copy'));
+    expect(copy!.textContent).toBe(CONSENT_TEXT.emailConsentCopy);
+    const link = run.widget
+      .descendants()
+      .find((node) => node.tagName === 'A' && node.textContent === 'Read the privacy notice');
+    expect(link!.getAttribute('href')).toBe(CONSENT_TEXT.privacyNoticeUrl);
+  });
+});
+
 describe('widget install guard (ACC-13)', () => {
   it('builds nothing new when the script is included twice', () => {
     const env = createEnvironment();
     executeWidget(WIDGET_SOURCE, env);
     executeWidget(WIDGET_SOURCE, env);
-    expect(env.document.allById('lpp-chat-widget')).toHaveLength(1);
-    expect(env.document.allById('lpp-chat-a11y-styles')).toHaveLength(1);
-    expect(env.document.allById('lpp-chat-input')).toHaveLength(1);
+    // One light-DOM host; everything else is inside its shadow root, where a
+    // second inclusion cannot find (and therefore cannot duplicate) it.
+    const hosts = env.document.allById('lpp-chat-widget-host');
+    expect(hosts).toHaveLength(1);
+    expect(env.document.allById('lpp-chat-widget')).toHaveLength(0);
+    expect(hosts[0].shadowRoot!.allById('lpp-chat-widget')).toHaveLength(1);
+    expect(hosts[0].shadowRoot!.allById('lpp-chat-a11y-styles')).toHaveLength(1);
+    expect(hosts[0].shadowRoot!.allById('lpp-chat-input')).toHaveLength(1);
+  });
+});
+
+describe('widget style boundary against a host page', () => {
+  it('renders inside an open shadow root, so host-page CSS cannot select its internals', () => {
+    const run = runWidget(WIDGET_SOURCE);
+
+    expect(run.host.id).toBe('lpp-chat-widget-host');
+    expect(run.host.parentNode).toBe(run.document.body);
+    expect(run.shadowRoot).toBe(run.host.shadowRoot);
+    // The only light-DOM node is the host. Everything else is scoped inside the
+    // shadow tree, where a theme selector such as `button { ... !important }`
+    // cannot match it.
+    expect(run.host.className).toBe('');
+    for (const id of [
+      'lpp-chat-widget',
+      'lpp-chat-launcher',
+      'lpp-chat-input',
+      'lpp-chat-a11y-styles',
+    ]) {
+      expect(run.document.getElementById(id)).toBeNull();
+      expect(run.shadowRoot.getElementById(id)).not.toBeNull();
+    }
+  });
+
+  it('resets inherited typography at the boundary instead of adopting the host page', () => {
+    const css = runWidget(WIDGET_SOURCE).styleTag.textContent;
+
+    // Author rules cannot cross the boundary, but inherited properties can.
+    // `all: initial` on the root drops them; the declarations after it restore
+    // the widget's own type scale.
+    expect(css).toContain(':host { all: initial; }');
+    expect(css).toMatch(
+      /\.lpp-chat-root \{ all: initial; display: block;\s*font-family: system-ui/,
+    );
+    expect(css).toContain('font-size: 0.9375rem');
   });
 });
 
@@ -1026,6 +1197,36 @@ describe('review record and gate', () => {
       'public/elementor-trust-block.css',
       'public/demo.html',
     ]);
+  });
+});
+
+describe('automated accessibility gate wiring', () => {
+  const ROOT = path.join(__dirname, '..');
+  const packageJson = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+  const CI_WORKFLOW = readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+  const GATE = readFileSync(path.join(ROOT, 'scripts', 'a11y-gate.mjs'), 'utf8');
+
+  it('is runnable locally and required in CI', () => {
+    expect(packageJson.scripts['a11y:e2e']).toBe('node scripts/a11y-gate.mjs');
+    expect(CI_WORKFLOW).toContain('name: Accessibility Gate (axe-core)');
+    expect(CI_WORKFLOW).toContain('npx playwright install --with-deps chromium');
+    expect(CI_WORKFLOW).toContain('npm run a11y:e2e');
+  });
+
+  it('fails on serious or critical violations, in both widget states', () => {
+    expect(GATE).toContain("new Set(['serious', 'critical'])");
+    expect(GATE).toContain("'closed widget (launcher)'");
+    expect(GATE).toContain("'open widget (panel and transcript)'");
+    // A scan that never reached the shadow tree would pass vacuously.
+    expect(GATE).toContain('axe inspected no widget element');
+  });
+
+  it('proves the scan can still detect a violation before trusting a pass', () => {
+    expect(GATE).toContain('controlProbe');
+    expect(GATE).toContain('image-alt');
+    expect(GATE).toContain('the control probe was not detected');
   });
 });
 

@@ -17,7 +17,11 @@ import { runWidget, type FakeElement, type WidgetRun } from './helpers/dom-shim'
 
 const WIDGET_SOURCE = readFileSync(path.join(__dirname, '..', 'public', 'widget.js'), 'utf8');
 
-const DISCLOSURE = { firstMessage: 'I am the Life Policy Pilot AI Educational Assistant.' };
+const DISCLOSURE = {
+  firstMessage: 'I am LifeChat, the AI educational assistant from Life Insurance Broker Advocate.',
+  banner:
+    'You are chatting with an AI educational assistant. Do not enter medical, financial-account, Social Security, or other highly sensitive information.',
+};
 
 const SCHEDULING_REPLY = {
   assistant_message: 'I can hold a time for you. Here are the next available appointments.',
@@ -86,6 +90,16 @@ function picker(run: WidgetRun): FakeElement | null {
 
 function callsTo(run: WidgetRun, fragment: string) {
   return run.fetch.calls.filter((call) => call.url.includes(fragment));
+}
+
+/** True when `node` is `ancestor` or sits inside it. */
+function within(node: FakeElement, ancestor: FakeElement): boolean {
+  let current: FakeElement | null = node;
+  while (current) {
+    if (current === ancestor) return true;
+    current = current.parentNode;
+  }
+  return false;
 }
 
 describe('appointment slot picker', () => {
@@ -281,10 +295,69 @@ describe('appointment slot picker', () => {
     expect(slotButtons(run)).toHaveLength(0);
     const status = byClass(run, 'lpp-slots-status')[0];
     expect(status.textContent).toBe(
-      'Selected Wed, Oct 21, 9:30 AM. Reply in the chat to confirm the appointment.',
+      'Selected Wed, Oct 21, 9:30 AM. Reply in the chat to confirm, or change the time.',
     );
     expect(status.getAttribute('tabindex')).toBe('-1');
     expect(run.document.activeElement).toBe(status);
+  });
+
+  it('reopens the list on the selected time and replaces the choice', async () => {
+    const run = await start();
+    await askForTimes(run);
+
+    slotButtons(run)[1].dispatch('click');
+    await run.fetch.respond({ selected: true, slotId: 'slot_20261021T1430Z' });
+    expect(byClass(run, 'lpp-slot-change')).toHaveLength(1);
+
+    // Changing reopens the server's current inventory rather than stacking a
+    // second picker or asking the conversation for another turn.
+    byClass(run, 'lpp-slot-change')[0].dispatch('click');
+    expect(callsTo(run, '/api/scheduling/slots')).toHaveLength(2);
+    await run.fetch.respond(SLOTS_PAYLOAD);
+
+    const buttons = slotButtons(run);
+    expect(buttons.map((button) => button.getAttribute('aria-checked'))).toEqual(['false', 'true']);
+    // The previous choice is the group's tab stop and holds focus, so the
+    // decision can be changed without hunting for it.
+    expect(run.document.activeElement).toBe(buttons[1]);
+    expect(buttons.map((button) => button.getAttribute('tabindex'))).toEqual(['-1', '0']);
+    expect(byClass(run, 'lpp-slot-change')).toHaveLength(0);
+
+    buttons[0].dispatch('click');
+    const selects = callsTo(run, '/api/scheduling/select');
+    expect(selects).toHaveLength(2);
+    expect(JSON.parse(selects[1].init.body).slotId).toBe('slot_20261021T1400Z');
+    await run.fetch.respond({ selected: true, slotId: 'slot_20261021T1400Z' });
+
+    // One commit, one status, and the ability to change again.
+    expect(selects).toHaveLength(2);
+    expect(byClass(run, 'lpp-slots-status')[0].textContent).toBe(
+      'Selected Wed, Oct 21, 9:00 AM. Reply in the chat to confirm, or change the time.',
+    );
+    expect(byClass(run, 'lpp-slot-change')).toHaveLength(1);
+  });
+
+  it('moves focus to Retry when reopening the list fails', async () => {
+    const run = await start();
+    await askForTimes(run);
+
+    slotButtons(run)[1].dispatch('click');
+    await run.fetch.respond({ selected: true, slotId: 'slot_20261021T1430Z' });
+    const change = byClass(run, 'lpp-slot-change')[0];
+    change.dispatch('click');
+    expect(change.disabled).toBe(true);
+
+    await run.fetch.respond({}, 503);
+
+    // The disabled Change button is about to be removed; focus must land on the
+    // way forward, not on the body mid-flow.
+    expect(byClass(run, 'lpp-slot-change')).toHaveLength(0);
+    const retry = byClass(run, 'lpp-slot-retry')[0];
+    expect(retry).toBeDefined();
+    expect(run.document.activeElement).toBe(retry);
+    expect(byClass(run, 'lpp-slots-alert')[0].textContent).toBe(
+      'Could not load available times. Please try again.',
+    );
   });
 
   it('submits once even when a button is clicked again before the reply', async () => {
@@ -397,5 +470,52 @@ describe('appointment slot picker', () => {
     expect(byClass(run, 'lpp-slots-list')[0].getAttribute('aria-labelledby')).toBe(
       'lpp-slots-title-2',
     );
+  });
+
+  it('keeps keyboard focus inside the picker when a newer reply replaces the list', async () => {
+    const run = await start();
+    await askForTimes(run);
+
+    const previous = picker(run)!;
+    const previousButtons = slotButtons(run);
+    previousButtons[1].focus();
+    expect(run.document.activeElement).toBe(previousButtons[1]);
+
+    run.input.value = 'What about Friday?';
+    run.input.dispatch('keydown', { key: 'Enter', shiftKey: false });
+    await run.fetch.respond(SCHEDULING_REPLY);
+
+    // The old list is gone. Focus must land in its replacement rather than on
+    // the body, where a keyboard user would lose their place in the flow.
+    expect(previous.parentNode).toBeNull();
+    const replacement = picker(run)!;
+    expect(replacement).not.toBe(previous);
+    const title = byClass(run, 'lpp-slots-title')[0];
+    expect(run.document.activeElement).toBe(title);
+    expect(run.document.activeElement).not.toBe(run.document.body);
+    expect(within(title, replacement)).toBe(true);
+    // Focusable for the programmatic move only; the title stays out of the tab
+    // order, so the radio group remains the picker's single tab stop.
+    expect(title.getAttribute('tabindex')).toBe('-1');
+
+    // The replacement's own list loads with focus still inside it.
+    await run.fetch.respond(SLOTS_PAYLOAD);
+    expect(slotButtons(run)).toHaveLength(2);
+    expect(run.document.activeElement).toBe(byClass(run, 'lpp-slots-title')[0]);
+  });
+
+  it('leaves focus in the composer when the replaced picker did not have it', async () => {
+    const run = await start();
+    await askForTimes(run);
+
+    run.input.focus();
+    run.input.value = 'What about Friday?';
+    run.input.dispatch('keydown', { key: 'Enter', shiftKey: false });
+    await run.fetch.respond(SCHEDULING_REPLY);
+
+    // A scheduling reply arriving while the visitor is typing must not pull the
+    // caret out of the composer.
+    expect(picker(run)).not.toBeNull();
+    expect(run.document.activeElement).toBe(run.input);
   });
 });

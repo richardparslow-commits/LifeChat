@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Vercel project link and local build output (`vercel link` / `vercel build`)
+.vercel/
+
 # Environment variables
 .env
 .env.local
@@ -30,3 +33,17 @@ data/
 
 # Freebuff client metadata
 .freebuff/
+
+# Generated deploy scaffolding: these directories hold bundled server output and
+# source maps (`.sites-build/sites-entry.js.map` is the whole server in readable
+# form). They are build artefacts, not source, so they must never be committed,
+# zipped, or handed to another toolchain.
+.sites-build/
+sites-deploy/
+sites-probe/
+worker/.wrangler/
+
+# Ad-hoc probe scripts left behind by a socket/iframe debugging session. The
+# audit found `probe-iframe.tmp.mjs` in the tree once; an ignored extension
+# keeps the next one from becoming a tracked file by accident.
+*.tmp.mjs

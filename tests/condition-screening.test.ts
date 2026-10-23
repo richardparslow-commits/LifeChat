@@ -561,6 +561,9 @@ describe('Screening clears the same consent gate as capture', () => {
 
 // ── The boundary: capture through /api/consent, screen what storage holds ────
 
+/** A synthetic, low-entropy key long enough for the 32-character floor. */
+const TEST_RECORD_ENCRYPTION_KEY = 'test-key-'.repeat(4);
+
 interface LoadedApp {
   app: Express;
   cleanup: () => Promise<void>;
@@ -575,6 +578,9 @@ async function loadApp(flagValue: string): Promise<LoadedApp> {
   process.env.LLM_API_KEY = '';
   const leadLogPath = tempLogPath('lead-screening-test');
   process.env.LEAD_LOG_PATH = leadLogPath;
+  // SEC-18: a consented medical profile is refused unless record encryption is
+  // configured, in pilot mode too. This suite captures real medical payloads.
+  process.env.RECORD_ENCRYPTION_KEY = TEST_RECORD_ENCRYPTION_KEY;
 
   const { app, server } = (await import('../src/index')) as {
     app: Express;
@@ -591,6 +597,7 @@ async function loadApp(flagValue: string): Promise<LoadedApp> {
           'LIFECHAT_PORT',
           'LLM_API_KEY',
           'LEAD_LOG_PATH',
+          'RECORD_ENCRYPTION_KEY',
         ]) {
           if (previous[key] === undefined) {
             delete process.env[key];
@@ -656,7 +663,7 @@ describe('/api/consent → screening — the stored lead record answers the qual
         firstName: 'Sam',
         medicalProfile: { gender: 'female', medical_conditions: medicalConditions },
         medicalConsentAffirmed: true,
-        medicalConsentVersion: '1.0.0',
+        medicalConsentVersion: '1.1.0',
         consentText: TEST_CONSENT_TEXT,
       });
     expect(res.status).toBe(200);

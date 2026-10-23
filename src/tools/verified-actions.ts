@@ -20,21 +20,22 @@
  *  1. Nothing authorizes without a verified consent record: no record, a
  *     superseded consent version, an incomplete artifact, or a contact value
  *     that does not match its channel all mean "no consent".
- *  2. A pending deletion request for the consented address suppresses every
- *     side effect, even though the record still exists.
+ *  2. A *verified* deletion request for the consented address suppresses every
+ *     side effect, even though the record still exists. An unverified request
+ *     has no authority: otherwise anyone could POST a victim's email and stop
+ *     contact with them.
  *  3. Side effects are refused outright on an ephemeral serverless runtime,
  *     where the records that would prove them cannot survive a cold start.
  *  4. Actions with no verified path (anything not handled here) are refused,
  *     not passed through.
  */
 
-import { config } from '../config/app-config';
+import { config, isRecordStorageSafe } from '../config/app-config';
 import { getVerifiedContactConsent, type VerifiedContactConsent } from '../consent/consent-model';
 import { ensureDsrRecordsLoaded, listDsrRecords } from '../privacy/dsr';
 import {
   bookSlot,
   listAvailableSlots,
-  getAppointmentForSession,
   type AppointmentSlot,
 } from '../scheduling/appointment-slots';
 import { getSelectedSlot } from '../llm/session-store';
@@ -109,18 +110,24 @@ function fromPolicy(policy: ToolAuthorizationResult): VerifiedActionResult | nul
 }
 
 /**
- * True when a deletion request has been filed for the consented address.
+ * True when a *verified* deletion request exists for the consented address.
  *
  * The record outlives the request (a deletion is honoured out of band), so the
- * existence of the request itself is the suppression signal: while it is open,
- * nothing new may be created for that contact.
+ * verified request is the suppression signal: while it is open, nothing new
+ * may be created for that contact. Verification matters because /api/dsr is
+ * unauthenticated — without it, a third party could suppress a real lead by
+ * submitting the victim's address. Unverified requests (including records
+ * written before this field existed) simply have no authority yet.
  */
 async function hasPendingDeletion(consent: VerifiedContactConsent): Promise<boolean> {
   if (!consent.email) return false;
   await ensureDsrRecordsLoaded();
   const target = consent.email.toLowerCase();
   return listDsrRecords().some(
-    (record) => record.request_type === 'deletion' && record.contact_email.toLowerCase() === target,
+    (record) =>
+      record.request_type === 'deletion' &&
+      record.verified === true &&
+      record.contact_email.toLowerCase() === target,
   );
 }
 
@@ -202,7 +209,7 @@ export async function executeProposedAction(
 
   // 3. Every remaining action has a side effect. Fail closed where the
   //    record that would prove it cannot be kept.
-  if (config.serverless) {
+  if (!isRecordStorageSafe()) {
     return reject('storage_unavailable', [
       'side effects are unavailable on this runtime because their records cannot be durably stored',
     ]);
@@ -289,7 +296,9 @@ export async function executeProposedAction(
           ? 'idempotency_conflict'
           : booking.code === 'appointment_exists'
             ? 'appointment_exists'
-            : 'slot_not_verified';
+            : booking.code === 'ledger_unavailable'
+              ? 'storage_unavailable'
+              : 'slot_not_verified';
       return reject(code, [`slot ${selectedSlotId} could not be booked (${booking.code})`]);
     }
 
@@ -309,41 +318,22 @@ export async function executeProposedAction(
     };
   }
 
-  // 7. A confirmation may only reference a booking this server actually made.
+  // 7. A confirmation is a delivery, and this deployment has no transport.
+  //    Authorizing it would return `authorized: true` for a message that was
+  //    never sent, while the model's prose ("I've emailed your confirmation")
+  //    stands — a false statement to a consumer in a fiduciary context. Refuse
+  //    until a real mail/SMS transport exists and its 2xx is the authorization:
+  //
+  //      const delivery = await sendTransactionalEmail({ to: consent.email, appointment });
+  //      if (!delivery.ok) return reject('tool_not_authorized', ['delivery failed']);
+  //      return { authorized: true, effect: { appointmentId, delivered: true }, ... };
+  //
+  //    The route then appends ACTION_NOT_CONFIRMED_NOTE and points the visitor
+  //    at the licensed broker, so no delivery is ever claimed on intent alone.
   if (proposedAction === 'send_transactional_confirmation') {
-    const appointment = getAppointmentForSession(sessionId);
-    if (!appointment) {
-      return reject('appointment_not_verified', [
-        'send_transactional_confirmation requires a confirmed booking',
-      ]);
-    }
-    const claimedId =
-      typeof actionArguments.appointment_id === 'string' ? actionArguments.appointment_id : '';
-    if (claimedId !== appointment.appointment_id) {
-      return reject('appointment_not_verified', [
-        'the requested appointment was not booked by this session',
-      ]);
-    }
-
-    const policy = authorizeToolAction({
-      proposedAction,
-      actionArguments: { ...actionArguments, appointment_id: appointment.appointment_id },
-      consent: consentState,
-      userRequestedAction: true,
-      requiredFieldsValid: true,
-      suppressionChecksPassed: true,
-      idempotencyKey: `confirmation:${sessionId}:${appointment.appointment_id}`,
-    });
-    const rejected = fromPolicy(policy);
-    if (rejected) return rejected;
-
-    return {
-      authorized: true,
-      errors: [],
-      sanitizedArguments: { appointment_id: appointment.appointment_id },
-      effect: { appointmentId: appointment.appointment_id, replayed: true },
-      code: null,
-    };
+    return reject('tool_not_authorized', [
+      'no transactional transport is configured; a confirmation cannot be claimed',
+    ]);
   }
 
   // 8. Unreachable for the current schema; fail closed if it ever is not.

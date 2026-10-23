@@ -12,6 +12,8 @@ import request from 'supertest';
 import type { Express } from 'express';
 import type { Server } from 'http';
 import type { ConversationState } from '../src/state-machine/state-machine';
+import { RECOMMENDED_PHONE_CONSENT_COPY } from '../src/consent/consent-copy';
+import { PRODUCT_DISPLAY_NAME, PRODUCT_NAME, PROVIDER_BRAND } from '../src/config/branding';
 
 /** The exact consent copy a test visitor affirmed (SEC-06 stores its hash). */
 const CONSENT_TEXT =
@@ -43,14 +45,18 @@ interface LoadedApp {
   cleanup: () => Promise<void>;
 }
 
+/** Admin key used by the suites that read session history. */
+const TEST_ADMIN_KEY = 'test-admin-secret-0123456789abcdef';
+
 /**
  * Loads src/index.ts as a fresh module with the given env overrides,
  * then restores the environment so later imports are unaffected.
  */
 async function loadApp(env: Record<string, string>): Promise<LoadedApp> {
   jest.resetModules();
+  const effectiveEnv = { ADMIN_API_KEY: TEST_ADMIN_KEY, ...env };
   const previous = { ...process.env };
-  Object.entries(env).forEach(([key, value]) => {
+  Object.entries(effectiveEnv).forEach(([key, value]) => {
     process.env[key] = value;
   });
 
@@ -60,7 +66,7 @@ async function loadApp(env: Record<string, string>): Promise<LoadedApp> {
   };
 
   // Restore env after the module has read it
-  Object.keys(env).forEach((key) => {
+  Object.keys(effectiveEnv).forEach((key) => {
     if (previous[key] === undefined) {
       delete process.env[key];
     } else {
@@ -140,7 +146,9 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(res.body.assistant_message).not.toContain('409877123456');
 
     // Session history stores the redacted placeholder, never the numbers
-    const history = await request(loaded.app).get(`/api/session/${sessionId}/history`);
+    const history = await request(loaded.app)
+      .get(`/api/session/${sessionId}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(JSON.stringify(history.body)).toContain('REDACTED');
     expect(JSON.stringify(history.body)).not.toContain('111000025');
     expect(JSON.stringify(history.body)).not.toContain('409877123456');
@@ -201,8 +209,10 @@ describe('GET / with the medical capture flag OFF (default)', () => {
     expect(res.body.analytics.event_name).not.toBe('ai_abstention');
   });
 
-  it('surfaces the compliance matrix on /health with per-flow approval status', async () => {
-    const res = await request(loaded.app).get('/health');
+  it('surfaces the compliance matrix on the admin health route with per-flow approval status', async () => {
+    const res = await request(loaded.app)
+      .get('/api/admin/health')
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
     expect(res.body.compliance.matrixVersion).toBe('1.7.0');
@@ -364,8 +374,10 @@ describe('medical capture flag ON (HEALTH_DATA_COLLECTION_DISABLED=false)', () =
     expect(res.body.analytics.conversation_stage).toBe('medical_offer');
   });
 
-  it('reports medical review as enabled on /health when the flag is flipped', async () => {
-    const res = await request(loaded.app).get('/health');
+  it('reports medical review as enabled on the admin health route when the flag is flipped', async () => {
+    const res = await request(loaded.app)
+      .get('/api/admin/health')
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(res.status).toBe(200);
     const f5 = res.body.compliance.flows.find((f: { id: string }) => f.id === 'F5');
     expect(f5.runtimeStatus).toBe('enabled');
@@ -411,10 +423,19 @@ describe('GET /api/disclosure — license & appointment disclosure', () => {
     });
 
     it('links the TDPSA privacy notice and exposes the DSR contact', async () => {
+      const { config } = await import('../src/config/app-config');
       const res = await request(loaded.app).get('/api/disclosure');
-      expect(res.body.privacyNoticeUrl).toBe('https://lifepolicypilot.blog/privacy/');
+      // The route serves the configured URL, whatever WEBSITE_URL says.
+      expect(res.body.privacyNoticeUrl).toBe(config.privacyNoticeUrl);
       expect(res.body.privacyNoticeVersion).toBe('1.3.0');
-      expect(res.body.dsrEmail).toBe('privacy@lifepolicypilot.blog');
+      // One configured value, served unchanged. The default address itself is
+      // pinned in tests/rights-channel.test.ts.
+      expect(res.body.dsrEmail).toBe(config.dsrEmail);
+      // The widget renders these, so the API is the single source of the brand
+      // a visitor sees.
+      expect(res.body.productName).toBe(PRODUCT_NAME);
+      expect(res.body.providerBrand).toBe(PROVIDER_BRAND);
+      expect(res.body.productDisplayName).toBe(PRODUCT_DISPLAY_NAME);
     });
   });
 
@@ -465,11 +486,12 @@ describe('POST /api/dsr — TDPSA consumer rights', () => {
   });
 
   it('serves the DSR email and a privacy-notice-linked just-in-time notice', async () => {
+    const { config } = await import('../src/config/app-config');
     const res = await request(loaded.app).get('/api/consent-text');
     expect(res.status).toBe(200);
-    expect(res.body.justInTimeNotice).toContain('privacy@lifepolicypilot.blog');
-    expect(res.body.privacyNoticeUrl).toBe('https://lifepolicypilot.blog/privacy/');
-    expect(res.body.dsrEmail).toBe('privacy@lifepolicypilot.blog');
+    expect(res.body.justInTimeNotice).toContain(config.dsrEmail);
+    expect(res.body.privacyNoticeUrl).toBe(config.privacyNoticeUrl);
+    expect(res.body.dsrEmail).toBe(config.dsrEmail);
   });
 
   it('accepts a deletion request and returns the 45-day TDPSA response window', async () => {
@@ -485,10 +507,43 @@ describe('POST /api/dsr — TDPSA consumer rights', () => {
     expect(res.body.requestId).toBeTruthy();
 
     // Status lookup for the created request
-    const statusRes = await request(loaded.app).get(`/api/dsr/${res.body.requestId}`);
+    const statusRes = await request(loaded.app)
+      .get(`/api/dsr/${res.body.requestId}`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(statusRes.status).toBe(200);
     expect(statusRes.body.status).toBe('received');
     expect(statusRes.body.requestType).toBe('deletion');
+  });
+
+  it('accepts the request and withholds a detail it cannot encrypt (M-09)', async () => {
+    const { config } = await import('../src/config/app-config');
+    const previousKey = config.recordEncryptionKey;
+    // Simulate a deployment without a record-encryption key: the request must
+    // still be taken, the free text must not be stored, and the caller must be
+    // told rather than left thinking it was saved.
+    config.recordEncryptionKey = '';
+    let res;
+    try {
+      res = await request(loaded.app).post('/api/dsr').send({
+        requestType: 'correction',
+        contactEmail: 'user@example.com',
+        detail: 'my SSN is 123-45-6789',
+      });
+    } finally {
+      config.recordEncryptionKey = previousKey;
+    }
+
+    expect(res.status).toBe(200);
+    expect(res.body.detailWithheld).toBe(true);
+    expect(res.body.message).toContain('not stored');
+
+    const statusRes = await request(loaded.app)
+      .get(`/api/dsr/${res.body.requestId}`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
+    expect(statusRes.status).toBe(200);
+    // The operator sees that something was withheld, so they can follow up.
+    const { getDsrRecord } = await import('../src/privacy/dsr');
+    expect((await getDsrRecord(res.body.requestId))?.detail_withheld).toBe(true);
   });
 
   it('rejects an unknown request type', async () => {
@@ -510,7 +565,9 @@ describe('POST /api/dsr — TDPSA consumer rights', () => {
   });
 
   it('returns 404 for an unknown DSR request id', async () => {
-    const res = await request(loaded.app).get('/api/dsr/does-not-exist');
+    const res = await request(loaded.app)
+      .get('/api/dsr/does-not-exist')
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(res.status).toBe(404);
   });
 });
@@ -560,9 +617,13 @@ describe('POST /api/consent', () => {
   });
 
   it('rejects a submission without affirmative consent', async () => {
+    // Include a valid address so the request passes the schema (which now
+    // requires the consent channel to be reachable) and the refusal under test
+    // is the route's affirmative-consent check.
     const res = await request(loaded.app).post('/api/consent').send({
       contactConsentAffirmed: false,
       contactChannel: 'email',
+      email: 'test@example.com',
       consentText: CONSENT_TEXT,
     });
     expect(res.status).toBe(400);
@@ -610,7 +671,7 @@ describe('POST /api/consent', () => {
       contactConsentAffirmed: true,
       contactChannel: 'phone',
       phone: '5125551234',
-      consentText: CONSENT_TEXT,
+      consentText: RECOMMENDED_PHONE_CONSENT_COPY,
     });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('created');
@@ -853,13 +914,14 @@ describe('Admin auth middleware', () => {
     });
   });
 
-  describe('without ADMIN_API_KEY configured (pilot/dev default)', () => {
+  describe('without ADMIN_API_KEY configured (fails closed, even in pilot)', () => {
     let loaded: LoadedApp;
 
     beforeAll(async () => {
       loaded = await loadApp({
         LIFECHAT_PORT: '0',
         LLM_API_KEY: '',
+        ADMIN_API_KEY: '',
       });
     });
 
@@ -867,23 +929,14 @@ describe('Admin auth middleware', () => {
       await loaded.cleanup();
     });
 
-    it('allows GET /api/system-prompt without auth (200)', async () => {
-      const res = await request(loaded.app).get('/api/system-prompt');
-      expect(res.status).toBe(200);
-      expect(res.body.systemPrompt).toBeTruthy();
-    });
-
-    it('allows GET /api/sessions without auth (200)', async () => {
-      const res = await request(loaded.app).get('/api/sessions');
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('activeSessions');
-    });
-
-    it('allows GET /api/session/:id/history without auth (200)', async () => {
-      const res = await request(loaded.app).get('/api/session/test-no-auth/history');
-      expect(res.status).toBe(200);
-      expect(res.body.sessionId).toBe('test-no-auth');
-    });
+    it.each(['/api/system-prompt', '/api/sessions', '/api/session/test-no-auth/history'])(
+      'answers 503 for GET %s without a configured key',
+      async (path) => {
+        const res = await request(loaded.app).get(path);
+        expect(res.status).toBe(503);
+        expect(res.body.error).toBe('Admin authentication is not configured');
+      },
+    );
   });
 });
 
@@ -929,9 +982,9 @@ describe('POST /api/chat — the piles rule at the endpoint', () => {
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1069,9 +1122,9 @@ describe('POST /api/chat — the Chapter XVIII symptom words at the endpoint', (
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1167,9 +1220,9 @@ describe('POST /api/chat — the Chapter XXI status vocabulary at the endpoint',
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1296,9 +1349,9 @@ describe('POST /api/chat — the product-provision sense of the suicide words', 
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1412,9 +1465,9 @@ describe('POST /api/chat — contract questions about the policy’s own wording
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1604,9 +1657,9 @@ describe('POST /api/chat — the abuse-family topic mentions at the endpoint', (
       status: 200,
       body: expect.anything(),
     });
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1735,9 +1788,9 @@ describe('POST /api/chat — the maltreatment compound sense is closed at the en
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1843,9 +1896,9 @@ describe('POST /api/chat — the lay word "bug" at the endpoint', () => {
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -1920,9 +1973,9 @@ describe('POST /api/chat — the self-harm vocabulary\u2019s topic sense is clos
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2021,9 +2074,9 @@ describe('POST /api/chat — the hyperbole adjective \u201cmanic\u201d separates
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2105,9 +2158,9 @@ describe('POST /api/chat — the Chapter VI nervous-system vocabulary at the end
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2184,9 +2237,9 @@ describe('POST /api/chat — the Chapter X respiratory vocabulary at the endpoin
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2259,9 +2312,9 @@ describe('POST /api/chat - the Chapter XI digestive vocabulary at the endpoint',
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2336,9 +2389,9 @@ describe('POST /api/chat - the Chapter XII skin vocabulary at the endpoint', () 
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }
@@ -2408,9 +2461,9 @@ describe('POST /api/chat - the Chapter XIII musculoskeletal vocabulary at the en
       .post('/api/chat')
       .send({ sessionId: testSessionId(sessionId), message });
     expect(res.status).toBe(200);
-    const history = await request(loaded.app).get(
-      `/api/session/${testSessionId(sessionId)}/history`,
-    );
+    const history = await request(loaded.app)
+      .get(`/api/session/${testSessionId(sessionId)}/history`)
+      .set('x-admin-key', TEST_ADMIN_KEY);
     expect(history.status).toBe(200);
     return { body: res.body as Record<string, unknown>, history: history.body };
   }

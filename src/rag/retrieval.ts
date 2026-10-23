@@ -10,7 +10,7 @@
  *   1. Current official Texas statutes/TDI pages
  *   2. Current NAIC model/guidance pages
  *   3. Approved carrier consumer materials
- *   4. Compliance-reviewed Life Policy Pilot articles
+ *   4. Compliance-reviewed Life Insurance Broker Advocate articles
  *   5. Controlled FAQ written and approved by the broker/compliance reviewer
  *
  * Retrieval/generation requirements:
@@ -24,6 +24,8 @@
 
 import { isDocumentValid, type CorpusDocument } from './rag-architecture';
 import { sanitizeRetrievedContent } from '../security/security-controls';
+import { publicationUrl } from '../config/app-config';
+import { PROVIDER_BRAND } from '../config/branding';
 
 /**
  * A retrieved passage with its source metadata.
@@ -159,9 +161,9 @@ There is a small-business exemption, but even exempt small businesses must obtai
   },
   {
     id: 'term-vs-whole',
-    canonical_url: 'https://lifepolicypilot.blog/term-vs-whole-life/',
+    canonical_url: publicationUrl('blog/term-vs-whole-life-insurance-texas'),
     title: 'Term vs. Whole Life Insurance — Understanding the Basics',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -188,9 +190,9 @@ Which is right for a specific person depends on their individual circumstances, 
   },
   {
     id: 'factors-affecting-cost',
-    canonical_url: 'https://lifepolicypilot.blog/factors-affecting-life-insurance-cost/',
+    canonical_url: publicationUrl('blog/how-much-does-life-insurance-cost-texas'),
     title: 'Factors That May Affect Life Insurance Cost',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -218,9 +220,9 @@ A reliable personalized premium cannot be determined from age alone. It requires
   },
   {
     id: 'coverage-needs-dime',
-    canonical_url: 'https://lifepolicypilot.blog/coverage-needs-estimator/',
+    canonical_url: publicationUrl('tools'),
     title: 'How Much Life Insurance Do I Need? — The DIME Method (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -242,7 +244,7 @@ A common general method for thinking about coverage needs is the DIME method: De
 
 Actual coverage needs vary widely with income, debts, family size, and goals. No general estimate can substitute for a licensed review of an individual situation.
 
-Life Policy Pilot offers a simple 3-step educational exercise based on this general method. Its result is an illustrative range only, not a recommendation or a quote.
+LifeChat offers a simple 3-step educational exercise based on this general method. Its result is an illustrative range only, not a recommendation or a quote.
 
 A reliable personalized assessment requires a licensed review of your individual circumstances.`,
     ),
@@ -250,9 +252,9 @@ A reliable personalized assessment requires a licensed review of your individual
   },
   {
     id: 'faq-no-advice',
-    canonical_url: 'https://lifepolicypilot.blog/faq/',
-    title: 'Life Policy Pilot FAQ — Common Questions',
-    author_or_owner: 'Life Policy Pilot',
+    canonical_url: publicationUrl('guides/texas-life-insurance'),
+    title: 'Life Insurance Broker Advocate FAQ — Common Questions',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'Texas',
     product_category: 'faq',
     approval_owner: 'Richard Parslow',
@@ -282,9 +284,9 @@ A: Legacy planning generally refers to arranging how assets pass to beneficiarie
   },
   {
     id: 'iul-overview',
-    canonical_url: 'https://lifepolicypilot.blog/indexed-universal-life/',
+    canonical_url: publicationUrl('blog/infinite-banking-whole-life-vs-iul-texas'),
     title: 'Indexed Universal Life (IUL) — How It Works (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -317,9 +319,9 @@ IUL compared with term: IUL is permanent, can build cash value, and generally co
   },
   {
     id: 'group-life-overview',
-    canonical_url: 'https://lifepolicypilot.blog/employer-group-life-insurance/',
+    canonical_url: publicationUrl('blog/employer-vs-personal-life-insurance-texas'),
     title: 'Employer-Sponsored (Group) Life Insurance — Overview (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -350,9 +352,9 @@ Voluntary life insurance: Voluntary life insurance is additional group coverage 
   },
   {
     id: 'underwriting-detail',
-    canonical_url: 'https://lifepolicypilot.blog/underwriting-and-rates/',
+    canonical_url: publicationUrl('blog/how-life-insurance-underwriting-works-texas'),
     title: 'Life Insurance Underwriting and Rate Setting (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -387,9 +389,9 @@ Why a premium might change: A premium is set at underwriting based on the factor
   },
   {
     id: 'riders-overview',
-    canonical_url: 'https://lifepolicypilot.blog/life-insurance-riders/',
+    canonical_url: publicationUrl('blog/life-insurance-riders-texas'),
     title: 'Life Insurance Riders — What They Are (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -418,9 +420,10 @@ Rider versus a separate policy: Whether to add a rider or buy a separate policy 
   },
   {
     id: 'add-overview',
-    canonical_url: 'https://lifepolicypilot.blog/accidental-death-and-dismemberment/',
+    canonical_url: publicationUrl('blog/life-insurance-riders-texas'),
+    citation_title: 'Life Insurance Riders in Texas: Which Ones Are Worth Paying For',
     title: 'Accidental Death & Dismemberment (AD&D) — Overview (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -453,9 +456,9 @@ Travel coverage: Some policies offer an additional or higher benefit for acciden
   },
   {
     id: 'final-expense-overview',
-    canonical_url: 'https://lifepolicypilot.blog/final-expense-insurance/',
+    canonical_url: publicationUrl('blog/what-is-final-expense-insurance'),
     title: 'Final Expense Life Insurance — Overview (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -484,9 +487,10 @@ Eligibility and getting started: Eligibility varies by carrier and product, and 
   },
   {
     id: 'child-life-overview',
-    canonical_url: 'https://lifepolicypilot.blog/child-life-insurance/',
+    canonical_url: publicationUrl('blog/life-insurance-what-texas-families-need-to-know'),
+    citation_title: 'Life Insurance: What Texas Families Actually Need to Know',
     title: 'Life Insurance for Children — Overview (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -521,9 +525,9 @@ What happens at age 18: Policies on children can have different provisions when 
   },
   {
     id: 'mortgage-protection-overview',
-    canonical_url: 'https://lifepolicypilot.blog/mortgage-protection/',
+    canonical_url: publicationUrl('blog/mortgage-protection-life-insurance-texas'),
     title: 'Mortgage Protection Insurance — Overview (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -552,9 +556,11 @@ Credit life insurance: Credit life insurance is a separate product typically sol
   },
   {
     id: 'pandemic-quarantine-overview',
-    canonical_url: 'https://lifepolicypilot.blog/pandemic-quarantine/',
+    canonical_url: publicationUrl('blog/life-insurance-past-medical-conditions'),
+    citation_title:
+      'Applying for Life Insurance With Past Medical Conditions: Why Resolved Issues Still Count',
     title: 'Life Insurance and Pandemics / Quarantine — Overview (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -583,9 +589,11 @@ How the pandemic changed underwriting: The insurance industry adapted underwriti
   },
   {
     id: 'insurable-interest-overview',
-    canonical_url: 'https://lifepolicypilot.blog/insurable-interest/',
+    canonical_url: publicationUrl('blog/life-insurance-beneficiary-rules-texas'),
+    citation_title:
+      'Life Insurance Beneficiary Rules in Texas: Community Property, Minors, and Divorce',
     title: 'Insurable Interest — Who Can Buy Life Insurance for Others (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -616,9 +624,10 @@ What happens if the insured dies before the policy is issued: If the insured per
   },
   {
     id: 'occupation-hobby-risk-overview',
-    canonical_url: 'https://lifepolicypilot.blog/occupation-hobby-risk/',
+    canonical_url: publicationUrl('blog/how-life-insurance-underwriting-works-texas'),
+    citation_title: 'How Life Insurance Underwriting Works in Texas: APS, MIB, and Your Rate Class',
     title: 'Occupational and Hobby Risk in Life Insurance (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -649,9 +658,9 @@ Can I buy coverage that specifically covers work-related accidents: Accidental d
   },
   {
     id: 'mib-overview',
-    canonical_url: 'https://lifepolicypilot.blog/mib/',
+    canonical_url: publicationUrl('blog/mib-report-life-insurance-rates-texas'),
     title: 'Medical Information Bureau (MIB) — Overview (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -684,9 +693,9 @@ How can I improve my chances despite MIB flags: The best approach is to answer a
   },
   {
     id: 'premium-basics',
-    canonical_url: 'https://lifepolicypilot.blog/premium-basics/',
+    canonical_url: publicationUrl('blog/how-much-does-life-insurance-cost-texas'),
     title: 'Life Insurance Premiums — What They Are and How They Work (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -713,9 +722,9 @@ If a premium is missed: Most policies include a grace period after a missed prem
   },
   {
     id: 'beneficiary-designations',
-    canonical_url: 'https://lifepolicypilot.blog/beneficiary-designations/',
+    canonical_url: publicationUrl('blog/life-insurance-beneficiary-rules-texas'),
     title: 'Beneficiary Designations — Types and Rules (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -744,9 +753,11 @@ Estate considerations: Naming an estate as beneficiary or using life insurance i
   },
   {
     id: 'policy-lapse-and-reinstatement',
-    canonical_url: 'https://lifepolicypilot.blog/policy-lapse-reinstatement/',
+    canonical_url: publicationUrl('blog/contestability-period-life-insurance-texas'),
+    citation_title:
+      'The Texas Life Insurance Contestability Period: What the 2-Year Rule Really Means',
     title: 'Policy Lapse, Grace Periods, and Reinstatement (Educational)',
-    author_or_owner: 'Life Policy Pilot',
+    author_or_owner: PROVIDER_BRAND,
     jurisdiction: 'General',
     product_category: 'education',
     approval_owner: 'Richard Parslow',
@@ -790,6 +801,16 @@ Avoiding an accidental lapse: Policyowners can reduce the risk of an unintended 
  * Content Bridge to fetch the article currently being read). Returns null
  * when the id is unknown or the document is not currently valid/current.
  */
+/**
+ * The whole approved corpus, exposed read-only for validation and tooling.
+ *
+ * Retrieval goes through `retrieveFromCorpus`, which applies validity and
+ * priority rules. This export exists so tests can prove that every citation
+ * target is well-formed, unique, and on the published domain — a citation that
+ * 404s is worse than no citation, because the visitor cannot verify the claim.
+ */
+export const CORPUS_DOCUMENTS: readonly CorpusDocument[] = pilotCorpus;
+
 export function getArticleById(id: string): CorpusDocument | null {
   const now = new Date();
   const doc = pilotCorpus.find((d) => d.id === id);
@@ -804,7 +825,7 @@ export function getArticleById(id: string): CorpusDocument | null {
  *   1 = Texas statutes/TDI pages (regulation)
  *   2 = NAIC model/guidance pages (advertising)
  *   3 = carrier consumer materials (not yet in the pilot corpus)
- *   4 = Life Policy Pilot articles (education)
+ *   4 = Life Insurance Broker Advocate articles (education)
  *   5 = controlled FAQ (faq)
  * Privacy docs (TDPSA) are tier 1 alongside regulation since they are
  * Texas-specific consumer-protection law.
@@ -876,7 +897,7 @@ export function retrieveFromCorpus(
 
       // Priority weight respects the 5-tier corpus hierarchy (Section 4.6):
       //   1 = Texas statutes/TDI, 2 = NAIC models, 3 = carrier materials,
-      //   4 = Life Policy Pilot articles, 5 = controlled FAQ.
+      //   4 = Life Insurance Broker Advocate articles, 5 = controlled FAQ.
       // Weight = 6 - priority, so tier-1 sources get 5x and tier-5 get 1x.
       const docPriority = productCategoryToPriority(doc.product_category);
       const priorityWeight = 6 - docPriority;
@@ -890,7 +911,9 @@ export function retrieveFromCorpus(
       }
 
       return {
-        title: doc.title,
+        // The label a visitor sees must name the page they land on; for the
+        // six nearest-match documents that is `citation_title`.
+        title: doc.citation_title ?? doc.title,
         url: doc.canonical_url,
         content: doc.content,
         jurisdiction: doc.jurisdiction,

@@ -16,17 +16,24 @@
  * synchronous, so two requests interleaved on the event loop cannot both win
  * the same slot.
  *
- * Limits (documented in docs/verified-actions.md): the appointment ledger is
- * in-process. It is correct for a single instance and for a pilot, and the
- * route layer refuses side effects on an ephemeral serverless runtime rather
- * than confirming a booking that storage cannot keep. A multi-instance
- * deployment must back these stores with the practice-management calendar.
+ * Durability and cross-instance uniqueness (SEC-14): the in-memory indexes are
+ * a cache over one durable claim file per booked slot. `bookSlot` creates the
+ * claim with `O_CREAT|O_EXCL` before indexing it, so a second process — not
+ * just a second request — loses the race and reports the slot as taken. Claims
+ * are reloaded on first use, so a restart keeps every booking and the slot
+ * inventory stays accurate. Limits (documented in docs/verified-actions.md):
+ * the ledger needs a shared POSIX filesystem; Archil's object API has no
+ * conditional create, so booking is refused there rather than acknowledged
+ * without a uniqueness guarantee. A long-lived deployment that expects to
+ * replace this ledger with the practice-management calendar should book there
+ * through a real calendar API instead.
  */
 
 import { v4 as uuidv4 } from 'uuid';
 
 import { SERVICE_LEVEL_AGREEMENT } from '../handoff/human-escalation';
 import { BoundedLruCache } from '../persistence/bounded-lru';
+import { claimSlot, clearBookingClaims, isSlotClaimed, loadBookingClaims } from './booking-ledger';
 
 /** Display zone for slot times; the practice operates on Central Time. */
 export const SCHEDULING_TIME_ZONE = SERVICE_LEVEL_AGREEMENT.BUSINESS_HOURS_TIMEZONE;
@@ -149,6 +156,35 @@ const appointmentsBySlot = new BoundedLruCache<string, Appointment>(MAX_TRACKED_
 const appointmentsByKey = new BoundedLruCache<string, Appointment>(MAX_TRACKED_APPOINTMENTS);
 const appointmentsBySession = new BoundedLruCache<string, Appointment>(MAX_TRACKED_APPOINTMENTS);
 
+/**
+ * True once the durable claims have been folded into the in-memory indexes.
+ * Loading lazily keeps module import side-effect free and lets a restart pick
+ * up bookings written by a previous process on first use.
+ */
+let ledgerLoaded = false;
+
+function indexAppointment(appointment: Appointment, idempotencyKey: string): void {
+  appointmentsBySlot.set(appointment.slot_id, appointment);
+  appointmentsByKey.set(idempotencyKey, appointment);
+  appointmentsBySession.set(appointment.session_id, appointment);
+}
+
+function ensureLedgerLoaded(): void {
+  if (ledgerLoaded) return;
+  ledgerLoaded = true;
+  for (const claim of loadBookingClaims()) {
+    indexAppointment(
+      {
+        appointment_id: claim.appointment_id,
+        slot_id: claim.slot_id,
+        session_id: claim.session_id,
+        booked_at: claim.booked_at,
+      },
+      claim.idempotency_key,
+    );
+  }
+}
+
 /** Why a slot id was refused. Stable codes, safe to log and to return. */
 export type SlotRejectionCode =
   | 'invalid_slot_id'
@@ -191,6 +227,7 @@ function slotFromDate(date: Date): AppointmentSlot {
  * notice window) between those two moments is refused.
  */
 export function verifySlot(slotId: unknown, now: Date = new Date()): SlotVerification {
+  ensureLedgerLoaded();
   const start = parseSlotId(slotId);
   if (start === null) return { ok: false, code: 'invalid_slot_id' };
 
@@ -204,7 +241,9 @@ export function verifySlot(slotId: unknown, now: Date = new Date()): SlotVerific
   if (start.getTime() > now.getTime() + BOOKING_HORIZON_DAYS * DAY_MS) {
     return { ok: false, code: 'slot_out_of_horizon' };
   }
-  if (appointmentsBySlot.get(canonicalId)) {
+  // Memory first, then the claim file: an instance whose index has not reloaded
+  // since another instance booked the slot still refuses it here.
+  if (appointmentsBySlot.get(canonicalId) || isSlotClaimed(canonicalId)) {
     return { ok: false, code: 'slot_already_booked' };
   }
   return { ok: true, slot: slotFromDate(start) };
@@ -219,6 +258,7 @@ export function listAvailableSlots(
   now: Date = new Date(),
   maxSlots: number = MAX_LISTED_SLOTS,
 ): AppointmentSlot[] {
+  ensureLedgerLoaded();
   const earliest = now.getTime() + MINIMUM_NOTICE_HOURS * HOUR_MS;
   const latest = now.getTime() + BOOKING_HORIZON_DAYS * DAY_MS;
 
@@ -240,7 +280,12 @@ export function listAvailableSlots(
 
 /** Why a booking attempt was refused (slot codes plus ledger codes). */
 export type BookingRejectionCode =
-  SlotRejectionCode | 'idempotency_key_required' | 'idempotency_conflict' | 'appointment_exists';
+  | SlotRejectionCode
+  | 'idempotency_key_required'
+  | 'idempotency_conflict'
+  | 'appointment_exists'
+  /** The ledger cannot make a durable, cross-process claim on this runtime. */
+  | 'ledger_unavailable';
 
 export type BookingResult =
   | { ok: true; appointment: Appointment; replayed: boolean }
@@ -264,6 +309,7 @@ export function bookSlot(input: {
 }): BookingResult {
   const { slotId, sessionId, idempotencyKey } = input;
   const now = input.now ?? new Date();
+  ensureLedgerLoaded();
 
   if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
     return { ok: false, code: 'idempotency_key_required' };
@@ -296,29 +342,58 @@ export function bookSlot(input: {
     booked_at: now.toISOString(),
   };
 
-  // Check-and-set in the same synchronous turn: nothing can interleave here.
-  appointmentsBySlot.set(canonicalId, appointment);
-  appointmentsByKey.set(idempotencyKey, appointment);
-  appointmentsBySession.set(sessionId, appointment);
+  // Cross-process check-and-set: the claim file is created exclusively, so a
+  // second instance loses even when it verified the slot a moment earlier.
+  // Only the winner indexes the appointment; a loser reports the slot taken.
+  const claim = claimSlot({
+    appointment_id: appointment.appointment_id,
+    slot_id: appointment.slot_id,
+    session_id: appointment.session_id,
+    booked_at: appointment.booked_at,
+    idempotency_key: idempotencyKey,
+  });
+  if (claim === 'taken') return { ok: false, code: 'slot_already_booked' };
+  if (claim === 'unavailable') return { ok: false, code: 'ledger_unavailable' };
+
+  indexAppointment(appointment, idempotencyKey);
 
   return { ok: true, appointment, replayed: false };
 }
 
 /** The session's confirmed appointment, if any. */
 export function getAppointmentForSession(sessionId: string): Appointment | undefined {
+  ensureLedgerLoaded();
   return appointmentsBySession.get(sessionId);
 }
 
 /** The appointment held on a slot, if any. */
 export function getAppointmentForSlot(slotId: string): Appointment | undefined {
+  ensureLedgerLoaded();
   const start = parseSlotId(slotId);
   if (start === null) return undefined;
   return appointmentsBySlot.get(formatSlotId(start));
 }
 
-/** Clears every appointment (testing only). */
+/** Clears every appointment and its durable claim (testing only). */
 export function clearAllAppointments(): void {
   appointmentsBySlot.clear();
   appointmentsByKey.clear();
   appointmentsBySession.clear();
+  clearBookingClaims();
+  ledgerLoaded = true;
+}
+
+/**
+ * Drops the in-memory index and rebuilds it from the durable claims.
+ *
+ * This is how a restart (or another instance that loaded before a booking was
+ * made) sees bookings it did not itself write. Testing uses it to simulate a
+ * second process; production gets the same effect on first use after boot.
+ */
+export function reloadBookingsFromLedger(): void {
+  appointmentsBySlot.clear();
+  appointmentsByKey.clear();
+  appointmentsBySession.clear();
+  ledgerLoaded = false;
+  ensureLedgerLoaded();
 }

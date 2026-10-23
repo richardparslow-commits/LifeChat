@@ -18,6 +18,7 @@ import type { Express } from 'express';
 
 import { callLLM } from '../src/llm/llm-client';
 import { ACTION_NOT_CONFIRMED_NOTE } from '../src/tools/verified-actions';
+import { TEST_CONSENT_TEXT } from './helpers/test-session';
 
 jest.mock('../src/llm/llm-client', () => {
   const actual = jest.requireActual('../src/llm/llm-client');
@@ -131,7 +132,7 @@ async function submitConsent(app: Express, sessionId: string): Promise<string> {
     contactChannel: 'email',
     email: 'visitor@example.com',
     firstName: 'Alex',
-    consentText: 'I agree to be contacted about my life-insurance inquiry.',
+    consentText: TEST_CONSENT_TEXT,
     topicCategory: 'term_life',
     articleId: 'article-1',
   });
@@ -228,6 +229,45 @@ describe('scheduling + booking', () => {
       .send({ sessionId, message: 'Book that time please.' });
     expect(retry.status).toBe(200);
     expect(retry.body.action_arguments.appointment_id).toBe(appointmentId);
+  });
+
+  it('replaces the earlier choice when the visitor changes the time', async () => {
+    const app = await freshApp();
+    const sessionId = testSessionId('booking-change');
+    await submitConsent(app, sessionId);
+
+    const availability = await request(app).get('/api/scheduling/slots');
+    const offered = availability.body.slots.map((slot: { slot_id: string }) => slot.slot_id);
+    expect(offered.length).toBeGreaterThan(1);
+
+    const first = await request(app)
+      .post('/api/scheduling/select')
+      .send({ sessionId, slotId: offered[0] });
+    expect(first.status).toBe(200);
+
+    const second = await request(app)
+      .post('/api/scheduling/select')
+      .send({ sessionId, slotId: offered[1] });
+    expect(second.status).toBe(200);
+    expect(second.body.slotId).toBe(offered[1]);
+
+    // One selection per session, not a stack: the newer time is the only one
+    // the booking action may name.
+    const { getSelectedSlot } = await import('../src/llm/session-store');
+    expect(getSelectedSlot(sessionId)).toBe(offered[1]);
+
+    mockCallLLM.mockResolvedValue({
+      success: true,
+      content: bookingReply(offered[1]),
+      latencyMs: 5,
+    });
+    const turn = await request(app)
+      .post('/api/chat')
+      .send({ sessionId, message: 'Book the new time.' });
+
+    expect(turn.status).toBe(200);
+    expect(turn.body.proposed_action).toBe('book_appointment');
+    expect(turn.body.action_arguments.slot_id).toBe(offered[1]);
   });
 
   it('refuses a model-supplied slot the visitor did not select', async () => {

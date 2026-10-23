@@ -21,6 +21,7 @@ import {
   listLeadRecords,
   saveLeadRecord,
 } from '../src/consent/consent-model';
+import { config } from '../src/config/app-config';
 
 beforeEach(async () => {
   await clearAllLeadRecords();
@@ -92,7 +93,9 @@ describe('lead persistence across restarts', () => {
     lead.session_id = 'lpp_restartverified001';
     lead.email = 'restart@example.com';
     lead.contact_channel = 'email';
-    lead.contact_consent_version = '1.0.0';
+    // The current version, because the session → consent binding is checked
+    // against the configured one; an older value is deliberately not current.
+    lead.contact_consent_version = config.contactConsentVersion;
     lead.consent_timestamp = new Date().toISOString();
     lead.consent_text_hash = 'sha256:test';
     await saveLeadRecord(lead);
@@ -169,8 +172,9 @@ describe('lead at-rest encryption', () => {
     expect(line).not.toContain('sam@example.com');
     expect(line).not.toContain('5125551234');
     expect(line).not.toContain('Sam');
-    // Encrypted envelope markers
-    expect(line).toContain('"v":1');
+    // Encrypted envelope markers (v2 carries the key id — SEC-15)
+    expect(line).toContain('"v":2');
+    expect(line).toContain('"kid"');
     expect(line).toContain('"alg":"aes-256-gcm"');
     expect(line).toContain('"iv"');
     expect(line).toContain('"data"');

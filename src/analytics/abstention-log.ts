@@ -7,9 +7,15 @@
  * that the approved corpus cannot yet answer.
  *
  * Privacy model (no PII is ever written):
- * - The raw question text is NEVER stored. Only a SHA-256 hash of the
- *   normalized text is kept (`question_text_hash`), which supports de-duplication
- *   and re-currence counting without being readable.
+ * - The raw question text is NEVER stored. Only an HMAC-SHA-256 of the
+ *   normalized text, keyed with `ABSTENTION_LOG_KEY`, is kept
+ *   (`question_text_hash`), which supports de-duplication and recurrence
+ *   counting without being readable — or guessable. An unkeyed digest was a
+ *   dictionary lookup away from naming the condition somebody asked about
+ *   (M-08): "I have HIV" hashes to a value anyone with the log can compute.
+ * - Without a configured key nothing is written at all. Losing a day of
+ *   content-strategy analytics is the cost of a missing secret; writing an
+ *   unkeyed digest "just for now" would reintroduce the finding.
  * - The readable dimension is `question_category` — an allowlisted topic label
  *   derived from the existing `topicCategory` where meaningful, never free text
  *   the visitor typed.
@@ -21,16 +27,22 @@
  * crash a chat turn. Disable with ABSTENTION_LOGGING_ENABLED=false.
  */
 
-import { createHash } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { config } from '../config/app-config';
 import { appendJsonlLine, readJsonlLines } from '../persistence/jsonl-log';
+import { normalizeTopicCategory } from '../schema/topic-category';
 
 export interface AbstentionLogEntry {
   event: 'abstention';
   /** Allowlisted topic label; '' when no category could be derived. */
   question_category: string;
-  /** SHA-256 hex (64 chars) of the normalized question text. */
+  /** HMAC-SHA-256 hex (64 chars) of the normalized question text. */
   question_text_hash: string;
+  /**
+   * Non-secret id of the key that produced the hash, so a rotation is visible
+   * in the log. Absent on entries written before the key was required.
+   */
+  hash_key_id?: string;
   /** Sanitized article_id from the Content Bridge, or null. */
   article_id: string | null;
   /** ISO-8601 timestamp. */
@@ -42,10 +54,29 @@ export function normalizeQuestion(question: string): string {
   return question.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-/** SHA-256 hex digest of a string (e.g. the normalized question text). */
-export function sha256Hash(text: string): string {
-  return createHash('sha256').update(text).digest('hex');
+/**
+ * HMAC-SHA-256 hex digest of the normalized question, keyed with a server-held
+ * secret (M-08). The same secret and text always produce the same digest, so
+ * recurrence counting still works; a different secret produces a different one.
+ */
+export function hmacQuestionHash(question: string, key: string): string {
+  return createHmac('sha256', key).update(question).digest('hex');
 }
+
+/**
+ * Stable, non-secret identifier for the key that keyed a hash (a 12-hex prefix
+ * of its SHA-256). Written with each entry so a rotation can be seen in the log
+ * without recording the secret, and so counts are not silently mixed across
+ * keys.
+ */
+export function abstentionKeyId(key: string = config.abstentionLogKey): string {
+  const trimmed = key.trim();
+  if (!trimmed) return 'unconfigured';
+  return createHash('sha256').update(trimmed, 'utf8').digest('hex').slice(0, 12);
+}
+
+/** Warn at most once per process about a missing key. */
+let warnedMissingKey = false;
 
 /**
  * Derives the allowlisted category used for readable content-strategy analytics.
@@ -59,9 +90,10 @@ export function deriveQuestionCategory(
   const candidate = topicCategory || contextualArticleTopic;
   if (!candidate) return '';
   const cleaned = candidate.trim();
-  if (!cleaned || cleaned === 'general') return '';
-  // Cap length — a category label is never user free text.
-  return cleaned.slice(0, 60);
+  if (!cleaned || cleaned.toLowerCase() === 'general') return '';
+  // Allowlist, never free text: anything unrecognized becomes 'other' so a
+  // caller-supplied email or health phrase can never reach the log.
+  return normalizeTopicCategory(cleaned) ?? '';
 }
 
 /**
@@ -100,10 +132,27 @@ export function logAbstention(input: {
 }): Promise<void> {
   if (!config.abstentionLoggingEnabled) return Promise.resolve();
 
+  // Fail closed on the hash (M-08). An unkeyed digest of a health question is
+  // reversible by anyone who can guess the question, which is the whole point
+  // of keeping the text out of the log.
+  const key = config.abstentionLogKey.trim();
+  if (!key) {
+    if (!warnedMissingKey) {
+      warnedMissingKey = true;
+      console.warn(
+        '[abstention] ABSTENTION_LOG_KEY is not configured, so abstention analytics are ' +
+          'disabled: an unkeyed question hash can be reversed by dictionary lookup. ' +
+          'Set the key (and ABSTENTION_LOGGING_ENABLED=false to stop this warning entirely).',
+      );
+    }
+    return Promise.resolve();
+  }
+
   const entry: AbstentionLogEntry = {
     event: 'abstention',
     question_category: deriveQuestionCategory(input.topicCategory, input.contextualArticleTopic),
-    question_text_hash: sha256Hash(normalizeQuestion(input.userMessage)),
+    question_text_hash: hmacQuestionHash(normalizeQuestion(input.userMessage), key),
+    hash_key_id: abstentionKeyId(key),
     article_id: input.articleId ?? null,
     timestamp: input.timestamp ?? new Date().toISOString(),
   };

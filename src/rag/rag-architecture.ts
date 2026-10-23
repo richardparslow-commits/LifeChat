@@ -26,7 +26,7 @@ export const CORPUS_PRIORITY = [
   },
   {
     priority: 4,
-    source: 'Compliance-reviewed Life Policy Pilot articles',
+    source: 'Compliance-reviewed Life Insurance Broker Advocate articles',
     description: 'Blog articles reviewed and approved by the broker/compliance reviewer',
   },
   {
@@ -121,6 +121,16 @@ export interface CorpusDocument {
   id: string;
   canonical_url: string;
   title: string;
+  /**
+   * The cited page's own title, when it differs from this document's title.
+   *
+   * A citation is a promise about where the reader is going. Six summaries
+   * cover a topic with no one-to-one article and cite the closest approved
+   * page; their `title` is the summary's, so the citation uses this instead.
+   * `src/rag/citation-mappings.ts` is the registry and the reason. When this is
+   * absent the page and the document share a title.
+   */
+  citation_title?: string;
   author_or_owner: string;
   jurisdiction: string;
   product_category: string;

@@ -33,15 +33,22 @@ jest.mock('../src/llm/llm-client', () => {
  */
 let mockCallLLM: jest.MockedFunction<typeof callLLM>;
 
+const ADMIN_KEY = 'safety-admin-secret-0123456789abcdef';
+
 async function freshApp(): Promise<Express> {
   jest.resetModules();
+  const previousAdminKey = process.env.ADMIN_API_KEY;
+  process.env.ADMIN_API_KEY = ADMIN_KEY;
   const llm = await import('../src/llm/llm-client');
   mockCallLLM = llm.callLLM as jest.MockedFunction<typeof callLLM>;
   mockCallLLM.mockReset();
   const store = await import('../src/llm/session-store');
   store.clearAllSessions();
   const { createApp } = await import('../src/app');
-  return createApp();
+  const app = createApp();
+  if (previousAdminKey === undefined) delete process.env.ADMIN_API_KEY;
+  else process.env.ADMIN_API_KEY = previousAdminKey;
+  return app;
 }
 
 /** A schema-valid session id derived from a readable test name. */
@@ -166,7 +173,9 @@ describe('POST /api/chat — crisis short-circuit', () => {
       .post('/api/chat')
       .send({ sessionId, message: "I'm in immediate danger right now" });
 
-    const history = await request(app).get(`/api/session/${sessionId}/history`);
+    const history = await request(app)
+      .get(`/api/session/${sessionId}/history`)
+      .set('x-admin-key', ADMIN_KEY);
     const stored = JSON.stringify(history.body);
     expect(stored).toContain('REDACTED');
     expect(stored).not.toContain('immediate danger right now');

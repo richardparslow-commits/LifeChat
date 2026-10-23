@@ -13,7 +13,8 @@
  *     is answered without running route logic;
  *   - the two unauthenticated write endpoints are rate-bounded per client;
  *   - the kill switch has a runtime control (admin-only) instead of requiring a
- *     redeploy, and /health reports the facts an operator needs.
+ *     redeploy, /health answers liveness only, and the readiness facts an
+ *     operator needs are behind the admin gate.
  *
  * As in the other endpoint suites, src/index.ts is re-imported with
  * jest.resetModules() under the env each block needs, and LLM_API_KEY is
@@ -25,6 +26,7 @@ import type { Express } from 'express';
 import type { Server } from 'http';
 
 import { testSessionId } from './helpers/test-session';
+import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
 
 interface LoadedApp {
   app: Express;
@@ -66,6 +68,7 @@ async function loadApp(env: Record<string, string>): Promise<LoadedApp> {
 
 describe('server hardening — sandbox boot surface', () => {
   let loaded: LoadedApp;
+  const leadLog = tempLogPath('hardening-sandbox');
 
   beforeAll(async () => {
     loaded = await loadApp({
@@ -73,12 +76,13 @@ describe('server hardening — sandbox boot surface', () => {
       // because the repo's .env file defines it and would otherwise win.
       LIFECHAT_PORT: '0',
       LLM_API_KEY: '',
-      LEAD_LOG_PATH: `data/lead-hardening-test-${Date.now()}.jsonl`,
+      LEAD_LOG_PATH: leadLog,
     });
   });
 
   afterAll(async () => {
     await loaded.cleanup();
+    cleanupTempLogs(leadLog);
   });
 
   it('does not advertise the framework', async () => {
@@ -90,9 +94,49 @@ describe('server hardening — sandbox boot surface', () => {
     const health = await request(loaded.app).get('/health');
     expect(health.headers['x-content-type-options']).toBe('nosniff');
     expect(health.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(health.headers['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
+    expect(health.headers['x-frame-options']).toBe('DENY');
 
     const widget = await request(loaded.app).get('/widget.js');
     expect(widget.headers['x-content-type-options']).toBe('nosniff');
+    expect(widget.headers['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
+  });
+
+  it('sends a document CSP that keeps scripts strict and allows the widget stylesheet', async () => {
+    const res = await request(loaded.app).get('/demo.html');
+    const csp = String(res.headers['content-security-policy']);
+
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("base-uri 'none'");
+    // Scripts must never gain inline/eval escapes; XSS is what this directive
+    // is for. Styles keep the inline allowance because widget.js builds its
+    // accessibility stylesheet at runtime (see security-headers.ts).
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-eval/);
+    expect(csp).toMatch(/style-src[^;]*'unsafe-inline'/);
+  });
+
+  it('caches unversioned static assets for an hour and revalidates HTML', async () => {
+    // The names are fixed, so `immutable` would strand every embed on an old
+    // widget after a deploy; the bounded window still stops the per-navigation
+    // revalidation the audit measured.
+    const widget = await request(loaded.app).get('/widget.js');
+    expect(widget.headers['cache-control']).toBe('public, max-age=3600, must-revalidate');
+
+    const css = await request(loaded.app).get('/elementor-trust-block.css');
+    expect(css.headers['cache-control']).toBe('public, max-age=3600, must-revalidate');
+
+    const demo = await request(loaded.app).get('/demo.html');
+    expect(demo.headers['cache-control']).toBe('no-cache');
+  });
+
+  it('compresses a large static asset when the client accepts gzip', async () => {
+    const compressed = await request(loaded.app).get('/widget.js').set('Accept-Encoding', 'gzip');
+
+    expect(compressed.headers['content-encoding']).toBe('gzip');
+    expect(String(compressed.headers['vary'])).toContain('Accept-Encoding');
   });
 
   it('never lets an API response be cached by a proxy or CDN', async () => {
@@ -151,34 +195,43 @@ describe('server hardening — sandbox boot surface', () => {
     expect(JSON.stringify(res.body)).not.toMatch(/at |SyntaxError|\/Users\//);
   });
 
-  it('reports the readiness facts an operator needs on /health', async () => {
+  it('answers /health with liveness only, never the readiness posture', async () => {
     const res = await request(loaded.app).get('/health');
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('ok');
-    expect(typeof res.body.uptimeSeconds).toBe('number');
-    expect(res.body.llm.configured).toBe(false); // LLM_API_KEY emptied above
-    expect(res.body.llm.baseUrl).toBeTruthy();
-    expect(res.body.dataPathsWritable).toBe(true);
-    // Booleans only — the health payload never carries a key or a filesystem path.
-    expect(JSON.stringify(res.body.llm)).not.toMatch(/api[-_]?key"/i);
-    expect(JSON.stringify(res.body)).not.toContain('.jsonl');
+    // Exactly these three facts: model, provider endpoint, storage verdict,
+    // proxy derivation, secret-configuration booleans and the compliance
+    // matrix are reconnaissance and live behind the admin gate (M-02).
+    expect(res.body).toEqual({
+      status: 'ok',
+      uptimeSeconds: expect.any(Number),
+      killSwitch: false,
+    });
+  });
+
+  it('fails the readiness route closed when no admin key is configured', async () => {
+    const res = await request(loaded.app).get('/api/admin/health');
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('Admin authentication is not configured');
+    expect(res.body.llm).toBeUndefined();
   });
 });
 
 describe('server hardening — cross-origin embed (deny by default)', () => {
   let loaded: LoadedApp;
+  const leadLog = tempLogPath('hardening-cors');
 
   beforeAll(async () => {
     loaded = await loadApp({
       LIFECHAT_PORT: '0',
       LLM_API_KEY: '',
       ALLOWED_ORIGINS: 'https://lifepolicypilot.blog/',
-      LEAD_LOG_PATH: `data/lead-hardening-cors-${Date.now()}.jsonl`,
+      LEAD_LOG_PATH: leadLog,
     });
   });
 
   afterAll(async () => {
     await loaded.cleanup();
+    cleanupTempLogs(leadLog);
   });
 
   it('allows an allowlisted origin (trailing slash and case normalized)', async () => {
@@ -233,18 +286,21 @@ describe('server hardening — cross-origin embed (deny by default)', () => {
 
 describe('server hardening — write endpoints are bounded per client', () => {
   let loaded: LoadedApp;
+  const leadLog = tempLogPath('hardening-limit-lead');
+  const dsrLog = tempLogPath('hardening-limit-dsr');
 
   beforeAll(async () => {
     loaded = await loadApp({
       LIFECHAT_PORT: '0',
       LLM_API_KEY: '',
-      LEAD_LOG_PATH: `data/lead-hardening-limit-${Date.now()}.jsonl`,
-      DSR_LOG_PATH: `data/dsr-hardening-limit-${Date.now()}.jsonl`,
+      LEAD_LOG_PATH: leadLog,
+      DSR_LOG_PATH: dsrLog,
     });
   });
 
   afterAll(async () => {
     await loaded.cleanup();
+    cleanupTempLogs(leadLog, dsrLog);
   });
 
   it('rate-limits /api/dsr after the per-window budget is exhausted', async () => {
@@ -275,13 +331,14 @@ describe('server hardening — the kill switch has a runtime control', () => {
   // 32+ characters: the boot entropy gate refuses a shorter key (SEC-10).
   const ADMIN_KEY = 'hardening-admin-key-0123456789abcdef';
   let loaded: LoadedApp;
+  const leadLog = tempLogPath('hardening-kill');
 
   beforeAll(async () => {
     loaded = await loadApp({
       LIFECHAT_PORT: '0',
       LLM_API_KEY: '',
       ADMIN_API_KEY: ADMIN_KEY,
-      LEAD_LOG_PATH: `data/lead-hardening-kill-${Date.now()}.jsonl`,
+      LEAD_LOG_PATH: leadLog,
     });
   });
 
@@ -289,6 +346,24 @@ describe('server hardening — the kill switch has a runtime control', () => {
     // Never leave the switch tripped for other suites sharing this module state.
     await request(loaded.app).delete('/api/admin/kill-switch').set('x-admin-key', ADMIN_KEY);
     await loaded.cleanup();
+    cleanupTempLogs(leadLog);
+  });
+
+  it('serves the readiness facts on the admin health route', async () => {
+    const denied = await request(loaded.app).get('/api/admin/health');
+    expect(denied.status).toBe(401);
+
+    const res = await request(loaded.app).get('/api/admin/health').set('x-admin-key', ADMIN_KEY);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(typeof res.body.uptimeSeconds).toBe('number');
+    expect(res.body.llm.configured).toBe(false); // LLM_API_KEY emptied above
+    expect(res.body.llm.baseUrl).toBeTruthy();
+    expect(res.body.dataPathsWritable).toBe(true);
+    expect(res.body.recordStorage).toHaveProperty('durable');
+    // Booleans and non-secret identifiers only — never a key or a record path.
+    expect(JSON.stringify(res.body.llm)).not.toMatch(/api[-_]?key"/i);
+    expect(JSON.stringify(res.body)).not.toContain('.jsonl');
   });
 
   it('requires the admin key to activate', async () => {

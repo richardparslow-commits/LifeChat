@@ -171,7 +171,7 @@ describe('POST /api/consent — validation and consent proof (SEC-04, SEC-06)', 
   });
 });
 
-describe('proxy trust is explicit and off by default (SEC-07)', () => {
+describe('proxy trust gives each client its own budget without being spoofable (SEC-10)', () => {
   it('does not trust X-Forwarded-For unless TRUST_PROXY is set', async () => {
     const app = await loadApp({
       LLM_API_KEY: '',
@@ -193,7 +193,7 @@ describe('proxy trust is explicit and off by default (SEC-07)', () => {
     expect(app.get('trust proxy')).toBe(1);
   });
 
-  it('passes express keywords and subnet lists through unchanged', async () => {
+  it('passes express keywords and subnet lists through, and refuses wildcard trust', async () => {
     const keyword = await loadApp({
       LLM_API_KEY: '',
       LEAD_LOG_PATH: leadLog,
@@ -202,13 +202,16 @@ describe('proxy trust is explicit and off by default (SEC-07)', () => {
     });
     expect(keyword.get('trust proxy')).toBe('loopback');
 
-    const truthy = await loadApp({
+    // `true` trusts a caller-supplied X-Forwarded-For. Accepting it would let
+    // any caller mint a fresh client budget (SEC-10), so it is refused rather
+    // than passed to Express.
+    const wildcard = await loadApp({
       LLM_API_KEY: '',
       LEAD_LOG_PATH: leadLog,
       DSR_LOG_PATH: dsrLog,
       TRUST_PROXY: 'true',
     });
-    expect(truthy.get('trust proxy')).toBe(true);
+    expect(wildcard.get('trust proxy')).toBe(false);
 
     const list = await loadApp({
       LLM_API_KEY: '',
@@ -258,6 +261,43 @@ describe('proxy trust is explicit and off by default (SEC-07)', () => {
     // path is reached — and the one past it is refused by the shared budget.
     expect(statuses.slice(0, allowedCount).every((status) => status === 400)).toBe(true);
     expect(statuses[allowedCount]).toBe(429);
+  });
+
+  it('gives two proxied clients separate budgets with TRUST_PROXY=1', async () => {
+    const app = await loadApp({
+      LLM_API_KEY: '',
+      LEAD_LOG_PATH: leadLog,
+      DSR_LOG_PATH: dsrLog,
+      TRUST_PROXY: '1',
+    });
+    expect(app.get('trust proxy')).toBe(1);
+
+    const send = (forwardedFor: string) =>
+      request(app)
+        .post('/api/scheduling/select')
+        .set('x-forwarded-for', forwardedFor)
+        .send({ sessionId: testSessionId('two-clients'), slotId: 'not-a-slot' });
+
+    for (let i = 0; i < WRITE_RATE_LIMIT_CONFIG.MAX_REQUESTS_PER_WINDOW; i += 1) {
+      expect((await send('203.0.113.10')).status).toBe(400);
+    }
+    // The first client is exhausted...
+    expect((await send('203.0.113.10')).status).toBe(429);
+    // ...without touching the second client's bucket. Before SEC-10 tuning the
+    // trust setting, both shared the proxy's single address and this was a 429.
+    expect((await send('203.0.113.11')).status).toBe(400);
+  });
+
+  it('defaults to one trusted hop on Vercel, not one shared bucket', async () => {
+    const app = await loadApp({
+      VERCEL: '1',
+      LLM_API_KEY: '',
+      LEAD_LOG_PATH: leadLog,
+      DSR_LOG_PATH: dsrLog,
+    });
+
+    // Vercel's edge is the only hop; the address it forwards is the client's.
+    expect(app.get('trust proxy')).toBe(1);
   });
 });
 

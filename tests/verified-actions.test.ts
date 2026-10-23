@@ -9,6 +9,11 @@
  * must never be enough on its own.
  */
 
+import { randomUUID } from 'crypto';
+import { mkdirSync, writeFileSync } from 'fs';
+import os from 'os';
+import path from 'path';
+
 import { cleanupTempLogs, tempLogPath } from './helpers/temp-log';
 
 process.env.LEAD_LOG_PATH = tempLogPath('verified-actions-lead');
@@ -23,7 +28,7 @@ import {
   saveLeadRecord,
   type LeadRecord,
 } from '../src/consent/consent-model';
-import { clearAllDsrRecords, submitDsr } from '../src/privacy/dsr';
+import { clearAllDsrRecords, submitDsr, verifyDsrRecord } from '../src/privacy/dsr';
 import {
   bookSlot,
   clearAllAppointments,
@@ -355,7 +360,27 @@ describe('executeProposedAction — create_lead', () => {
     expect(result.code).toBe('consent_withdrawn');
   });
 
-  it('suppresses everything while a deletion request is open', async () => {
+  it('does not let an unverified deletion request suppress a real lead', async () => {
+    // /api/dsr is unauthenticated: anyone can submit a victim's address. Until
+    // an operator confirms the requester controls that address, the request
+    // carries no authority to block contact.
+    const id = sessionId('dsr-unverified');
+    await saveConsent(id);
+    const dsr = await submitDsr({
+      requestType: 'deletion',
+      contactEmail: 'Visitor@Example.com',
+    });
+    expect(dsr.ok).toBe(true);
+
+    const result = await executeProposedAction({
+      sessionId: id,
+      proposedAction: 'create_lead',
+      now: NOW,
+    });
+    expect(result.authorized).toBe(true);
+  });
+
+  it('suppresses everything while a verified deletion request is open', async () => {
     const id = sessionId('dsr');
     await saveConsent(id);
     const dsr = await submitDsr({
@@ -363,6 +388,10 @@ describe('executeProposedAction — create_lead', () => {
       contactEmail: 'Visitor@Example.com',
     });
     expect(dsr.ok).toBe(true);
+    if (!dsr.ok) throw new Error('unreachable');
+
+    const verified = await verifyDsrRecord(dsr.record.request_id);
+    expect(verified?.verified).toBe(true);
 
     const result = await executeProposedAction({
       sessionId: id,
@@ -461,6 +490,33 @@ describe('executeProposedAction — book_appointment', () => {
     expect(getAppointmentForSession(id)).toBeUndefined();
   });
 
+  it('fails closed when the ledger cannot make a durable claim (SEC-14)', async () => {
+    const id = sessionId('ledger-unavailable');
+    await saveConsent(id, { email: 'ledger@example.com' });
+    setSelectedSlot(id, BOOKABLE_SLOT);
+
+    // A regular file where the ledger directory should be: the exclusive
+    // create cannot succeed, so authorizing would confirm an unkept booking.
+    const blocker = path.join(os.tmpdir(), `lifechat-ledger-blocker-${randomUUID()}`);
+    mkdirSync(path.dirname(blocker), { recursive: true });
+    writeFileSync(blocker, 'not a directory');
+    const original = config.bookingLedgerPath;
+    config.bookingLedgerPath = path.join(blocker, 'bookings');
+    try {
+      const result = await executeProposedAction({
+        sessionId: id,
+        proposedAction: 'book_appointment',
+        actionArguments: { slot_id: BOOKABLE_SLOT },
+        now: NOW,
+      });
+      expect(result.authorized).toBe(false);
+      expect(result.code).toBe('storage_unavailable');
+      expect(getAppointmentForSession(id)).toBeUndefined();
+    } finally {
+      config.bookingLedgerPath = original;
+    }
+  });
+
   it('re-verifies at commit time, so a stale selection expires', async () => {
     const id = sessionId('stale-slot');
     await saveConsent(id);
@@ -480,7 +536,10 @@ describe('executeProposedAction — book_appointment', () => {
 });
 
 describe('executeProposedAction — confirmation and fail-closed defaults', () => {
-  it('only accepts the appointment id this server issued', async () => {
+  it('never authorizes a confirmation, because no transport exists', async () => {
+    // Returning `authorized: true` here would let the model's prose ("I've
+    // emailed your confirmation") stand for a message that was never sent.
+    // The refusal is what makes the route append ACTION_NOT_CONFIRMED_NOTE.
     const id = sessionId('confirm');
     await saveConsent(id);
     setSelectedSlot(id, BOOKABLE_SLOT);
@@ -490,24 +549,19 @@ describe('executeProposedAction — confirmation and fail-closed defaults', () =
       actionArguments: { slot_id: BOOKABLE_SLOT },
       now: NOW,
     });
+    expect(booking.authorized).toBe(true);
 
-    const invented = await executeProposedAction({
-      sessionId: id,
-      proposedAction: 'send_transactional_confirmation',
-      actionArguments: { appointment_id: 'apt_made_up' },
-      now: NOW,
-    });
-    expect(invented.authorized).toBe(false);
-    expect(invented.code).toBe('appointment_not_verified');
-
-    const real = await executeProposedAction({
-      sessionId: id,
-      proposedAction: 'send_transactional_confirmation',
-      actionArguments: { appointment_id: booking.effect?.appointmentId },
-      now: NOW,
-    });
-    expect(real.authorized).toBe(true);
-    expect(real.effect?.appointmentId).toBe(booking.effect?.appointmentId);
+    for (const appointmentId of ['apt_made_up', booking.effect?.appointmentId]) {
+      const result = await executeProposedAction({
+        sessionId: id,
+        proposedAction: 'send_transactional_confirmation',
+        actionArguments: { appointment_id: appointmentId },
+        now: NOW,
+      });
+      expect(result.authorized).toBe(false);
+      expect(result.code).toBe('tool_not_authorized');
+      expect(result.effect).toBeNull();
+    }
   });
 
   it('refuses every side effect on an ephemeral serverless runtime', async () => {

@@ -17,9 +17,11 @@
  */
 
 import { config } from '../config/app-config';
+import { normalizeTopicCategory } from '../schema/topic-category';
 import { SYSTEM_PROMPT, ABSTENTION_SENTENCE } from '../prompts/system-prompt';
 import { logAbstention } from '../analytics/abstention-log';
 import { callLLM, extractJSON, type LLMMessage } from './llm-client';
+import { fingerprint, safeCode } from '../observability/safe-log';
 import {
   retrieveFromCorpus,
   formatRetrievedContext,
@@ -30,6 +32,7 @@ import {
   AssistantResponseSchema,
   validateSchemaRules,
   STATIC_SAFE_FALLBACK,
+  EMPTY_TURN_INTENT,
   type AssistantResponse,
   type Citation,
 } from '../schema/response-schema';
@@ -43,6 +46,7 @@ import {
   detectPersonaGuardrailViolation,
   isReOfferAfterDecline,
 } from '../compliance/persona-guardrails';
+import { detectClaimViolation } from '../compliance/claim-guard';
 import type { ConversationState } from '../state-machine/state-machine';
 
 export interface OrchestratorInput {
@@ -62,10 +66,11 @@ export interface OrchestratorInput {
    */
   contextualArticleId?: string | null;
   /**
-   * Section 16 contextual instruction (treats page context as untrusted data
-   * and prohibits personal inference). Appended to the application context.
+   * Section 16 contextual article metadata from the allowlisted article map.
+   * Untrusted by provenance, so `buildMessages` delivers it as a delimited
+   * user-role data block — never as system text (SEC-12).
    */
-  contextualInstruction?: string | null;
+  contextualData?: string | null;
   /**
    * Section 16 contextual article topic label (educational), used only for the
    * anonymized abstention log's audience category. Never user-supplied text.
@@ -154,10 +159,8 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     currentState: input.currentState,
     temperature: 0.3,
     maxTokens: 800,
-    applicationContext:
-      [input.dimeContext, input.contextualInstruction]
-        .filter((s): s is string => Boolean(s))
-        .join('\n\n') || undefined,
+    applicationContext: input.dimeContext,
+    contextualData: input.contextualData,
   };
   const llmResult = await callLLM(llmOptions);
 
@@ -167,7 +170,11 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
 
   // 5. If LLM call failed, return a fallback response (Section 4.11)
   if (!llmResult.success || !llmResult.content) {
-    console.error('LLM call failed:', llmResult.error);
+    // A code, not a message: `error` is one of the client's own labels, and the
+    // provider's body never becomes part of it (M-06). The value is checked
+    // against that vocabulary rather than trusted, so a client that starts
+    // returning text cannot put it in the log either.
+    console.error('LLM call failed', JSON.stringify({ code: safeCode(llmResult.error) }));
     return {
       response: buildFallbackResponse(input, 'llm_call_failed', llmResult.error),
       ragPassages: retrievalResult.passages,
@@ -180,9 +187,10 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   //    If the first attempt is invalid, retry ONCE with the validation
   //    errors fed back to the model, then fall back only if the retry is
   //    also invalid (Section 4.11 resilience).
-  // Records persona guardrail violations caught by the validator so they persist
-  // onto the final response's risk_flags even when a retry rewrites the message.
-  const personaViolationLog = new Set<string>();
+  // Records blocked-output violations (persona guardrails and claim-guard
+  // rules) caught by the validator so they persist onto the final response's
+  // risk_flags even when a retry rewrites the message.
+  const blockedViolationLog = new Set<string>();
   const attemptValidation = (
     raw: string,
   ): { ok: true; validated: AssistantResponse } | { ok: false; kind: string; detail: string } => {
@@ -250,11 +258,30 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     // flagged even after a successful retry.
     const personaViolation = detectPersonaGuardrailViolation(schemaResult.data.assistant_message);
     if (personaViolation) {
-      personaViolationLog.add(personaViolation);
+      blockedViolationLog.add(personaViolation);
       return {
         ok: false,
         kind: 'persona_guardrail_violation',
         detail: `The response violates persona guardrail "${personaViolation}": it uses presumptive purchase framing, pressure language, or fabricated content. Rewrite the message in neutral, educational, non-presumptive language without pressure or invented anecdotes.`,
+      };
+    }
+
+    // Claim-level output guard (SEC-13): schema, promo and persona checks do
+    // not read the factual content of the message, so an unapproved price,
+    // guarantee, ranking or personal identifier would otherwise reach the
+    // visitor. A violation is fed back for the one retry and recorded on the
+    // final response's risk_flags for audit.
+    const claimViolation = detectClaimViolation(schemaResult.data.assistant_message);
+    if (claimViolation) {
+      blockedViolationLog.add(claimViolation.id);
+      console.error(
+        'LLM response blocked by claim guard',
+        JSON.stringify({ rule: claimViolation.rule }),
+      );
+      return {
+        ok: false,
+        kind: 'claim_guard_violation',
+        detail: claimViolation.retryInstruction,
       };
     }
 
@@ -267,7 +294,7 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       ...(input.userMessage ? [input.userMessage] : []),
     ];
     if (isReOfferAfterDecline(priorUserMessages, schemaResult.data.assistant_message)) {
-      personaViolationLog.add('decline_no_reoffer');
+      blockedViolationLog.add('decline_no_reoffer');
       return {
         ok: false,
         kind: 'persona_guardrail_violation',
@@ -286,10 +313,15 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   if (firstAttempt.ok) {
     validated = firstAttempt.validated;
   } else {
-    console.error('LLM response invalid, retrying once:', firstAttempt.kind, firstAttempt.detail);
+    // The validator's detail is built from the model's output. Its fingerprint
+    // correlates retries without copying that text into the log (M-06).
+    console.error(
+      'LLM response invalid, retrying once',
+      JSON.stringify({ kind: firstAttempt.kind, detail: fingerprint(firstAttempt.detail) }),
+    );
     const retryResult = await callLLM({
       ...llmOptions,
-      validationFeedback: `Your previous response was rejected by the application validator.\n${firstAttempt.detail}\nReturn ONE complete JSON object matching the schema in the system prompt, with every required top-level key: assistant_message, state, citations, lead_data, consent, proposed_action, action_arguments, risk_flags, analytics.`,
+      validationFeedback: `Your previous response was rejected by the application validator.\n${firstAttempt.detail}\nReturn ONE complete JSON object matching the schema in the system prompt, with every required top-level key: assistant_message, state, intent, citations, lead_data, consent, proposed_action, action_arguments, risk_flags, analytics.`,
     });
     if (retryResult.usage) {
       tokenUsage = {
@@ -302,11 +334,14 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
       if (secondAttempt.ok) {
         validated = secondAttempt.validated;
       } else {
-        console.error('LLM retry also invalid:', secondAttempt.kind, secondAttempt.detail);
+        console.error(
+          'LLM retry also invalid',
+          JSON.stringify({ kind: secondAttempt.kind, detail: fingerprint(secondAttempt.detail) }),
+        );
         failureKind = secondAttempt.kind;
       }
     } else {
-      console.error('LLM retry call failed:', retryResult.error);
+      console.error('LLM retry call failed', JSON.stringify({ code: safeCode(retryResult.error) }));
       failureKind = 'llm_call_failed';
     }
   }
@@ -328,9 +363,9 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
   // 10. Ensure privacy notice version is set from config
   validated.consent.privacy_notice_version = config.privacyNoticeVersion;
 
-  // 10b. Persist any persona guardrail violation that was caught and rewritten so a
-  //      blocked attempt is auditable on the final response, not just on the rejected one.
-  for (const v of personaViolationLog) {
+  // 10b. Persist any output violation that was caught and rewritten so a blocked
+  //      attempt is auditable on the final response, not just on the rejected one.
+  for (const v of blockedViolationLog) {
     if (!validated.risk_flags.includes(v)) {
       validated.risk_flags = [...validated.risk_flags, v];
     }
@@ -342,7 +377,9 @@ export async function generateResponse(input: OrchestratorInput): Promise<Orches
     citations,
     analytics: {
       ...validated.analytics,
-      topic_category: validated.analytics.topic_category || input.topicCategory || null,
+      topic_category:
+        normalizeTopicCategory(validated.analytics.topic_category) ??
+        normalizeTopicCategory(input.topicCategory),
       conversation_stage: validated.state,
     },
   };
@@ -366,6 +403,7 @@ function buildAbstentionResponse(
   return {
     assistant_message: ABSTENTION_SENTENCE,
     state: input.currentState === 'disclosure' ? 'education' : input.currentState,
+    intent: { ...EMPTY_TURN_INTENT },
     citations: passagesToCitations(passages),
     lead_data: {
       first_name: null,
@@ -406,7 +444,7 @@ function buildAbstentionResponse(
     risk_flags: [],
     analytics: {
       event_name: 'ai_abstention',
-      topic_category: input.topicCategory || null,
+      topic_category: normalizeTopicCategory(input.topicCategory),
       conversation_stage: input.currentState,
       fallback_type: 'insufficient_evidence',
       handoff_reason: null,
@@ -431,6 +469,7 @@ function buildFallbackResponse(
       ? FALLBACK_MESSAGES.TIMEOUT
       : 'I encountered an issue processing that. Let me connect you with a licensed human who can help.',
     state: 'standby',
+    intent: { ...EMPTY_TURN_INTENT },
     citations: [],
     lead_data: {
       first_name: null,
@@ -468,13 +507,16 @@ function buildFallbackResponse(
     proposed_action: 'request_human_handoff',
     action_arguments: {
       handoff_reason: 'system_error',
-      summary: `Fallback triggered: ${errorType}${errorDetail ? ` (${errorDetail.slice(0, 100)})` : ''}`,
+      // The fallback summary is serialised to the browser. Keep it to the
+      // stable error class: upstream detail may carry provider internals or
+      // request content and belongs only in the server log.
+      summary: `Fallback triggered: ${errorType}`,
     },
     visual_card: null,
     risk_flags: ['static_fallback_used'],
     analytics: {
       event_name: 'ai_fallback_shown',
-      topic_category: input.topicCategory || null,
+      topic_category: normalizeTopicCategory(input.topicCategory),
       conversation_stage: input.currentState,
       fallback_type: errorType,
       handoff_reason: 'system_error',

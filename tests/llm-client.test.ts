@@ -1,6 +1,6 @@
 /**
- * Tests for the LLM client message construction (src/llm/llm-client.ts)
- * and token-usage capture from the API response.
+ * Tests for the LLM client message construction (src/llm/llm-client.ts),
+ * token-usage capture from the API response, and the per-attempt deadline.
  *
  * Verifies that the authoritative conversation state from the application
  * state machine is passed to the model, and that untrusted user content is
@@ -73,11 +73,15 @@ describe('callLLM token usage', () => {
 
   function mockFetchWith(body: unknown): void {
     originalFetch = global.fetch;
+    // The client reads the body once with text() (so the attempt deadline
+    // covers the read), then parses it; the mock serves both shapes.
+    const raw = JSON.stringify(body);
     global.fetch = jest.fn(async () => {
       return {
         ok: true,
+        headers: new Headers(),
         json: async () => body,
-        text: async () => '',
+        text: async () => raw,
       } as unknown as Response;
     }) as unknown as typeof fetch;
   }
@@ -126,5 +130,63 @@ describe('callLLM token usage', () => {
       restoreFetch();
       delete process.env.LLM_API_KEY;
     }
+  });
+});
+
+/**
+ * M-03: the attempt deadline must cover the body read, not only the response
+ * headers. A provider that sends headers and then stalls would otherwise hold
+ * the turn open until the platform's own limit.
+ */
+describe('callLLM attempt deadline', () => {
+  let originalFetch: typeof fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.useRealTimers();
+    delete process.env.LLM_API_KEY;
+  });
+
+  it('aborts a response whose body stalls instead of waiting indefinitely', async () => {
+    jest.useFakeTimers();
+    process.env.LLM_API_KEY = 'test-key';
+    originalFetch = global.fetch;
+    jest.resetModules();
+    const { callLLM } = await import('../src/llm/llm-client');
+    const { LATENCY_CONFIG } = await import('../src/resilience/fallback-behavior');
+
+    let attempts = 0;
+    global.fetch = jest.fn((_url: string, init?: RequestInit) => {
+      attempts += 1;
+      const signal = init?.signal as AbortSignal;
+      // Headers arrive; the body never does. Only the abort signal settles it.
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        text: () =>
+          new Promise<string>((_resolve, reject) => {
+            signal.addEventListener('abort', () =>
+              reject(
+                Object.assign(new Error('This operation was aborted'), { name: 'AbortError' }),
+              ),
+            );
+          }),
+      } as unknown as Response);
+    }) as unknown as typeof fetch;
+
+    const pending = callLLM({ systemPrompt: 's', ragContext: '', userMessage: 'hello' });
+
+    // Each of the two attempts is bounded by the same deadline, body included.
+    for (let i = 0; i < 3; i += 1) {
+      await jest.advanceTimersByTimeAsync(LATENCY_CONFIG.TIMEOUT_MS);
+    }
+
+    const result = await pending;
+    expect(result.success).toBe(false);
+    expect(attempts).toBe(2);
+    // The deadline, as a label from the client's own closed set (M-06): the
+    // abort's message is not copied anywhere.
+    expect(result.error).toBe('timeout');
   });
 });

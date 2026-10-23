@@ -19,6 +19,9 @@ import { seedSession, testSessionId } from './helpers/test-session';
 import type { Express } from 'express';
 import type { Server } from 'http';
 
+/** The compliance matrix is readiness posture and lives behind the admin gate (M-02). */
+const TEST_ADMIN_KEY = 'medical-gating-admin-key-0123456789abcdef';
+
 /** Loads src/config/app-config.ts fresh with HEALTH_DATA_COLLECTION_DISABLED unset. */
 async function loadConfigWithUnsetFlag(): Promise<{ healthDataCollectionDisabled: boolean }> {
   jest.resetModules();
@@ -50,6 +53,7 @@ async function loadApp(flagValue: string): Promise<LoadedApp> {
   process.env.HEALTH_DATA_COLLECTION_DISABLED = flagValue;
   process.env.LIFECHAT_PORT = '0';
   process.env.LLM_API_KEY = '';
+  process.env.ADMIN_API_KEY = TEST_ADMIN_KEY;
 
   const { app, server } = (await import('../src/index')) as {
     app: Express;
@@ -67,6 +71,7 @@ async function loadApp(flagValue: string): Promise<LoadedApp> {
   restore('HEALTH_DATA_COLLECTION_DISABLED');
   restore('LIFECHAT_PORT');
   restore('LLM_API_KEY');
+  restore('ADMIN_API_KEY');
 
   return {
     app,
@@ -173,8 +178,10 @@ describe('HEALTH_DATA_COLLECTION_DISABLED refused medical data when not "false"'
       expect(res.body.risk_flags).toContain('sensitive_data_disclosed');
     });
 
-    it('reports F5 medical review as gated_by_flag on /health under the default', async () => {
-      const res = await request(loaded.app).get('/health');
+    it('reports F5 medical review as gated_by_flag on the admin health route under the default', async () => {
+      const res = await request(loaded.app)
+        .get('/api/admin/health')
+        .set('x-admin-key', TEST_ADMIN_KEY);
       expect(res.status).toBe(200);
       const f5 = res.body.compliance.flows.find((f: { id: string }) => f.id === 'F5');
       expect(f5.runtimeStatus).toBe('gated_by_flag');

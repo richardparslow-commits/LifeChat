@@ -93,8 +93,6 @@ describe('serverless mode — the app builds without owning a socket', () => {
       SERVERLESS: 'true',
       LIFECHAT_PORT: String(PORT),
       LLM_API_KEY: '',
-      LEAD_LOG_PATH: `data/lead-serverless-test-${Date.now()}.jsonl`,
-      DSR_LOG_PATH: `data/dsr-serverless-test-${Date.now()}.jsonl`,
     });
 
     expect(loaded.server).toBeUndefined();
@@ -107,8 +105,6 @@ describe('serverless mode — the app builds without owning a socket', () => {
       VERCEL: '1',
       LIFECHAT_PORT: String(PORT),
       LLM_API_KEY: '',
-      LEAD_LOG_PATH: `data/lead-serverless-test-${Date.now()}.jsonl`,
-      DSR_LOG_PATH: `data/dsr-serverless-test-${Date.now()}.jsonl`,
     });
 
     expect(loaded.server).toBeUndefined();
@@ -122,12 +118,10 @@ describe('serverless mode — the app builds without owning a socket', () => {
       LIFECHAT_PORT: String(PORT),
       LLM_API_KEY: '',
       ADMIN_API_KEY: 'serverless-test-admin-key-0123456789abcdef',
-      LEAD_LOG_PATH: `data/lead-serverless-test-${Date.now()}.jsonl`,
-      DSR_LOG_PATH: `data/dsr-serverless-test-${Date.now()}.jsonl`,
     });
 
-    // /health answers with the readiness facts an operator (and the deploy
-    // workflow's smoke check) consumes.
+    // /health answers with the liveness facts an operator (and the deploy
+    // workflow's smoke check) consumes; readiness is admin-gated (M-02).
     const health = await request(loaded.app).get('/health');
     expect(health.status).toBe(200);
     expect(health.body).toHaveProperty('status');
@@ -154,8 +148,6 @@ describe('serverless mode — the app builds without owning a socket', () => {
     const loaded = await loadApp({
       LIFECHAT_PORT: '0', // OS-assigned: the regression guard only needs a live server
       LLM_API_KEY: '',
-      LEAD_LOG_PATH: `data/lead-serverless-test-${Date.now()}.jsonl`,
-      DSR_LOG_PATH: `data/dsr-serverless-test-${Date.now()}.jsonl`,
     });
 
     expect(loaded.server).toBeDefined();

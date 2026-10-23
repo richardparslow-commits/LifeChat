@@ -2607,6 +2607,126 @@ export function checkWriteRateLimit(clientKey: string): { allowed: boolean; reas
 }
 
 /**
+ * Chat budget keyed by the *client*, not the session (SEC-02).
+ *
+ * A session id is minted by the caller. Keying model spend only by a value the
+ * caller can generate at will bounds nothing: a script that sends a fresh id
+ * on every request gets a fresh budget on every request, and the per-session
+ * LRU's eviction under that churn also resets other callers' counters. The
+ * per-session budget stays (it is the fair-use guarantee for one conversation);
+ * this budget is the spend control, because `req.ip` is not something the
+ * request body can choose.
+ *
+ * A second, process-wide ceiling caps total spend even when the attacker has
+ * many source addresses. It is deliberately generous: it is a circuit breaker
+ * for a runaway bill, not a fairness mechanism.
+ */
+export const CHAT_CLIENT_LIMIT_CONFIG = {
+  /** Max chat requests per client per window. */
+  MAX_REQUESTS_PER_WINDOW: 30,
+  /** Max model tokens per client per window (input + output). */
+  MAX_TOKENS_PER_WINDOW: 60_000,
+  /** Window size in milliseconds (1 minute). */
+  WINDOW_MS: 60_000,
+} as const;
+
+/** Process-wide spend ceiling, shared by every client. */
+export const CHAT_GLOBAL_LIMIT_CONFIG = {
+  MAX_REQUESTS_PER_WINDOW: 600,
+  MAX_TOKENS_PER_WINDOW: 1_000_000,
+  WINDOW_MS: 60_000,
+} as const;
+
+/** Reserved key for the process-wide counters; no client key can collide. */
+const GLOBAL_CHAT_KEY = '__global__';
+
+const chatClientStore = new BoundedLruCache<string, RateLimitState>(MAX_RATE_LIMIT_ENTRIES);
+
+/**
+ * The process-wide counters live outside the LRU on purpose: an untrusted
+ * client-key flood must not evict the global budget and reset the ceiling.
+ */
+let globalChatState: RateLimitState | null = null;
+
+function freshRateLimitState(key: string, now: number): RateLimitState {
+  return {
+    sessionId: key,
+    requestCount: 0,
+    windowStart: now,
+    tokenCount: 0,
+    lastActivity: now,
+  };
+}
+
+/** Rolls a state's counters when its window has elapsed. */
+function rollWindow(state: RateLimitState, windowMs: number, now: number): void {
+  if (now - state.windowStart > windowMs) {
+    state.requestCount = 0;
+    state.tokenCount = 0;
+    state.windowStart = now;
+  }
+  state.lastActivity = now;
+}
+
+/**
+ * Checks the per-client and process-wide chat budgets.
+ *
+ * Both counters are incremented only when the request is allowed, so refused
+ * attempts do not consume budget they never spent.
+ */
+export function checkChatClientLimit(clientKey: string): { allowed: boolean; reason?: string } {
+  const now = Date.now();
+
+  let client = chatClientStore.get(clientKey);
+  if (!client) {
+    client = freshRateLimitState(clientKey, now);
+    chatClientStore.set(clientKey, client);
+  }
+  rollWindow(client, CHAT_CLIENT_LIMIT_CONFIG.WINDOW_MS, now);
+
+  globalChatState ??= freshRateLimitState(GLOBAL_CHAT_KEY, now);
+  rollWindow(globalChatState, CHAT_GLOBAL_LIMIT_CONFIG.WINDOW_MS, now);
+
+  if (client.requestCount >= CHAT_CLIENT_LIMIT_CONFIG.MAX_REQUESTS_PER_WINDOW) {
+    return { allowed: false, reason: 'client_rate_limit_exceeded' };
+  }
+  if (globalChatState.requestCount >= CHAT_GLOBAL_LIMIT_CONFIG.MAX_REQUESTS_PER_WINDOW) {
+    return { allowed: false, reason: 'global_rate_limit_exceeded' };
+  }
+  if (client.tokenCount >= CHAT_CLIENT_LIMIT_CONFIG.MAX_TOKENS_PER_WINDOW) {
+    return { allowed: false, reason: 'client_token_budget_exceeded' };
+  }
+  if (globalChatState.tokenCount >= CHAT_GLOBAL_LIMIT_CONFIG.MAX_TOKENS_PER_WINDOW) {
+    return { allowed: false, reason: 'global_token_budget_exceeded' };
+  }
+
+  client.requestCount++;
+  globalChatState.requestCount++;
+  return { allowed: true };
+}
+
+/**
+ * Counts a completed model call against the session, client, and global
+ * budgets. Call once per turn with the provider's reported usage; the session
+ * counters alone are not a spend control (see checkChatClientLimit).
+ */
+export function incrementChatTokens(sessionId: string, clientKey: string, tokens: number): void {
+  if (!Number.isFinite(tokens) || tokens <= 0) return;
+
+  incrementTokenCount(sessionId, tokens);
+
+  const client = chatClientStore.get(clientKey);
+  if (client) {
+    client.tokenCount += tokens;
+    client.lastActivity = Date.now();
+  }
+  if (globalChatState) {
+    globalChatState.tokenCount += tokens;
+    globalChatState.lastActivity = Date.now();
+  }
+}
+
+/**
  * Increments the per-window token count for a session using real LLM usage
  * passed up from the orchestrator (input + output across attempts). This is
  * what makes MAX_TOKENS_PER_WINDOW enforce: without it, tokenCount stayed 0
@@ -2647,6 +2767,11 @@ export function startRateLimitCleanup(): void {
         writeRateLimitStore.delete(id);
       }
     }
+    for (const [id, state] of chatClientStore.entriesList()) {
+      if (now - state.lastActivity > RATE_LIMIT_CONFIG.ENTRY_TTL_MS) {
+        chatClientStore.delete(id);
+      }
+    }
   }, RATE_LIMIT_CONFIG.CLEANUP_INTERVAL_MS);
 
   // Don't keep the process alive just for the cleanup timer
@@ -2671,6 +2796,8 @@ export function stopRateLimitCleanup(): void {
 export function clearAllRateLimits(): void {
   rateLimitStore.clear();
   writeRateLimitStore.clear();
+  chatClientStore.clear();
+  globalChatState = null;
 }
 
 /**
@@ -2684,6 +2811,11 @@ export function getRateLimitStoreSize(): number {
 /** Current number of tracked write-endpoint client keys. */
 export function getWriteRateLimitStoreSize(): number {
   return writeRateLimitStore.size;
+}
+
+/** Current number of tracked chat client keys (monitoring and tests). */
+export function getChatClientStoreSize(): number {
+  return chatClientStore.size;
 }
 
 /**

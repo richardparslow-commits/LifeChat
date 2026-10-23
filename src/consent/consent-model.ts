@@ -5,20 +5,27 @@
  * storage requirements, and the contact consent framework.
  */
 
+import { stat } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { config, isEphemeralServerlessPath } from '../config/app-config';
+import { isArchilStorageConfigured } from '../archil/disk';
 import { BoundedLruCache } from '../persistence/bounded-lru';
 import {
   appendJsonlLine,
   findJsonlRecord,
+  findLastJsonlRecord,
+  forEachJsonlLine,
   readJsonlLines,
   removeLogFile,
+  replaceJsonlLines,
 } from '../persistence/jsonl-log';
 import type { CanonicalConditionRef } from '../medical/condition-crosswalk';
 import {
   encryptRecordLine,
   decryptRecordLine,
   isEncryptedRecordLine,
+  isLegacyPlaintextRecordAllowed,
+  isLegacyPlaintextRecordLine,
   isRecordEncryptionConfigured,
 } from '../privacy/record-encryption';
 
@@ -119,6 +126,19 @@ export interface MedicalProfile {
 }
 
 /**
+ * True when the record carries a consented medical profile (SEC-18).
+ *
+ * `medical_profile` is populated only on the consented Phase 2 path, so a
+ * non-null profile is a TDPSA sensitive-health payload: date of birth,
+ * conditions, medications. Such a record must never be written in clear text,
+ * which is why the write below asks the encryption boundary to refuse the
+ * pilot-mode plaintext fallback for it.
+ */
+export function leadCarriesMedicalData(lead: LeadRecord): boolean {
+  return lead.medical_profile !== null;
+}
+
+/**
  * Fields that are FORBIDDEN in analytics and routine model logs (Section 4.7).
  */
 export const FORBIDDEN_ANALYTICS_FIELDS = [
@@ -210,27 +230,239 @@ export const MAX_CACHED_LEAD_RECORDS = 5000;
 const leadRecords = new BoundedLruCache<string, LeadRecord>(MAX_CACHED_LEAD_RECORDS);
 
 /**
- * Session id → lead id, so a chat turn can find its consent artifact in O(1).
+ * One line of the derived session → lead index.
  *
- * `null` is a *negative* entry: the log was scanned and no record carries this
- * session. Without it, every turn of a session that never submitted consent
- * would re-read the whole append-only log — a per-request O(file) scan on the
- * chat hot path. A local write stores the id over any negative entry, so
- * submitting consent later in the same process takes effect immediately; a
- * restart re-reads the log, so eviction changes lookup cost, never the answer.
+ * PII-free by construction. The consent artifact itself (name, email, phone,
+ * consent-copy hash) stays only in the encrypted lead record; this index holds
+ * the join key that lets a chat turn prove consent without decrypting the log.
  */
-const leadIdBySession = new BoundedLruCache<string, string | null>(MAX_CACHED_LEAD_RECORDS);
+export interface LeadSessionIndexEntry {
+  session_id: string;
+  lead_id: string;
+  created_at: string;
+}
+
+/**
+ * Session id → lead id for every consented session in the durable log.
+ *
+ * A plain Map rather than a bounded cache: this *is* the index, so a miss has
+ * to be meaningful. With `sessionIndexComplete` true, a session absent here has
+ * no consent record, which is the answer the chat hot path needs — the previous
+ * design scanned (and decrypted) the whole log on the first turn of every new
+ * visitor, measured at ~1.4 s for 3,397 records (C-07).
+ *
+ * Memory is proportional to the number of distinct consented sessions, not to
+ * the size of a decrypted log: one session id and one lead id per entry, with
+ * no PII. The lead cache above stays bounded because its values are full
+ * records.
+ */
+const leadIdBySession = new Map<string, string>();
+
+/**
+ * Sessions already scanned and found to have no record.
+ *
+ * Only the fallback path uses this: when the index cannot be loaded or
+ * rebuilt, a lookup streams the log, and remembering the misses keeps a session
+ * that never consented from re-reading the file on every turn.
+ */
+const scannedSessionMisses = new BoundedLruCache<string, null>(MAX_CACHED_LEAD_RECORDS);
+
+/** True once `leadIdBySession` reflects every record in the durable log. */
+let sessionIndexComplete = false;
+let sessionIndexPromise: Promise<void> | null = null;
 
 let loadPromise: Promise<void> | null = null;
 
-/** Streams the JSONL log into the cache. */
+/** Parses one index line defensively; a malformed line is ignored, not fatal. */
+function parseSessionIndexEntry(line: string): LeadSessionIndexEntry | null {
+  try {
+    const parsed = JSON.parse(line) as Partial<LeadSessionIndexEntry> | null;
+    if (!parsed || typeof parsed.session_id !== 'string' || typeof parsed.lead_id !== 'string') {
+      return null;
+    }
+    if (parsed.session_id.length === 0 || parsed.lead_id.length === 0) return null;
+    return {
+      session_id: parsed.session_id,
+      lead_id: parsed.lead_id,
+      created_at: typeof parsed.created_at === 'string' ? parsed.created_at : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when the index file is at least as new as the lead log.
+ *
+ * A consent write appends the lead first and the index line second, so an index
+ * older than the log means the index append (or a whole rebuild) did not land —
+ * exactly the case a restart has to repair by rebuilding. Archil objects expose
+ * no POSIX mtime, so there a non-empty index is trusted and only an empty one
+ * is rebuilt.
+ */
+async function indexCoversLeadLog(): Promise<boolean> {
+  if (isArchilStorageConfigured()) return true;
+  try {
+    const indexStat = await stat(config.leadSessionIndexPath);
+    const logStat = await stat(config.leadLogPath).catch(() => null);
+    if (logStat === null) return true; // nothing to index
+    return logStat.mtimeMs <= indexStat.mtimeMs;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Hydrates the session index from its file, rebuilding it when it is missing
+ * or older than the log. Resolves once `sessionIndexComplete` is settled.
+ */
+async function loadSessionIndexFromDisk(): Promise<void> {
+  if (!(await indexCoversLeadLog())) {
+    await rebuildLeadSessionIndex();
+    return;
+  }
+
+  const lines = await readJsonlLines(config.leadSessionIndexPath);
+  for (const line of lines) {
+    const entry = parseSessionIndexEntry(line);
+    if (entry) leadIdBySession.set(entry.session_id, entry.lead_id);
+  }
+
+  if (leadIdBySession.size === 0) {
+    // An empty index beside a log with records is not trustworthy. With no log
+    // (or an empty one) there is nothing to index, and a scan would only prove
+    // that again on every boot.
+    if (!isArchilStorageConfigured()) {
+      const logStat = await stat(config.leadLogPath).catch(() => null);
+      if (logStat === null || logStat.size === 0) {
+        sessionIndexComplete = true;
+        return;
+      }
+    }
+    await rebuildLeadSessionIndex();
+    return;
+  }
+  sessionIndexComplete = true;
+}
+
+/**
+ * Resolves once the session index has been loaded (or the attempt failed).
+ *
+ * Called at boot and lazily from the lookup, so a runtime that imports the app
+ * without running the Node entry point (the Sites Worker) still gets the index.
+ */
+export function ensureSessionIndexLoaded(): Promise<void> {
+  if (sessionIndexComplete) return Promise.resolve();
+  sessionIndexPromise ??= loadSessionIndexFromDisk().catch(() => {
+    // Fail safe, not silent: lookups stay correct by scanning the log, but the
+    // O(1) path is gone for this process until it restarts.
+    console.warn(
+      `WARNING: could not load the session index at ${config.leadSessionIndexPath}; ` +
+        'session consent lookups will scan the lead log until it is rebuilt.',
+    );
+  });
+  return sessionIndexPromise;
+}
+
+/** Result of a full rebuild, safe to print (never contains record contents). */
+export interface SessionIndexRebuildResult {
+  path: string;
+  sessionsIndexed: number;
+  recordsScanned: number;
+  unreadable: number;
+  written: boolean;
+}
+
+/**
+ * Rebuilds the PII-free session → lead index from the durable lead log.
+ *
+ * Streams the log, decrypting each record only to read `session_id`, `lead_id`
+ * and `created_at`, then replaces the index file in one atomic write. The
+ * in-memory map is replaced wholesale too, so an erasure or retention rewrite
+ * cannot leave a deleted session resolving to a deleted lead.
+ *
+ * Runs on boot when the index is missing or older than the log, after erasure
+ * and retention rewrites, and from `npm run records:index-sessions`.
+ */
+export async function rebuildLeadSessionIndex(): Promise<SessionIndexRebuildResult> {
+  const entries = new Map<string, LeadSessionIndexEntry>();
+  let recordsScanned = 0;
+  let unreadable = 0;
+
+  const complete = await forEachJsonlLine(config.leadLogPath, (line) => {
+    recordsScanned += 1;
+    let record: LeadRecord | null = null;
+    try {
+      const plain = decryptRecordLine(line);
+      record = plain === null ? null : (JSON.parse(plain) as LeadRecord);
+    } catch {
+      record = null;
+    }
+    if (!record || typeof record.lead_id !== 'string' || record.lead_id.length === 0) {
+      unreadable += 1;
+      return;
+    }
+    if (typeof record.session_id !== 'string' || record.session_id.length === 0) return;
+    // Append-only: the last record for a session supersedes an earlier one.
+    entries.set(record.session_id, {
+      session_id: record.session_id,
+      lead_id: record.lead_id,
+      created_at: typeof record.created_at === 'string' ? record.created_at : '',
+    });
+  });
+
+  if (!complete) {
+    // Never publish a truncated index: it would look authoritative and deny
+    // consent for every session after the point the read failed.
+    console.warn(
+      `WARNING: could not read all of ${config.leadLogPath}; the session index was left unchanged.`,
+    );
+    return {
+      path: config.leadSessionIndexPath,
+      sessionsIndexed: 0,
+      recordsScanned,
+      unreadable: unreadable + 1,
+      written: false,
+    };
+  }
+
+  leadIdBySession.clear();
+  scannedSessionMisses.clear();
+  for (const [sessionId, entry] of entries) {
+    leadIdBySession.set(sessionId, entry.lead_id);
+  }
+
+  const lines = [...entries.values()].map((entry) => JSON.stringify(entry));
+  const written = await replaceJsonlLines(config.leadSessionIndexPath, lines);
+
+  // The map is complete whether or not the file write landed; the file is only
+  // what saves the next process a scan.
+  sessionIndexComplete = true;
+
+  if (!written) {
+    console.warn(
+      'WARNING: rebuilt the session index in memory but could not write ' +
+        `${config.leadSessionIndexPath}; session lookups will rescan the lead log after a restart.`,
+    );
+  }
+
+  return {
+    path: config.leadSessionIndexPath,
+    sessionsIndexed: entries.size,
+    recordsScanned,
+    unreadable,
+    written,
+  };
+}
+
+/** Streams the JSONL log into the cache, without collecting the file. */
 async function loadLeadRecordsFromDisk(): Promise<void> {
   const logPath = config.leadLogPath;
-  const lines = await readJsonlLines(logPath);
   let skippedMissingKey = 0;
   let skippedUndecodable = 0;
+  let skippedPlaintext = 0;
 
-  for (const line of lines) {
+  await forEachJsonlLine(logPath, (line) => {
     try {
       const plain = decryptRecordLine(line);
       if (plain === null) {
@@ -243,22 +475,21 @@ async function loadLeadRecordsFromDisk(): Promise<void> {
           } else {
             skippedMissingKey++;
           }
+        } else if (isLegacyPlaintextRecordLine(line) && !isLegacyPlaintextRecordAllowed()) {
+          // SEC-15: an unauthenticated line is refused outside pilot mode. It is
+          // reported, not silently ignored, so an operator knows to rekey.
+          skippedPlaintext++;
         }
-        continue; // cannot decode — skip
+        return; // cannot decode — skip
       }
       const parsed = JSON.parse(plain) as LeadRecord;
       if (parsed && parsed.lead_id) {
         leadRecords.set(parsed.lead_id, parsed);
-        // The log is appended in submission order, so the last record for a
-        // session is also the one a lookup should reach first.
-        if (parsed.session_id) {
-          leadIdBySession.set(parsed.session_id, parsed.lead_id);
-        }
       }
     } catch {
       // skip malformed lines
     }
-  }
+  });
 
   if (skippedMissingKey > 0) {
     console.warn(
@@ -273,6 +504,13 @@ async function loadLeadRecordsFromDisk(): Promise<void> {
         'with the configured key — the key may have changed or the data may be corrupt.',
     );
   }
+  if (skippedPlaintext > 0) {
+    console.warn(
+      `WARNING: ${skippedPlaintext} unencrypted lead record(s) in ${logPath} were refused because ` +
+        'plaintext records are not accepted outside pilot mode. Run `npm run records:rekey` to ' +
+        'encrypt them under RECORD_ENCRYPTION_KEY.',
+    );
+  }
 }
 
 /**
@@ -285,6 +523,26 @@ async function loadLeadRecordsFromDisk(): Promise<void> {
 export function ensureLeadRecordsLoaded(): Promise<void> {
   loadPromise ??= loadLeadRecordsFromDisk();
   return loadPromise;
+}
+
+/**
+ * Re-reads the lead log after an out-of-band rewrite (erasure or retention),
+ * replacing both in-memory caches with what is actually on disk.
+ *
+ * The session index is rebuilt too: erasing a lead must also erase the
+ * session → lead mapping, or a later chat turn could resolve a deleted record.
+ */
+export async function reloadLeadRecords(): Promise<void> {
+  leadRecords.clear();
+  leadIdBySession.clear();
+  scannedSessionMisses.clear();
+  sessionIndexComplete = false;
+  sessionIndexPromise = null;
+  loadPromise = loadLeadRecordsFromDisk();
+  await loadPromise;
+  // A forced rebuild, not the mtime check: the file on disk still names every
+  // session that was erased, even though the log no longer has those records.
+  await rebuildLeadSessionIndex();
 }
 
 // Hydration is explicit: the entry point (src/index.ts) starts it at boot and
@@ -302,7 +560,14 @@ async function persistLeadRecord(lead: LeadRecord): Promise<boolean> {
     return false;
   }
   try {
-    return await appendJsonlLine(logPath, encryptRecordLine(JSON.stringify(lead)));
+    return await appendJsonlLine(
+      logPath,
+      encryptRecordLine(JSON.stringify(lead), {
+        // SEC-18: a medical profile fails closed without a key, in pilot mode
+        // too, rather than putting health data on disk as plaintext.
+        requireEncryption: leadCarriesMedicalData(lead),
+      }),
+    );
   } catch {
     // Fail closed: any unexpected error is a failed write, never a rejection
     // that would surface as a hanging request under Express 4.
@@ -325,27 +590,68 @@ async function persistLeadRecord(lead: LeadRecord): Promise<boolean> {
  */
 export async function saveLeadRecord(lead: LeadRecord): Promise<boolean> {
   await ensureLeadRecordsLoaded();
+  await ensureSessionIndexLoaded();
   if (!(await persistLeadRecord(lead))) {
     return false;
   }
   leadRecords.set(lead.lead_id, lead);
   if (lead.session_id) {
     leadIdBySession.set(lead.session_id, lead.lead_id);
+    // Keep the durable index in step. It is derived, so a failed append is not
+    // a failed consent — the lead itself is durable, and the next process sees
+    // a log newer than the index and rebuilds it.
+    const indexed = await appendJsonlLine(
+      config.leadSessionIndexPath,
+      JSON.stringify({
+        session_id: lead.session_id,
+        lead_id: lead.lead_id,
+        created_at: lead.created_at,
+      } satisfies LeadSessionIndexEntry),
+    );
+    if (!indexed) {
+      console.warn(
+        `WARNING: could not append to the session index at ${config.leadSessionIndexPath}; ` +
+          'the consent record was stored, and the index will be rebuilt from the lead log.',
+      );
+    }
   }
   return true;
 }
 
 /**
- * Finds the lead id submitted from a session, scanning the log on a cache miss.
+ * Finds the lead id submitted from a session.
+ *
+ * Index-first: the durable session index answers in O(1), including the
+ * common negative case of a visitor who has not consented. Only when the index
+ * could not be loaded does this fall back to scanning the log, and a scan miss
+ * is remembered so later turns on that session do not repeat it.
  */
 async function findLeadIdBySession(sessionId: string): Promise<string | undefined> {
-  const match = await findJsonlRecord<LeadRecord>(config.leadLogPath, (line) => {
+  const indexed = leadIdBySession.get(sessionId);
+  if (indexed !== undefined) return indexed;
+
+  await ensureSessionIndexLoaded();
+
+  const loaded = leadIdBySession.get(sessionId);
+  if (loaded !== undefined) return loaded;
+
+  // With a complete index, absence is the answer: no consent record exists
+  // for this session, and no log read is needed to prove it.
+  if (sessionIndexComplete) return undefined;
+
+  if (scannedSessionMisses.has(sessionId)) return undefined;
+  const match = await findLastJsonlRecord<LeadRecord>(config.leadLogPath, (line) => {
     const plain = decryptRecordLine(line);
     if (plain === null) return null;
     const parsed = JSON.parse(plain) as LeadRecord;
     return parsed && parsed.session_id === sessionId ? parsed : null;
   });
-  return match?.lead_id;
+  if (match) {
+    leadIdBySession.set(sessionId, match.lead_id);
+    return match.lead_id;
+  }
+  scannedSessionMisses.set(sessionId, null);
+  return undefined;
 }
 
 /**
@@ -382,11 +688,7 @@ export type ContactConsentVerification =
 export async function getVerifiedContactConsent(
   sessionId: string,
 ): Promise<ContactConsentVerification> {
-  let leadId = leadIdBySession.get(sessionId);
-  if (leadId === undefined) {
-    leadId = (await findLeadIdBySession(sessionId)) ?? null;
-    leadIdBySession.set(sessionId, leadId);
-  }
+  const leadId = await findLeadIdBySession(sessionId);
   if (!leadId) return { ok: false, reason: 'no_consent_record' };
 
   const record = await getLeadRecord(leadId);
@@ -478,15 +780,72 @@ export function listLeadRecords(): LeadRecord[] {
   return leadRecords.values();
 }
 
+/** Timestamp sort key; an unparseable date sorts last rather than throwing. */
+function createdAtMs(record: LeadRecord): number {
+  const parsed = Date.parse(record.created_at);
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * Every lead record in the durable log, newest first, de-duplicated by id.
+ *
+ * This is the read path for the operator export (SEC-08), and it deliberately
+ * does not use `listLeadRecords()`: that cache is bounded, so an export built
+ * from it would silently omit records the process had evicted while presenting
+ * itself as complete. The log is the record set.
+ *
+ * The log is append-only, so a later line for the same `lead_id` supersedes an
+ * earlier one. `unreadable` counts lines that could not be decoded (missing or
+ * wrong key, malformed envelope, invalid JSON) so the caller can refuse to
+ * return a partial export instead of hiding the gap. Ordering is newest first,
+ * with `lead_id` as the tie-break so pagination is stable across calls.
+ */
+export async function listAllLeadRecords(): Promise<{
+  records: LeadRecord[];
+  unreadable: number;
+}> {
+  const byId = new Map<string, LeadRecord>();
+  let unreadable = 0;
+
+  const complete = await forEachJsonlLine(config.leadLogPath, (line) => {
+    let parsed: LeadRecord | null = null;
+    try {
+      const plain = decryptRecordLine(line);
+      if (plain !== null) {
+        parsed = JSON.parse(plain) as LeadRecord;
+      }
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed.lead_id !== 'string' || parsed.lead_id.length === 0) {
+      unreadable += 1;
+      return;
+    }
+    byId.set(parsed.lead_id, parsed);
+  });
+  // A short read is a gap the caller must not mistake for a complete export.
+  if (!complete) unreadable += 1;
+
+  const records = [...byId.values()].sort(
+    (left, right) =>
+      createdAtMs(right) - createdAtMs(left) || left.lead_id.localeCompare(right.lead_id),
+  );
+  return { records, unreadable };
+}
+
 /**
  * Clears all lead records (testing). Also removes the JSONL log file so
  * tests start with a clean slate on disk as well as in memory.
  */
 export async function clearAllLeadRecords(): Promise<void> {
-  // Testing only: the durable log is removed below, so the session index must
-  // be emptied with it or a later lookup would resolve an id that is gone.
+  // Testing only: the durable log is removed below, so the derived session
+  // index must go with it or a later lookup would resolve an id that is gone.
   leadRecords.clear();
   leadIdBySession.clear();
+  scannedSessionMisses.clear();
+  sessionIndexComplete = false;
+  sessionIndexPromise = null;
+  await removeLogFile(config.leadSessionIndexPath);
   await removeLogFile(config.leadLogPath);
 }
 
@@ -540,11 +899,9 @@ export const PROCESSOR_CONTRACT_REQUIREMENTS = [
   'disclose_model_training_use',
 ] as const;
 
-/**
- * The recommended phone-consent copy for counsel review (Section 2.3).
- * This text must be reviewed and approved by counsel before use.
- */
-export const RECOMMENDED_PHONE_CONSENT_COPY = `Optional: I agree that Life Policy Pilot and Richard Parslow may call or text the number I provide about my life-insurance inquiry, including using automated technology or an artificial/prerecorded voice if applicable. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to stop texts. See the Privacy Notice.`;
+// The canonical copies live in consent-copy.ts (pure copy, no config import),
+// and are re-exported here for the existing import sites.
+export { RECOMMENDED_PHONE_CONSENT_COPY, RECOMMENDED_EMAIL_CONSENT_COPY } from './consent-copy';
 
 /**
  * The recommended medical-consent copy for counsel review (Phase 2, Section 9.1).
@@ -552,7 +909,7 @@ export const RECOMMENDED_PHONE_CONSENT_COPY = `Optional: I agree that Life Polic
  * It must be presented through the application UI as an explicit, unchecked,
  * opt-in control — never inferred from continued chat or from contact consent.
  */
-export const RECOMMENDED_MEDICAL_CONSENT_COPY = `Optional: I consent to Life Policy Pilot and Richard Parslow collecting and using the medical information I provide in this chat (including date of birth, gender, height/weight, tobacco or nicotine use, diagnosed medical conditions, and prescribed medications) for the sole purpose of matching carriers to my profile for a life-insurance inquiry. I understand this is optional, that consent is not a condition of anything, that my information will be shared only with Richard Parslow, and that I can withdraw consent or request deletion at any time. See the Privacy Notice for full details.`;
+export const RECOMMENDED_MEDICAL_CONSENT_COPY = `Optional: I consent to Life Insurance Broker Advocate and Richard Parslow collecting and using the medical information I provide in this chat (including date of birth, gender, height/weight, tobacco or nicotine use, diagnosed medical conditions, and prescribed medications) for the sole purpose of matching carriers to my profile for a life-insurance inquiry. I understand this is optional, that consent is not a condition of anything, that my information will be shared only with Richard Parslow, and that I can withdraw consent or request deletion at any time. See the Privacy Notice for full details.`;
 
 /**
  * Just-in-time notice shown immediately before lead submission (Section 4.7).

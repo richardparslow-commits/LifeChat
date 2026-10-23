@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lifechat-sites-preview",
+  "main": "sites-entry.mjs",
+  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_date": "2026-10-20",
+  // The platform supplies env.ASSETS; this config exists only to emit the
+  // bundled module for the Sites manifest (the local/dev config adds assets).
+  "alias": {
+    "iconv-lite": "./iconv-lite-shim.cjs"
+  }
+}

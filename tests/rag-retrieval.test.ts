@@ -102,7 +102,7 @@ describe('RAG Retrieval — retrieveFromCorpus', () => {
     }
   });
 
-  test('NAIC main documents (tier 2) outrank Life Policy Pilot articles (tier 4)', () => {
+  test('NAIC main documents (tier 2) outrank Life Insurance Broker Advocate articles (tier 4)', () => {
     // "life insurance advertising" matches the NAIC Model 570 doc (product_category
     // 'advertising' = tier 2) and multiple blog education docs (tier 4). The
     // priority weight must rank the NAIC source above the blog articles even

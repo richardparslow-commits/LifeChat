@@ -66,9 +66,19 @@ export class FakeElement {
   disabled = false;
   placeholder = '';
   value = '';
+  /** Checkbox/radio state; the widget reads it to gate consent submission. */
+  checked = false;
   onclick: ((event: any) => void) | null = null;
   parentNode: FakeElement | null = null;
   childNodes: FakeElement[] = [];
+  /**
+   * The shadow root attached to this element, when it is a widget host.
+   *
+   * Like the real DOM, shadow children are not in `childNodes` and are not
+   * reachable from `document.getElementById` / `document.allById`: the whole
+   * point of the boundary is that a host page cannot query or restyle them.
+   */
+  shadowRoot: FakeElement | null = null;
   style: FakeStyle = createStyle();
   private attributes: Record<string, string> = {};
   private listeners: Record<string, ((event: any) => void)[]> = {};
@@ -115,6 +125,28 @@ export class FakeElement {
     child.parentNode = this;
     this.childNodes.push(child);
     return child;
+  }
+
+  /** Attaches an open shadow root, as the widget does for style isolation. */
+  attachShadow(options: { mode?: string } = {}): FakeElement {
+    if (this.shadowRoot) throw new Error('Element already hosts a shadow root');
+    if (options.mode !== 'open') throw new Error('Only open shadow roots are shimmed');
+    const root = new FakeElement('#shadow-root');
+    root.ownerDocument = this.ownerDocument;
+    this.shadowRoot = root;
+    return root;
+  }
+
+  /** Every element in this subtree carrying this id. */
+  allById(id: string): FakeElement[] {
+    return this.descendants().filter(
+      (element) => element.id === id || element.getAttribute('id') === id,
+    );
+  }
+
+  /** Id lookup within this subtree (used on a shadow root, scoped like the DOM). */
+  getElementById(id: string): FakeElement | null {
+    return this.allById(id)[0] ?? null;
   }
 
   removeChild(child: FakeElement): FakeElement {
@@ -351,6 +383,10 @@ export interface WidgetRun {
   window: FakeWindow;
   fetch: FakeFetch;
   timers: FakeTimers;
+  /** The single light-DOM node the widget adds. */
+  host: FakeElement;
+  /** The shadow tree the widget renders into. */
+  shadowRoot: FakeElement;
   widget: FakeElement;
   launcher: FakeElement;
   title: FakeElement;
@@ -409,6 +445,20 @@ export function executeWidget(source: string, env: WidgetEnvironment): void {
 }
 
 /**
+ * An element inside the widget's shadow root, by id.
+ *
+ * The widget's internals are deliberately not reachable from `document`, so a
+ * test that starts the script through `createEnvironment`/`executeWidget` uses
+ * this instead of `document.getElementById`.
+ */
+export function widgetElement(document: FakeDocument, id: string): FakeElement {
+  const host = document.getElementById('lpp-chat-widget-host');
+  const found = host?.shadowRoot?.getElementById(id);
+  if (!found) throw new Error(`Widget did not create #${id} inside its shadow root`);
+  return found;
+}
+
+/**
  * Execute the real widget source against a fresh document, and return the
  * handles a test needs. `source` is read from public/widget.js by the caller so
  * the test always runs the shipped file rather than a copy.
@@ -418,11 +468,12 @@ export function runWidget(source: string, options: WidgetOptions = {}): WidgetRu
   const { document, window, fetch, timers } = env;
   executeWidget(source, env);
 
-  const element = (id: string): FakeElement => {
-    const found = document.getElementById(id);
-    if (!found) throw new Error(`Widget did not create #${id}`);
-    return found;
-  };
+  const host = document.getElementById('lpp-chat-widget-host');
+  if (!host) throw new Error('Widget did not create #lpp-chat-widget-host');
+  const shadowRoot = host.shadowRoot;
+  if (!shadowRoot) throw new Error('The widget host has no shadow root');
+
+  const element = (id: string): FakeElement => widgetElement(document, id);
 
   const widget = element('lpp-chat-widget');
   const styleTag = element('lpp-chat-a11y-styles');
@@ -432,6 +483,8 @@ export function runWidget(source: string, options: WidgetOptions = {}): WidgetRu
     window,
     fetch,
     timers,
+    host,
+    shadowRoot,
     widget,
     launcher: element('lpp-chat-launcher'),
     title: element('lpp-chat-title'),

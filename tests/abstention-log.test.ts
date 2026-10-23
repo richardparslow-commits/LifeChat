@@ -2,12 +2,14 @@
  * Suite 11 — Abstention Logging for Content Strategy
  *
  * Verifies that abstentions (RAG insufficient evidence) are recorded as
- * anonymized JSONL entries: no raw question text, no PII — only a SHA-256 hash
- * of the question and an allowlisted category label. Covers the hash/category
- * helpers, the best-effort writer, the read/aggregate tools, the kill switch,
- * and the end-to-end orchestrator gate.
+ * anonymized JSONL entries: no raw question text, no PII — only an HMAC of the
+ * question (keyed with ABSTENTION_LOG_KEY, M-08) and an allowlisted category
+ * label. Covers the hash/category helpers, the key requirement, the best-effort
+ * writer, the read/aggregate tools, the kill switch, and the end-to-end
+ * orchestrator gate.
  */
 
+import { createHash } from 'crypto';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { existsSync, mkdirSync, rmSync, readFileSync } from 'fs';
@@ -15,7 +17,8 @@ import { existsSync, mkdirSync, rmSync, readFileSync } from 'fs';
 import { config } from '../src/config/app-config';
 import {
   normalizeQuestion,
-  sha256Hash,
+  hmacQuestionHash,
+  abstentionKeyId,
   deriveQuestionCategory,
   logAbstention,
   readAbstentionLog,
@@ -33,21 +36,28 @@ function makeLogPath(label: string): string {
   return join(dir, 'abstention-log.jsonl');
 }
 
-/** Point the shared config at a temp log for the duration of a test. */
+/** The key every test uses unless it is asserting on a missing/rotated one. */
+const TEST_KEY = 'test-abstention-key-0f9c2a7e41d8';
+
+/** Point the shared config at a temp log (and key) for the duration of a test. */
 async function withLogPath(
   path: string,
   enabled = true,
   fn: () => void | Promise<void>,
+  key: string = TEST_KEY,
 ): Promise<void> {
   const prevPath = config.abstentionLogPath;
   const prevEnabled = config.abstentionLoggingEnabled;
+  const prevKey = config.abstentionLogKey;
   config.abstentionLogPath = path;
   config.abstentionLoggingEnabled = enabled;
+  config.abstentionLogKey = key;
   try {
     await fn();
   } finally {
     config.abstentionLogPath = prevPath;
     config.abstentionLoggingEnabled = prevEnabled;
+    config.abstentionLogKey = prevKey;
   }
 }
 
@@ -56,10 +66,27 @@ describe('hash and category helpers', () => {
     expect(normalizeQuestion('  What   is  Term LIFE? ')).toBe('what is term life?');
   });
 
-  it('sha256Hash is deterministic', () => {
-    expect(sha256Hash('what is term life?')).toBe(sha256Hash('what is term life?'));
-    expect(sha256Hash('abc')).toMatch(/^[0-9a-f]{64}$/);
-    expect(sha256Hash('a')).not.toBe(sha256Hash('b'));
+  it('hmacQuestionHash is deterministic per key and not a bare digest', () => {
+    expect(hmacQuestionHash('what is term life?', TEST_KEY)).toBe(
+      hmacQuestionHash('what is term life?', TEST_KEY),
+    );
+    expect(hmacQuestionHash('abc', TEST_KEY)).toMatch(/^[0-9a-f]{64}$/);
+    expect(hmacQuestionHash('a', TEST_KEY)).not.toBe(hmacQuestionHash('b', TEST_KEY));
+    // The defect M-08 named: an unkeyed SHA-256 of the same text is a
+    // dictionary lookup away, so the stored value must not equal it.
+    expect(hmacQuestionHash('abc', TEST_KEY)).not.toBe(
+      createHash('sha256').update('abc').digest('hex'),
+    );
+    // A rotated key produces a different digest for the same question.
+    expect(hmacQuestionHash('abc', 'another-key-1234')).not.toBe(hmacQuestionHash('abc', TEST_KEY));
+  });
+
+  it('abstentionKeyId is stable, short and never the key', () => {
+    const id = abstentionKeyId(TEST_KEY);
+    expect(id).toMatch(/^[0-9a-f]{12}$/);
+    expect(id).toBe(abstentionKeyId(TEST_KEY));
+    expect(abstentionKeyId('another-key-1234')).not.toBe(id);
+    expect(abstentionKeyId('')).toBe('unconfigured');
   });
 
   it('deriveQuestionCategory returns empty for missing/general/unknown categories', () => {
@@ -71,7 +98,9 @@ describe('hash and category helpers', () => {
 
   it('deriveQuestionCategory prefers topicCategory over article topic', () => {
     expect(deriveQuestionCategory('term_life', 'Life insurance riders')).toBe('term_life');
-    expect(deriveQuestionCategory(null, 'Life insurance riders')).toBe('Life insurance riders');
+    // A non-allowlisted human label is categorized, never copied verbatim.
+    expect(deriveQuestionCategory(null, 'Life insurance riders')).toBe('other');
+    expect(deriveQuestionCategory('jane.doe@example.com')).toBe('other');
   });
 });
 
@@ -108,9 +137,25 @@ describe('logAbstention', () => {
       expect(entries).toHaveLength(1);
       expect(entries[0].question_category).toBe('texas_laws');
       expect(entries[0].question_text_hash).toBe(
-        sha256Hash('how do texas tax rules work for our policy?'),
+        hmacQuestionHash('how do texas tax rules work for our policy?', TEST_KEY),
       );
+      expect(entries[0].hash_key_id).toBe(abstentionKeyId(TEST_KEY));
     });
+  });
+
+  it('writes nothing when ABSTENTION_LOG_KEY is not configured', async () => {
+    const logPath = makeLogPath('nokey');
+    await withLogPath(
+      logPath,
+      true,
+      async () => {
+        // Fail closed rather than store an unkeyed digest (M-08).
+        await expect(logAbstention({ userMessage: 'I have HIV' })).resolves.toBeUndefined();
+        expect(existsSync(logPath)).toBe(false);
+        expect(await readAbstentionLog(10)).toEqual([]);
+      },
+      '',
+    );
   });
 
   it('does nothing when ABSTENTION_LOGGING_ENABLED is off', async () => {

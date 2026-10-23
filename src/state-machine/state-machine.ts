@@ -2,7 +2,7 @@
  * Conversation State Machine (Section 4.4 of the specification)
  *
  * Defines the states, entry conditions, allowed behaviors, and exit conditions
- * for the Life Policy Pilot AI Educational Assistant conversation flow.
+ * for the LifeChat AI Educational Assistant conversation flow.
  */
 
 export type ConversationState =
@@ -21,6 +21,33 @@ export type ConversationState =
   | 'handoff'
   | 'standby'
   | 'dime_estimator';
+
+/**
+ * Per-session loop-control counters (Section 4.4).
+ *
+ * They exist outside the transition context so the session store owns the
+ * counting and `getNextState` stays a pure function of its inputs. The route
+ * reads them before each turn and passes them in.
+ */
+export interface LoopControlState {
+  /** Clarifying questions already asked in the current ambiguity streak. */
+  clarificationFailures: number;
+  /** Qualification questions the assistant has asked this session. */
+  qualificationQuestionsAsked: number;
+  /**
+   * The visitor declined an optional offer (qualification, contact, booking,
+   * or medical review). Automatic re-offers are suppressed for the rest of
+   * the session; a fresh request from the visitor is the only way back in.
+   */
+  offerDeclined: boolean;
+}
+
+/** A session that has not tripped any loop control yet. */
+export const EMPTY_LOOP_CONTROLS: LoopControlState = {
+  clarificationFailures: 0,
+  qualificationQuestionsAsked: 0,
+  offerDeclined: false,
+};
 
 export interface StateTransitionContext {
   currentState: ConversationState;
@@ -47,6 +74,12 @@ export interface StateTransitionContext {
   bookingApiConfirms: boolean;
   riskOrEscalationTrigger: boolean;
   userDeclinesOrFlowEnds: boolean;
+  /**
+   * Loop-control counters for the session (Section 4.4). Optional so a
+   * transition with no session context (unit tests, a pure call) is treated
+   * as a fresh session rather than failing.
+   */
+  loopControl?: LoopControlState;
 }
 
 /**
@@ -55,6 +88,7 @@ export interface StateTransitionContext {
  */
 export function getNextState(ctx: StateTransitionContext): ConversationState | null {
   const { currentState } = ctx;
+  const loop = ctx.loopControl ?? EMPTY_LOOP_CONTROLS;
 
   switch (currentState) {
     case 'disclosure':
@@ -65,17 +99,23 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
       return null;
 
     case 'education':
-      // User asked an in-scope question → retrieve, answer, cite
+      // User asked an in-scope question → retrieve, answer, cite.
+      // After MAX_CLARIFICATION_FAILURES completed clarify turns the loop
+      // stops asking and hands the visitor to a human instead (Section 12).
       if (ctx.queryIsAmbiguous) {
-        return 'clarify';
+        return loop.clarificationFailures >= LOOP_CONTROLS.MAX_CLARIFICATION_FAILURES
+          ? 'handoff'
+          : 'clarify';
       }
       // User asked to estimate coverage needs → start the educational
       // DIME sub-flow (no recommendation, no quote)
       if (ctx.userRequestsDimeEstimator) {
         return 'dime_estimator';
       }
-      // After value delivered, optionally offer qualification
-      if (ctx.hasValueBeenDelivered && ctx.userShowsInterest) {
+      // After value delivered, optionally offer qualification — unless the
+      // visitor already declined an offer this session (no repeated
+      // persuasion). A fresh, explicit request is still honored below.
+      if (ctx.hasValueBeenDelivered && ctx.userShowsInterest && !loop.offerDeclined) {
         return 'qualification_offer';
       }
       // User requests followup or booking
@@ -97,6 +137,11 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
       // A coverage-needs request during clarification routes to the estimator
       if (ctx.userRequestsDimeEstimator) {
         return 'dime_estimator';
+      }
+      // Two failed clarifications is the cap: provide approved options and
+      // offer a human handoff rather than a third clarifying question.
+      if (loop.clarificationFailures >= LOOP_CONTROLS.MAX_CLARIFICATION_FAILURES) {
+        return 'handoff';
       }
       if (ctx.riskOrEscalationTrigger) {
         return 'handoff';
@@ -124,6 +169,12 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
       }
       if (ctx.userDeclinesOrFlowEnds) {
         return 'education';
+      }
+      // The session may ask at most MAX_QUALIFICATION_QUESTIONS questions. A
+      // fourth would exceed the approved loop, so the flow wraps up into the
+      // licensed-broker offer instead of asking again.
+      if (loop.qualificationQuestionsAsked >= LOOP_CONTROLS.MAX_QUALIFICATION_QUESTIONS) {
+        return 'contact_offer';
       }
       return 'qualification';
 
@@ -230,6 +281,28 @@ export function getNextState(ctx: StateTransitionContext): ConversationState | n
     default:
       return null;
   }
+}
+
+/**
+ * The state a turn is answered in, before the model has replied.
+ *
+ * A state's exit condition is usually a model-declared intent — does this
+ * message need clarification, did the visitor agree to qualification, did they
+ * decline? That intent does not exist until the response has been validated,
+ * so this function applies only application-verified events (a DIME request, a
+ * verified medical consent, a recorded contact consent or slot, a detected
+ * escalation) and leaves the states whose exit is the visitor's reply open.
+ * The intent-decided transition is computed by `getNextState` after validation
+ * and persisted only then (C-06).
+ */
+export function resolveTurnState(ctx: StateTransitionContext): ConversationState {
+  // `clarify` and `qualification_offer` are waiting for the visitor's answer to
+  // the question just asked; leaving them before that answer is judged would
+  // ask the model to answer from the wrong state (and reset the loop count).
+  if (ctx.currentState === 'clarify' || ctx.currentState === 'qualification_offer') {
+    return ctx.currentState;
+  }
+  return getNextState(ctx) ?? ctx.currentState;
 }
 
 /**

@@ -9,7 +9,7 @@
  *   boolean to fail closed), and read a missing file as "no records yet".
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -101,6 +101,17 @@ describe('jsonl-log', () => {
     // /dev/null cannot be a parent directory — the same failure mode as a
     // read-only or full volume, and the stores rely on the boolean.
     await expect(appendJsonlLine('/dev/null/records.jsonl', '{}')).resolves.toBe(false);
+  });
+
+  it('resolves false when the log path itself is a directory', async () => {
+    // The open, not the mkdir, is what fails here, and its error arrives on the
+    // end() callback. A callback that ignored that argument reported success
+    // for a write that never happened, so every store could acknowledge a
+    // record the disk never held.
+    const asDirectory = join(dir, 'log.jsonl');
+    mkdirSync(asDirectory);
+
+    await expect(appendJsonlLine(asDirectory, '{}')).resolves.toBe(false);
   });
 
   it('reads a missing file as no records, not an error', async () => {
